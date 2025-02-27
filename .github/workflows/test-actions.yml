@@ -1,0 +1,30 @@
+name: Test S3 Deploy
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-s3-deploy:
+    name: Test S3 Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        run: |
+          mkdir ./test-dir &&
+          touch test-dir/file.txt
+
+      - name: Test
+        uses: ./.github/actions/s3-deploy
+        with:
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          LOCAL_PATH: "./test-dir"
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          DELETE_FLAG: true
