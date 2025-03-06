@@ -6,10 +6,7 @@ on:
       PACKAGE_MANAGER:
         description: "Node package manager to use"
         default: yarn
-        type: choice
-        options: 
-          - yarn
-          - npm
+        type: string 
 
 jobs:
   install:

@@ -5,12 +5,8 @@ on:
     inputs:
       PACKAGE_MANAGER:
         description: "Node package manager to use"
-        required: true
         default: yarn
-        type: choice
-        options: 
-          - yarn
-          - npm
+        type: string 
       AWS_ACCESS_KEY_ID:
         description: "AWS access key"
         type: string
