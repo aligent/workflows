@@ -30,6 +30,11 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: ${{ inputs.PACKAGE_MANAGER }}
       - name: Build
         run: ${{ inputs.PACKAGE_MANAGER }} run build
 
@@ -37,6 +42,11 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: ${{ inputs.PACKAGE_MANAGER }}
       - name: Test
         run: ${{ inputs.PACKAGE_MANAGER }} run test
 
@@ -44,5 +54,10 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: ${{ inputs.PACKAGE_MANAGER }}
       - name: Lint
         run: ${{ inputs.PACKAGE_MANAGER }} run lint
