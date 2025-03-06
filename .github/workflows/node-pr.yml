@@ -1,0 +1,50 @@
+name: 🕵️ Node Pull Request Checks
+
+on:
+  workflow_call:
+    inputs:
+      PACKAGE_MANAGER:
+        description: "Node package manager to use"
+        default: yarn
+        type: choice
+        options: 
+          - yarn
+          - npm
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: ${{ inputs.PACKAGE_MANAGER }}
+
+      - name: Install dependencies
+        run: |
+          if [ ${{ inputs.PACKAGE_MANAGER }} -eq "yarn" ]; then
+            ${{ inputs.PACKAGE_MANAGER }}
+          else; 
+            ${{ inputs.PACKAGE_MANAGER }} ci
+
+  build:
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build
+        run: ${{ inputs.PACKAGE_MANAGER }} run build
+
+  test:
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test
+        run: ${{ inputs.PACKAGE_MANAGER }} run test
+
+  lint:
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lint
+        run: ${{ inputs.PACKAGE_MANAGER }} run lint
