@@ -34,7 +34,16 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: ${{ inputs.package-manager }}
-      - name: Install Dependencies
+
+      - name: Cache dependencies
+        id: node-cache
+        uses: actions/cache@v4
+        with:
+          path: ./node_modules
+          key: modules-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.node-cache.outputs.cache-hit != 'true'
         run: |
           if [ "${{ inputs.package-manager }}" = "yarn" ]; then
             yarn
@@ -82,6 +91,12 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: ${{ inputs.package-manager }}
+      - name: Load cached dependencies
+        id: node-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ./node_modules
+          key: modules-${{ hashFiles('package-lock.json') }}
       - name: Build
         run: ${{ inputs.package-manager }} run ${{ inputs.build-command }}
 
@@ -96,6 +111,12 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: ${{ inputs.package-manager }}
+      - name: Load cached dependencies
+        id: node-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ./node_modules
+          key: modules-${{ hashFiles('package-lock.json') }}
       - name: Test
         run: ${{ inputs.package-manager }} run ${{ inputs.test-command }}
 
@@ -110,6 +131,12 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: ${{ inputs.package-manager }}
+      - name: Load cached dependencies
+        id: node-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ./node_modules
+          key: modules-${{ hashFiles('package-lock.json') }}
       - name: Lint
         run: ${{ inputs.package-manager }} run ${{ inputs.lint-command }}
 
@@ -124,5 +151,11 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: ${{ inputs.package-manager }}
+      - name: Load cached dependencies
+        id: node-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ./node_modules
+          key: modules-${{ hashFiles('package-lock.json') }}
       - name: Format
         run: ${{ inputs.package-manager }} run ${{ inputs.format-command }}
