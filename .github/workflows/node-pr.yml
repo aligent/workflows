@@ -3,10 +3,26 @@ name: 🕵️ Node Pull Request Checks
 on:
   workflow_call:
     inputs:
-      PACKAGE_MANAGER:
+      package-manager:
         description: "Node package manager to use"
         default: yarn
         type: string 
+      build-command:
+        description: "Command to override the build command"
+        default: build
+        type: string
+      test-command:
+        description: "Command to override the test command"
+        default: test
+        type: string
+      lint-command:
+        description: "Command to override the lint command"
+        default: lint
+        type: string
+      format-command:
+        description: "Command to override the format command"
+        default: format
+        type: string
 
 jobs:
   install:
@@ -17,51 +33,96 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: ${{ inputs.PACKAGE_MANAGER }}
-
+          cache: ${{ inputs.package-manager }}
       - name: Install Dependencies
         run: |
-          if [ "${{ inputs.PACKAGE_MANAGER }}" = "yarn" ]; then
+          if [ "${{ inputs.package-manager }}" = "yarn" ]; then
             yarn
           else
             npm ci
           fi
 
+  check-commands:
+    name: 📝 Check Commands
+    runs-on: ubuntu-latest
+    outputs:
+      has-build: ${{ steps.check.outputs.has-build }}
+      has-test: ${{ steps.check.outputs.has-test }}
+      has-lint: ${{ steps.check.outputs.has-lint }}
+      has-format: ${{ steps.check.outputs.has-format }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: |
+          scripts=$(jq -r '.scripts | keys[]' package.json)
+
+          check_command() {
+            if echo "$scripts" | grep -q "^$1$"; then
+              echo "$1 script found"
+              echo "has-$1=true" >> $GITHUB_OUTPUT
+            else
+              echo "$1 script not found"
+              echo "has-$1=false" >> $GITHUB_OUTPUT
+            fi
+          }
+
+          check_command "${{ inputs.build-command }}"
+          check_command "${{ inputs.test-command }}"
+          check_command "${{ inputs.lint-command }}"
+          check_command "${{ inputs.format-command }}"
+
   build:
     name: 🏗️ Build
-    needs: install
+    needs: [install, check-commands]
+    if: needs.check-commands.outputs.has-build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: ${{ inputs.PACKAGE_MANAGER }}
+          cache: ${{ inputs.package-manager }}
       - name: Build
-        run: ${{ inputs.PACKAGE_MANAGER }} run build
+        run: ${{ inputs.package-manager }} run ${{ inputs.build-command }}
 
   test:
     name: 🧪 Test
-    needs: install
+    needs: [install, check-commands]
+    if: needs.check-commands.outputs.has-test == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: ${{ inputs.PACKAGE_MANAGER }}
+          cache: ${{ inputs.package-manager }}
       - name: Test
-        run: ${{ inputs.PACKAGE_MANAGER }} run test
+        run: ${{ inputs.package-manager }} run ${{ inputs.test-command }}
 
   lint:
     name: 🛞 Lint
-    needs: install
+    needs: [install, check-commands]
+    if: needs.check-commands.outputs.has-lint == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: ${{ inputs.PACKAGE_MANAGER }}
+          cache: ${{ inputs.package-manager }}
       - name: Lint
-        run: ${{ inputs.PACKAGE_MANAGER }} run lint
+        run: ${{ inputs.package-manager }} run ${{ inputs.lint-command }}
+
+  format:
+    name: 🖌️ Format
+    needs: [install, check-commands]
+    if: needs.check-commands.outputs.has-format == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: ${{ inputs.package-manager }}
+      - name: Format
+        run: ${{ inputs.package-manager }} run ${{ inputs.format-command }}
