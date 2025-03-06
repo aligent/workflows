@@ -18,12 +18,13 @@ jobs:
           node-version-file: .nvmrc
           cache: ${{ inputs.PACKAGE_MANAGER }}
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
-          if [ ${{ inputs.PACKAGE_MANAGER }} -eq "yarn" ]; then
-            ${{ inputs.PACKAGE_MANAGER }}
-          else; 
-            ${{ inputs.PACKAGE_MANAGER }} ci
+          if [ "${{ inputs.PACKAGE_MANAGER }}" = "yarn" ]; then
+            yarn
+          else
+            npm ci
+          fi
 
   build:
     needs: install
