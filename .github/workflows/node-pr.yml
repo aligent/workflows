@@ -10,6 +10,7 @@ on:
 
 jobs:
   install:
+    name: 🧶 Install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +28,7 @@ jobs:
           fi
 
   build:
+    name: 🏗️ Build
     needs: install
     runs-on: ubuntu-latest
     steps:
@@ -39,6 +41,7 @@ jobs:
         run: ${{ inputs.PACKAGE_MANAGER }} run build
 
   test:
+    name: 🧪 Test
     needs: install
     runs-on: ubuntu-latest
     steps:
@@ -51,6 +54,7 @@ jobs:
         run: ${{ inputs.PACKAGE_MANAGER }} run test
 
   lint:
+    name: 🛞 Lint
     needs: install
     runs-on: ubuntu-latest
     steps:
