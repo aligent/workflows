@@ -100,7 +100,7 @@ jobs:
   build:
     name: 🏗️ Build
     needs: [install, check-commands]
-    if: inputs.skip-build == 'false' && needs.check-commands.outputs.has-build == 'true'
+    if: inputs.skip-build == false && needs.check-commands.outputs.has-build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -120,7 +120,7 @@ jobs:
   test:
     name: 🧪 Test
     needs: [install, check-commands]
-    if: inputs.skip-test == 'false' && needs.check-commands.outputs.has-test == 'true'
+    if: inputs.skip-test == false && needs.check-commands.outputs.has-test == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -140,7 +140,7 @@ jobs:
   lint:
     name: 🛞 Lint
     needs: [install, check-commands]
-    if: inputs.skip-lint == 'false' && needs.check-commands.outputs.has-lint == 'true'
+    if: inputs.skip-lint == false && needs.check-commands.outputs.has-lint == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -160,7 +160,7 @@ jobs:
   format:
     name: 🖌️ Format
     needs: [install, check-commands]
-    if: inputs.skip-format == 'false' && needs.check-commands.outputs.has-format == 'true'
+    if: inputs.skip-format == false && needs.check-commands.outputs.has-format == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
