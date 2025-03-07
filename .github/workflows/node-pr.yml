@@ -66,9 +66,7 @@ jobs:
           name: node_modules
           if-no-files-found: error
           include-hidden-files: true
-          path: |
-            node_modules/
-            **/node_modules/
+          path: '**/node_modules'
           compression-level: 9
 
   check-commands:
