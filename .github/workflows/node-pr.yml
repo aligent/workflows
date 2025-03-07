@@ -65,6 +65,7 @@ jobs:
         with:
           name: node_modules
           if-no-files-found: error
+          include-hidden-files: true
           path: |
             node_modules/
             **/node_modules/
