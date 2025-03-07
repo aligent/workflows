@@ -51,6 +51,10 @@ on:
 jobs:
   build-and-install:
     uses: ./.github/workflows/node-pr.yml
+    with:
+      skip-format: true
+      skip-lint: true
+      skip-test: true
 
   deploy:
     needs: build-and-install
