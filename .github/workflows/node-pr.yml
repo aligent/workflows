@@ -54,7 +54,7 @@ jobs:
       - name: Install dependencies
         run: |
           if [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            yarn
+            yarn install --frozen-lockfile
           else
             npm ci
           fi
