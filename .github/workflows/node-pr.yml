@@ -23,6 +23,22 @@ on:
         description: "Command to override the format command"
         default: format
         type: string
+      skip-build:
+        description: "If the build step should skipped"
+        default: false
+        type: boolean
+      skip-test:
+        description: "If the test step should skipped"
+        default: false
+        type: boolean
+      skip-lint:
+        description: "If the lint step should skipped"
+        default: false
+        type: boolean
+      skip-format:
+        description: "If the format step should skipped"
+        default: false
+        type: boolean
 
 jobs:
   install:
@@ -86,7 +102,7 @@ jobs:
   build:
     name: 🏗️ Build
     needs: [install, check-commands]
-    if: needs.check-commands.outputs.has-build == 'true'
+    if: inputs.skip-build == true || needs.check-commands.outputs.has-build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -105,7 +121,7 @@ jobs:
   test:
     name: 🧪 Test
     needs: [install, check-commands]
-    if: needs.check-commands.outputs.has-test == 'true'
+    if: inputs.skip-test == true || needs.check-commands.outputs.has-test == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -124,7 +140,7 @@ jobs:
   lint:
     name: 🛞 Lint
     needs: [install, check-commands]
-    if: needs.check-commands.outputs.has-lint == 'true'
+    if: inputs.skip-lint == true || needs.check-commands.outputs.has-lint == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -143,7 +159,7 @@ jobs:
   format:
     name: 🖌️ Format
     needs: [install, check-commands]
-    if: needs.check-commands.outputs.has-format == 'true'
+    if: inputs.skip-format == true || needs.check-commands.outputs.has-format == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
