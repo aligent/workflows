@@ -1,35 +1,30 @@
-# Aligent GitHub Actions
+# Aligent GitHub Workflows 
 
 A collection of GitHub action workflows. Built using the [reusable workflows](https://docs.github.com/en/actions/sharing-automations/reusing-workflows) guide from GitHub.
 
-## Actions
+## Workflows
 
-### S3 Deploy
+### Node Pull Request Checks
 
 #### **Inputs**
-| Name          | Required | Type    | Default            | Description                 |
-|--------------|----------|---------|--------------------|-----------------------------|
-| aws-region   | ❌       | string  | ap-southeast-2    | AWS region                 |
-| s3-bucket    | ✅       | string  | -                  | Name of the S3 bucket      |
-| s3-path      | ❌       | string  | -                  | Path in the S3 bucket      |
-| local-path   | ✅       | string  | ""                 | Path to deploy             |
-| delete-flag  | ❌       | boolean | true               | Enable `--delete` flag     |
-| cache-control| ❌       | string  | -                  | Cache control headers      |
-| extra-args   | ❌       | string  | -                  | Additional AWS CLI args    |
-
-#### **Secrets**
-| Name                  | Required | Description                     |
-|-----------------------|----------|---------------------------------|
-| aws-access-key-id     | ✅       | AWS Access Key ID              |
-| aws-secret-access-key | ✅       | AWS Secret Access Key          |
+| Name          | Required | Type    | Default            | Description                        |
+|---------------|----------|---------|--------------------|------------------------------------|
+| package-manager | ❌      | string  | yarn               | Node package manager to use       |
+| build-command   | ❌      | string  | build              | Command to override the build command |
+| test-command    | ❌      | string  | test               | Command to override the test command |
+| lint-command    | ❌      | string  | lint               | Command to override the lint command |
+| format-command  | ❌      | string  | format             | Command to override the format command |
+| skip-build      | ❌      | boolean | false              | If the build step should be skipped |
+| skip-test       | ❌      | boolean | false              | If the test step should be skipped |
+| skip-lint       | ❌      | boolean | false              | If the lint step should be skipped |
+| skip-format     | ❌      | boolean | false              | If the format step should be skipped |
 
 #### Example Usage
 
 ```yaml
-uses: aligent/actions/.github/actions/s3-deploy@latest
-with:
-    s3-bucket: "bucket-name"
-secrets:
-    aws-access-key-id: ${{ secrets.aws-access-key-id }}
-    aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+jobs:
+  test-s3-deploy:
+    uses: aligent/workflows/.github/workflows/node-pr.yml@main
+    with:
+      skip-format: false
 ```
