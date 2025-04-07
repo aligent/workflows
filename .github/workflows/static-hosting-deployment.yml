@@ -1,0 +1,103 @@
+# WORK IN PROGRESS
+# Not ready for use yet
+
+name: 🚀 Static Hosting Deployment
+
+on:
+  workflow_call:
+    inputs:
+      PACKAGE_MANAGER:
+        description: "Node package manager to use"
+        default: yarn
+        type: string 
+      AWS_ACCESS_KEY_ID:
+        description: "AWS access key"
+        type: string
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        description: "AWS secret access key"
+        type: string
+        required: true
+      AWS_REGION:
+        description: "AWS region"
+        type: string
+        required: false
+        default: "ap-southeast-2"
+      S3_BUCKET:
+        description: "Name of the S3 bucket"
+        type: string
+        required: true
+      S3_PATH:
+        description: "Path in the S3 bucket"
+        type: string
+        required: false
+        default: ""
+      LOCAL_PATH:
+        description: "Path to deploy"
+        type: string
+        required: true
+        default: ""
+      DELETE_FLAG:
+        description: "Enable __delete flag"
+        type: string
+        required: false
+        default: "true"
+      CACHE_CONTROL:
+        description: "Cache control header"
+        type: string
+        required: false
+      EXTRA_ARGS:
+        description: "Additional AWS CLI arguments"
+        type: string
+        required: false
+
+jobs:
+  build-and-install:
+    uses: ./.github/workflows/node-pr.yml
+    with:
+      skip-format: true
+      skip-lint: true
+      skip-test: true
+
+  deploy:
+    needs: build-and-install
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check credentials
+        shell: sh
+        run: |
+          if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "AWS credentials are required!"
+            exit 1
+          fi
+        env:
+          AWS_ACCESS_KEY_ID: ${{ inputs.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ inputs.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Check delete flag
+        shell: sh
+        run: |
+          DELETE_FLAG=""
+          if [ "$DELETE_FLAG_INPUT" = "true" ]; then
+            DELETE_FLAG="--delete"
+          fi
+          echo "DELETE_FLAG=$DELETE_FLAG" >> $GITHUB_ENV
+        env:
+          DELETE_FLAG_INPUT: ${{ inputs.DELETE_FLAG }}
+
+      - name: Sync to S3
+        shell: sh
+        run: |
+          aws s3 sync "$LOCAL_PATH" "s3://$S3_BUCKET/$S3_PATH" \
+            --cache-control "$CACHE_CONTROL" \
+            ${DELETE_FLAG:+"$DELETE_FLAG"} \
+            ${EXTRA_ARGS:+"$EXTRA_ARGS"}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ inputs.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ inputs.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ inputs.AWS_REGION }}
+          S3_BUCKET: ${{ inputs.S3_BUCKET }}
+          S3_PATH: ${{ inputs.S3_PATH }}
+          LOCAL_PATH: ${{ inputs.LOCAL_PATH }}
+          CACHE_CONTROL: ${{ inputs.CACHE_CONTROL }}
+          EXTRA_ARGS: ${{ inputs.EXTRA_ARGS }}
