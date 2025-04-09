@@ -34,14 +34,14 @@ jobs:
 #### **Inputs**
 | Name                  | Required | Type    | Default         | Description                                |
 |--------------------- |----------|---------|-----------------|-------------------------------------------|
-| package-manager      | ❌       | string  | yarn            | Node package manager to use                |
-| build-command        | ❌       | string  | build           | Command to override the build command      |
 | aws-access-key-id    | ✅       | string  |                 | AWS Access Key                             |
 | aws-secret-access-key| ✅       | string  |                 | AWS Secret Access Key                      |
 | aws-profile          | ✅       | string  |                 | AWS Profile                                |
 | aws-region           | ❌       | string  | ap-southeast-2  | AWS Region to deploy to                    |
 | stage                | ✅       | string  |                 | Stage to deploy to                         |
 | command              | ❌       | string  | build           | Command to run during the deploy step      |
+| package-manager      | ❌       | string  | yarn            | Node package manager to use                |
+| build-command        | ❌       | string  | build           | Command to override the build command      |
 | debug                | ❌       | boolean | false           | If verbose logging should be enabled       |
 
 #### Example Usage

@@ -8,16 +8,6 @@ on:
       - development
   workflow_call:
     inputs:
-      package-manager:
-        description: "Node package manager to use"
-        type: string
-        required: false
-        default: "yarn"
-      build-command:
-        description: "Build command"
-        type: string
-        required: false
-        default: "build"
       aws-access-key-id:
         description: "AWS access key"
         type: string
@@ -44,6 +34,16 @@ on:
         type: string
         required: false
         default: "deploy"
+      package-manager:
+        description: "Node package manager to use"
+        type: string
+        required: false
+        default: "yarn"
+      build-command:
+        description: "Build command"
+        type: string
+        required: false
+        default: "build"
       debug:
         description: "Debug mode - enable verbose logging"
         type: boolean
