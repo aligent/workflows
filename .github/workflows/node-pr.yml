@@ -6,7 +6,7 @@ on:
       package-manager:
         description: "Node package manager to use"
         default: yarn
-        type: string 
+        type: string
       build-command:
         description: "Command to override the build command"
         default: build
@@ -39,6 +39,10 @@ on:
         description: "If the format step should skipped"
         default: false
         type: boolean
+      debug:
+        description: "If debug flags should be set"
+        default: false
+        type: boolean
 
 jobs:
   install:
@@ -55,9 +59,9 @@ jobs:
         run: |
           if [ "${{ inputs.package-manager }}" = "yarn" ]; then
             yarn config get nodeLinker
-            yarn install --frozen-lockfile --force
+            yarn install --frozen-lockfile --force ${{ inputs.debug && '--verbose' || '' }}
           else
-            npm ci
+            npm ci ${{ inputs.debug && '--verbose' || '' }}
           fi
 
       # Use tar to store cache so file permissions are maintained (https://github.com/actions/upload-artifact/issues/38)
@@ -115,7 +119,7 @@ jobs:
         run: tar -xvzf node_modules.tar.gz -C .
 
       - name: Build
-        run: ${{ inputs.package-manager }} run ${{ inputs.build-command }}
+        run: ${{ inputs.package-manager }} run ${{ inputs.build-command }} ${{ inputs.debug && '--verbose' || '' }}
 
   test:
     name: 🧪 Test
@@ -135,7 +139,7 @@ jobs:
         run: tar -xvzf node_modules.tar.gz -C .
 
       - name: Test
-        run: ${{ inputs.package-manager }} run ${{ inputs.test-command }}
+        run: ${{ inputs.package-manager }} run ${{ inputs.test-command }} ${{ inputs.debug && '--verbose' || '' }}
 
   lint:
     name: 🛞 Lint
@@ -155,7 +159,7 @@ jobs:
         run: tar -xvzf node_modules.tar.gz -C .
 
       - name: Lint
-        run: ${{ inputs.package-manager }} run ${{ inputs.lint-command }}
+        run: ${{ inputs.package-manager }} run ${{ inputs.lint-command }} ${{ inputs.debug && '--verbose' || '' }}
 
   format:
     name: 🖌️ Format
@@ -175,4 +179,4 @@ jobs:
         run: tar -xvzf node_modules.tar.gz -C .
 
       - name: Format
-        run: ${{ inputs.package-manager }} run ${{ inputs.format-command }}
+        run: ${{ inputs.package-manager }} run ${{ inputs.format-command }} ${{ inputs.debug && '--verbose' || '' }}
