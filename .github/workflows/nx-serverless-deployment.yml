@@ -1,0 +1,115 @@
+name: 🚀 Deploy
+
+on:
+  push:
+    branches:
+      - production
+      - staging
+      - development
+  workflow_call:
+    inputs:
+      package-manager:
+        description: "Node package manager to use"
+        type: string
+        required: false
+        default: "yarn"
+      build-command:
+        description: "Build command"
+        type: string
+        required: false
+        default: "build"
+      aws-access-key-id:
+        description: "AWS access key"
+        type: string
+        required: true
+      aws-secret-access-key:
+        description: "AWS secret access key"
+        type: string
+        required: true
+      aws-profile:
+        description: "AWS profile"
+        type: string
+        required: true
+      aws-region:
+        description: "AWS region"
+        type: string
+        required: false
+        default: "ap-southeast-2"
+      stage:
+        description: "Stage to deploy to"
+        type: string
+        required: true
+      command:
+        description: "Command to run"
+        type: string
+        required: false
+        default: "deploy"
+      debug:
+        description: "Debug mode - enable verbose logging"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  build-and-install:
+    uses: aligent/workflows/.github/workflows/node-pr.yml@main
+    with:
+      package-manager: ${{ inputs.package-manager }}
+      build-command: ${{ inputs.build-command }}
+      skip-test: true
+      skip-lint: true
+      skip-format: true
+
+  deploy:
+    needs: build-and-install
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🚧 Configure Serverless
+        run: |
+          echo "Configuring Serverless..."
+          npx serverless config credentials \
+            --provider aws \
+            --key ${{ env.AWS_ACCESS_KEY_ID }} \
+            --secret ${{ env.AWS_SECRET_ACCESS_KEY }} \
+            --profile ${{ env.AWS_PROFILE }}\
+            ${{ env.DEBUG == 'true' && ' --verbose' || '' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ inputs.aws-access-key-id }}
+          AWS_SECRET_ACCESS_KEY: ${{ inputs.aws-secret-access-key }}
+          AWS_PROFILE: ${{ inputs.aws-profile }}
+          AWS_REGION: ${{ inputs.aws-region }}
+          DEBUG: ${{ inputs.debug }}
+
+      - name: 🔍 Check repository type
+        id: repo-type
+        run: |
+          echo "Checking repository type..."
+          if [ -f "nx.json" ]; then
+            echo "is_monorepo=true" >> $GITHUB_OUTPUT
+            echo "Repository is a monorepo (nx.json found)"
+          else
+            echo "is_monorepo=false" >> $GITHUB_OUTPUT
+            echo "Repository is not a monorepo (nx.json not found)"
+          fi
+
+      - name: 🚀 Deploy
+        run: |
+          echo "Deploying to ${{ env.STAGE }}..."
+          if [ "${{ steps.repo-type.outputs.is_monorepo }}" = "true" ]; then
+            echo "Deploying monorepo..."
+            npx nx run-many -t ${{ env.COMMAND }} \
+              --stage ${{ env.STAGE }} \
+              --aws-profile ${{ env.AWS_PROFILE }} \
+              ${{ env.DEBUG == 'true' && ' --verbose' || '' }}
+          else
+            npx serverless ${{ env.COMMAND }} \
+              --stage ${{ env.STAGE }} \
+              --aws-profile ${{ env.AWS_PROFILE }} \
+              ${{ env.DEBUG == 'true' && ' --verbose' || '' }}
+          fi
+        env:
+          COMMAND: ${{ inputs.command }}
+          STAGE: ${{ inputs.stage }}
+          AWS_PROFILE: ${{ inputs.aws-profile }}
+          AWS_REGION: ${{ inputs.aws-region }}
+          DEBUG: ${{ inputs.debug }}
