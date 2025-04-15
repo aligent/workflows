@@ -53,6 +53,7 @@ jobs:
     with:
       aws-access-key-id: 123
       aws-secret-access-key: 456
+      aws-profile: my-profile
       stage: development
       debug: true
 ```
