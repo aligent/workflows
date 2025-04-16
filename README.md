@@ -1,4 +1,4 @@
-# Aligent GitHub Workflows 
+# Aligent GitHub Workflows
 
 A collection of GitHub action workflows. Built using the [reusable workflows](https://docs.github.com/en/actions/sharing-automations/reusing-workflows) guide from GitHub.
 
@@ -27,4 +27,33 @@ jobs:
     uses: aligent/workflows/.github/workflows/node-pr.yml@main
     with:
       skip-format: false
+```
+
+### Nx Serverless Deployment
+
+#### **Inputs**
+| Name                  | Required | Type    | Default         | Description                                |
+|--------------------- |----------|---------|-----------------|-------------------------------------------|
+| aws-access-key-id    | ✅       | string  |                 | AWS Access Key                             |
+| aws-secret-access-key| ✅       | string  |                 | AWS Secret Access Key                      |
+| aws-profile          | ✅       | string  |                 | AWS Profile                                |
+| aws-region           | ❌       | string  | ap-southeast-2  | AWS Region to deploy to                    |
+| stage                | ✅       | string  |                 | Stage to deploy to                         |
+| command              | ❌       | string  | build           | Command to run during the deploy step      |
+| package-manager      | ❌       | string  | yarn            | Node package manager to use                |
+| build-command        | ❌       | string  | build           | Command to override the build command      |
+| debug                | ❌       | boolean | false           | If verbose logging should be enabled       |
+
+#### Example Usage
+
+```yaml
+jobs:
+  deploy-serverless:
+    uses: aligent/workflows/.github/workflows/nx-serverless-deployment.yml@main
+    with:
+      aws-access-key-id: 123
+      aws-secret-access-key: 456
+      aws-profile: my-profile
+      stage: development
+      debug: true
 ```
