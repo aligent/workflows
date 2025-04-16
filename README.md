@@ -18,6 +18,7 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 | skip-test       | ❌      | boolean | false              | If the test step should be skipped |
 | skip-lint       | ❌      | boolean | false              | If the lint step should be skipped |
 | skip-format     | ❌      | boolean | false              | If the format step should be skipped |
+| debug           | ❌      | boolean | false              | If debug flags should be set |
 
 #### Example Usage
 
