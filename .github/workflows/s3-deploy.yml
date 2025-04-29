@@ -1,0 +1,81 @@
+name: S3 Deployment
+
+on:
+  workflow_call:
+    inputs:
+      aws-region:
+        description: "AWS region"
+        type: string
+        required: false
+        default: "ap-southeast-2"
+      s3-bucket:
+        description: "Name of the S3 bucket"
+        type: string
+        required: true
+      s3-path:
+        description: "Path in the S3 bucket"
+        type: string
+        required: false
+      local-path:
+        description: "Path to deploy"
+        type: string
+        required: true
+        default: ""
+      delete-flag:
+        description: "Path to deploy"
+        type: boolean
+        required: false
+        default: true
+      cache-control:
+        description: "Cache control headers"
+        type: string
+        required: false
+      extra-args:
+        description: "Additional AWS CLI args"
+        type: string
+        required: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@latest
+
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@latest
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Deploy to S3
+
+        run: |
+          s3_path=""
+          cache_control=""
+          extra_args=""
+
+          if [ -n "${{inputs.s3-path}}" ]; then
+              s3_path="${{inputs.s3-path}}"
+          fi
+
+          if [ -n "${{inputs.cache-control}}" ]; then
+              cache_control="--cache-control \"$${{inputs.cache-control}}\""
+          fi
+
+          if [ -n "${{inputs.extra-args}}" ]; then
+              extra_args="${{inputs.extra-args}}"
+          fi
+
+          command="aws s3 sync ${{inputs.local-path}} s3://${{inputs.s3-bucket}}${s3_path} ${cache_control} ${extra_args}"
+
+          if [ "${{inputs.delete-flag}}" = "true" ]; then
+            command="$command --delete"
+          fi
+
+          command
+
+
+    
+
