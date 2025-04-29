@@ -50,7 +50,6 @@ jobs:
           aws-region: ${{ inputs.aws-region }}
 
       - name: Deploy to S3
-
         run: |
           s3_path=""
           cache_control=""
@@ -61,7 +60,7 @@ jobs:
           fi
 
           if [ -n "${{inputs.cache-control}}" ]; then
-              cache_control="--cache-control \"$${{inputs.cache-control}}\""
+              cache_control="--cache-control \"${{inputs.cache-control}}\""
           fi
 
           if [ -n "${{inputs.extra-args}}" ]; then
@@ -74,7 +73,7 @@ jobs:
             command="$command --delete"
           fi
 
-          command
+          $command
 
 
     
