@@ -10,7 +10,7 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 | Name          | Required | Type    | Default            | Description                        |
 |---------------|----------|---------|--------------------|------------------------------------|
 | package-manager | ❌      | string   | yarn             | Node package manager to use       |
-| is-yarn-berry   | ❌      | boolean  | false            | When `package-manager` is `yarn`, this can be used to indicate that the version of Yarn is v2 (Berry), which changes what flags we can pass to the command       |
+| is-yarn-classic   | ❌      | boolean  | false            | When `package-manager` is `yarn`, this can be used to indicate that the project uses a pre-Berry version of Yarn, which changes what flags we can pass to the command       |
 | skip-cache      | ❌      | boolean  | false            | When `package-manager` is `yarn`, this can be used to indicate that we should use the `--force` flag to tell Yarn to ignore cache and fetch dependencies from the package repository       |
 | build-command   | ❌      | string   | build            | Command to override the build command |
 | test-command    | ❌      | string   | test             | Command to override the test command |

@@ -7,8 +7,8 @@ on:
         description: "Node package manager to use"
         default: yarn
         type: string
-      is-yarn-berry:
-        description: "If Yarn Berry should be used"
+      is-yarn-classic:
+        description: "If Yarn (pre-Berry) should be used"
         default: false
         type: boolean
       build-command:
@@ -67,7 +67,7 @@ jobs:
         run: |
           debug=${{ inputs.debug && '--verbose' || '' }}
           if [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            lock_dependencies=${{ inputs.is-yarn-berry && '--immutable' || '--frozen-lockfile' }}
+            lock_dependencies=${{ inputs.is-yarn-classic && '--frozen-lockfile' || '--immutable' }}
             skip-cache=${{ inputs.skip-cache && '--force' || '' }}
 
             yarn config get nodeLinker
