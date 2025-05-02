@@ -68,7 +68,7 @@ jobs:
           debug=${{ inputs.debug && '--verbose' || '' }}
           if [ "${{ inputs.package-manager }}" = "yarn" ]; then
             lock_dependencies=${{ inputs.is-yarn-classic && '--frozen-lockfile' || '--immutable' }}
-            skip-cache=${{ inputs.skip-cache && '--force' || '' }}
+            skip_cache=${{ inputs.skip-cache && '--force' || '' }}
 
             yarn config get nodeLinker
             yarn install $lock_dependencies $skip_cache $debug
