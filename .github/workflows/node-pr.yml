@@ -7,6 +7,10 @@ on:
         description: "Node package manager to use"
         default: yarn
         type: string
+      is-yarn-classic:
+        description: "If Yarn (pre-Berry) should be used"
+        default: false
+        type: boolean
       build-command:
         description: "Command to override the build command"
         default: build
@@ -39,6 +43,10 @@ on:
         description: "If the format step should skipped"
         default: false
         type: boolean
+      skip-cache:
+        description: "If the cache should be skipped when installing dependencies"
+        default: false
+        type: boolean
       debug:
         description: "If debug flags should be set"
         default: false
@@ -57,11 +65,15 @@ jobs:
 
       - name: Install dependencies
         run: |
+          debug=${{ inputs.debug && '--verbose' || '' }}
           if [ "${{ inputs.package-manager }}" = "yarn" ]; then
+            lock_dependencies=${{ inputs.is-yarn-classic && '--frozen-lockfile' || '--immutable' }}
+            skip-cache=${{ inputs.skip-cache && '--force' || '' }}
+
             yarn config get nodeLinker
-            yarn install --frozen-lockfile --force ${{ inputs.debug && '--verbose' || '' }}
+            yarn install $lock_dependencies $skip_cache $debug
           else
-            npm ci ${{ inputs.debug && '--verbose' || '' }}
+            npm ci $debug
           fi
 
       # Use tar to store cache so file permissions are maintained (https://github.com/actions/upload-artifact/issues/38)
