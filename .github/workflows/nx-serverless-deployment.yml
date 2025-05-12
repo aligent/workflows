@@ -1,11 +1,6 @@
 name: 🚀 Deploy
 
 on:
-  push:
-    branches:
-      - production
-      - staging
-      - development
   workflow_call:
     inputs:
       aws-access-key-id:
