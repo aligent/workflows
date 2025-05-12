@@ -16,13 +16,14 @@ on:
         description: "Path in the S3 bucket"
         type: string
         required: false
+        default: ""
       local-path:
         description: "Path to deploy"
         type: string
         required: true
         default: ""
       delete-flag:
-        description: "Path to deploy"
+        description: "Enable --delete flag"
         type: boolean
         required: false
         default: true
@@ -34,6 +35,7 @@ on:
         description: "Additional AWS CLI args"
         type: string
         required: false
+        default: ""
 
 jobs:
   deploy:
@@ -55,19 +57,11 @@ jobs:
           cache_control=""
           extra_args=""
 
-          if [ -n "${{inputs.s3-path}}" ]; then
-              s3_path="${{inputs.s3-path}}"
-          fi
-
           if [ -n "${{inputs.cache-control}}" ]; then
               cache_control="--cache-control \"${{inputs.cache-control}}\""
           fi
 
-          if [ -n "${{inputs.extra-args}}" ]; then
-              extra_args="${{inputs.extra-args}}"
-          fi
-
-          command="aws s3 sync ${{inputs.local-path}} s3://${{inputs.s3-bucket}}${s3_path} ${cache_control} ${extra_args}"
+          command="aws s3 sync ${{inputs.local-path}} s3://${{inputs.s3-bucket}}${{inputs.s3-path}} ${cache_control} ${{inputs.extra-args}}"
 
           if [ "${{inputs.delete-flag}}" = "true" ]; then
             command="$command --delete"
