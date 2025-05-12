@@ -35,13 +35,14 @@ jobs:
 ### Nx Serverless Deployment
 
 #### **Inputs**
-| Name                  | Required | Type    | Default         | Description                                |
-|--------------------- |----------|---------|-----------------|-------------------------------------------|
+| Name                  | Required | Type    | Default         | Description                               |
+|--------------------- |----------|---------|-----------------|--------------------------------------------|
 | aws-access-key-id    | ✅       | string  |                 | AWS Access Key                             |
 | aws-secret-access-key| ✅       | string  |                 | AWS Secret Access Key                      |
 | aws-profile          | ✅       | string  |                 | AWS Profile                                |
 | aws-region           | ❌       | string  | ap-southeast-2  | AWS Region to deploy to                    |
 | stage                | ✅       | string  |                 | Stage to deploy to                         |
+| environment          | ✅       | string  |                 | The GitHub environment to run in           |
 | command              | ❌       | string  | build           | Command to run during the deploy step      |
 | package-manager      | ❌       | string  | yarn            | Node package manager to use                |
 | build-command        | ❌       | string  | build           | Command to override the build command      |
@@ -57,6 +58,7 @@ jobs:
       aws-access-key-id: 123
       aws-secret-access-key: 456
       aws-profile: my-profile
-      stage: development
+      stage: dev
+      environment: development
       debug: true
 ```
