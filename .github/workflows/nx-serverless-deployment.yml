@@ -3,10 +3,6 @@ name: 🚀 Deploy
 on:
   workflow_call:
     inputs:
-      aws-profile:
-        description: "AWS profile"
-        type: string
-        required: true
       aws-region:
         description: "AWS region"
         type: string
@@ -70,12 +66,10 @@ jobs:
             --provider aws \
             --key ${{ env.AWS_ACCESS_KEY_ID }} \
             --secret ${{ env.AWS_SECRET_ACCESS_KEY }} \
-            --profile ${{ env.AWS_PROFILE }}\
             ${{ env.DEBUG == 'true' && ' --verbose' || '' }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.aws-access-key-id }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.aws-secret-access-key }}
-          AWS_PROFILE: ${{ inputs.aws-profile }}
           AWS_REGION: ${{ inputs.aws-region }}
           DEBUG: ${{ inputs.debug }}
 
@@ -98,17 +92,14 @@ jobs:
             echo "Deploying monorepo..."
             npx nx run-many -t ${{ env.COMMAND }} \
               --stage ${{ env.STAGE }} \
-              --aws-profile ${{ env.AWS_PROFILE }} \
               ${{ env.DEBUG == 'true' && ' --verbose' || '' }}
           else
             npx serverless ${{ env.COMMAND }} \
               --stage ${{ env.STAGE }} \
-              --aws-profile ${{ env.AWS_PROFILE }} \
               ${{ env.DEBUG == 'true' && ' --verbose' || '' }}
           fi
         env:
           COMMAND: ${{ inputs.command }}
           STAGE: ${{ inputs.stage }}
-          AWS_PROFILE: ${{ inputs.aws-profile }}
           AWS_REGION: ${{ inputs.aws-region }}
           DEBUG: ${{ inputs.debug }}
