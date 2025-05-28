@@ -1,11 +1,6 @@
 name: 🚀 Deploy
 
 on:
-  push:
-    branches:
-      - production
-      - staging
-      - development
   workflow_call:
     inputs:
       aws-profile:
@@ -19,6 +14,10 @@ on:
         default: "ap-southeast-2"
       stage:
         description: "Stage to deploy to"
+        type: string
+        required: true
+      environment:
+        description: "The GitHub environment to run the workflow in"
         type: string
         required: true
       command:
@@ -62,6 +61,7 @@ jobs:
   deploy:
     needs: build-and-install
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     steps:
       - name: 🚧 Configure Serverless
         run: |
