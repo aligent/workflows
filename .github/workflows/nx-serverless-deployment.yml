@@ -8,14 +8,6 @@ on:
       - development
   workflow_call:
     inputs:
-      aws-access-key-id:
-        description: "AWS access key"
-        type: string
-        required: true
-      aws-secret-access-key:
-        description: "AWS secret access key"
-        type: string
-        required: true
       aws-profile:
         description: "AWS profile"
         type: string
@@ -49,6 +41,13 @@ on:
         type: boolean
         required: false
         default: false
+    secrets:
+      aws-access-key-id:
+        description: "AWS access key"
+        required: true
+      aws-secret-access-key:
+        description: "AWS secret access key"
+        required: true
 
 jobs:
   build-and-install:
@@ -74,8 +73,8 @@ jobs:
             --profile ${{ env.AWS_PROFILE }}\
             ${{ env.DEBUG == 'true' && ' --verbose' || '' }}
         env:
-          AWS_ACCESS_KEY_ID: ${{ inputs.aws-access-key-id }}
-          AWS_SECRET_ACCESS_KEY: ${{ inputs.aws-secret-access-key }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.aws-access-key-id }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.aws-secret-access-key }}
           AWS_PROFILE: ${{ inputs.aws-profile }}
           AWS_REGION: ${{ inputs.aws-region }}
           DEBUG: ${{ inputs.debug }}
