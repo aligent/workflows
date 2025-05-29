@@ -70,14 +70,16 @@ jobs:
           else
             npm ci $debug
           fi
+
       - name: 🚧 Configure Serverless
         run: |
           echo "Configuring Serverless..."
+          verbose=$([ "$DEBUG" = "true" ] && echo "--verbose")
           npx serverless config credentials \
             --provider aws \
-            --key ${{ env.AWS_ACCESS_KEY_ID }} \
-            --secret ${{ env.AWS_SECRET_ACCESS_KEY }} \
-            ${{ env.DEBUG == 'true' && ' --verbose' || '' }}
+            --key "$AWS_ACCESS_KEY_ID" \
+            --secret "$AWS_SECRET_ACCESS_KEY" \
+            $verbose
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.aws-access-key-id }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.aws-secret-access-key }}
@@ -98,19 +100,17 @@ jobs:
 
       - name: 🚀 Deploy
         run: |
-          echo "Deploying to ${{ env.STAGE }}..."
+          echo "Deploying to ${STAGE}"
+
+          verbose=$([ "$DEBUG" = "true" ] && echo "--verbose")
+
           if [ "${{ steps.repo-type.outputs.is_monorepo }}" = "true" ]; then
             echo "Deploying monorepo..."
-            npx nx run-many -t ${{ env.COMMAND }} \
-              --stage ${{ env.STAGE }} \
-              ${{ env.DEBUG == 'true' && ' --verbose' || '' }}
+            npx nx run-many -t "$COMMAND" --stage "$STAGE" $verbose
           else
-            npx serverless ${{ env.COMMAND }} \
-              --stage ${{ env.STAGE }} \
-              ${{ env.DEBUG == 'true' && ' --verbose' || '' }}
+            npx serverless "$COMMAND" --stage "$STAGE" $verbose
           fi
         env:
           COMMAND: ${{ inputs.command }}
           STAGE: ${{ inputs.stage }}
-          AWS_REGION: ${{ inputs.aws-region }}
           DEBUG: ${{ inputs.debug }}
