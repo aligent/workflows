@@ -26,6 +26,10 @@ on:
         type: string
         required: false
         default: "yarn"
+      is-yarn-classic:
+        description: "If Yarn (pre-Berry) should be used"
+        default: false
+        type: boolean
       build-command:
         description: "Build command"
         type: string
@@ -45,20 +49,27 @@ on:
         required: true
 
 jobs:
-  build-and-install:
-    uses: aligent/workflows/.github/workflows/node-pr.yml@main
-    with:
-      package-manager: ${{ inputs.package-manager }}
-      build-command: ${{ inputs.build-command }}
-      skip-test: true
-      skip-lint: true
-      skip-format: true
-
   deploy:
-    needs: build-and-install
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: ${{ inputs.package-manager }}
+
+      - name: Install dependencies
+        run: |
+          debug=${{ inputs.debug && '--verbose' || '' }}
+          if [ "${{ inputs.package-manager }}" = "yarn" ]; then
+            lock_dependencies=${{ inputs.is-yarn-classic && '--frozen-lockfile' || '--immutable' }}
+
+            yarn config get nodeLinker
+            yarn install $lock_dependencies $skip_cache $debug
+          else
+            npm ci $debug
+          fi
       - name: 🚧 Configure Serverless
         run: |
           echo "Configuring Serverless..."
