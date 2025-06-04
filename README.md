@@ -39,6 +39,7 @@ jobs:
 |--------------------- |----------|---------|-----------------|--------------------------------------------|
 | aws-access-key-id    | ✅       | string  |                 | AWS Access Key                             |
 | aws-secret-access-key| ✅       | string  |                 | AWS Secret Access Key                      |
+| cfn-role             | ✅       | string  |                 | AWS CFN Role to assume                     |
 | aws-profile          | ✅       | string  |                 | AWS Profile                                |
 | aws-region           | ❌       | string  | ap-southeast-2  | AWS Region to deploy to                    |
 | stage                | ✅       | string  |                 | Stage to deploy to                         |
