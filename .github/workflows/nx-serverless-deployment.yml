@@ -61,21 +61,30 @@ jobs:
 
       - name: Install dependencies
         run: |
-          debug=${{ inputs.debug && '--verbose' || '' }}
-          if [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            lock_dependencies=${{ inputs.is-yarn-classic && '--frozen-lockfile' || '--immutable' }}
-            debug=${{ (inputs.debug && inputs.is-yarn-classic) && '--verbose' || '' }}
+          debug=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            debug="--verbose"
+          fi
 
+          lock_dependencies="--immutable"
+          if [ "${{ inputs.is-yarn-classic }}" = "true" ]; then
+            lock_dependencies="--frozen-lockfile"
+          fi
+
+          if [ "${{ inputs.package-manager }}" = "yarn" ]; then
             yarn config get nodeLinker
-            yarn install $lock_dependencies $skip_cache $debug
+            yarn install $lock_dependencies $debug
           else
             npm ci $debug
           fi
 
       - name: 🚧 Configure Serverless
         run: |
-          echo "Configuring Serverless..."
-          verbose=$([ "$DEBUG" = "true" ] && echo "--verbose")
+          verbose=""
+          if [ "$DEBUG" = "true" ]; then
+            verbose="--verbose"
+          fi
+
           npx serverless config credentials \
             --provider aws \
             --key "$AWS_ACCESS_KEY_ID" \
@@ -103,7 +112,10 @@ jobs:
         run: |
           echo "Deploying to ${STAGE}"
 
-          verbose=$([ "$DEBUG" = "true" ] && echo "--verbose")
+          verbose=""
+          if [ "$DEBUG" = "true" ]; then
+            verbose="--verbose"
+          fi
 
           if [ "${{ steps.repo-type.outputs.is_monorepo }}" = "true" ]; then
             echo "Deploying monorepo..."
