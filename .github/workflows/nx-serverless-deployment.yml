@@ -69,6 +69,8 @@ jobs:
           lock_dependencies="--immutable"
           if [ "${{ inputs.is-yarn-classic }}" = "true" ]; then
             lock_dependencies="--frozen-lockfile"
+          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
+            debug=""
           fi
 
           if [ "${{ inputs.package-manager }}" = "yarn" ]; then
