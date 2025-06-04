@@ -47,6 +47,9 @@ on:
       aws-secret-access-key:
         description: "AWS secret access key"
         required: true
+      cfn-role:
+        description: "The cfn role for the deploy user to assume"
+        required: true
 
 jobs:
   deploy:
@@ -92,10 +95,17 @@ jobs:
             --key "$AWS_ACCESS_KEY_ID" \
             --secret "$AWS_SECRET_ACCESS_KEY" \
             $verbose
+            
+          curl -L https://github.com/mikefarah/yq/releases/download/v4.45.4/yq_linux_amd64 > /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+
+          # Insert the cfnRole value into all serverless files
+          find services/*/ -name serverless.yml -exec sh -c 'yq -i ".provider.cfnRole = \"${0}\"" "$1"' "$CFN_ROLE" {} \;
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.aws-access-key-id }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.aws-secret-access-key }}
           AWS_REGION: ${{ inputs.aws-region }}
+          CFN_ROLE: ${{ secrets.cfn-role }}
           DEBUG: ${{ inputs.debug }}
 
       - name: 🔍 Check repository type
