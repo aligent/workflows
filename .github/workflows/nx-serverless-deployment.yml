@@ -112,6 +112,10 @@ jobs:
 
       - name: 🚀 Deploy
         run: |
+          if [ -z "${STAGE}" ]; then
+            STAGE=${{ vars.STAGE }} # Fall back to stage var
+          fi
+
           echo "Deploying to ${STAGE}"
 
           verbose=""
