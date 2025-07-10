@@ -1,0 +1,56 @@
+name: Magento Cloud Deploy
+
+on:
+  workflow_call:
+    inputs:
+      magento-cloud-remote:
+        description: "Git remote where commits will be relayed"
+        type: string
+        required: true
+      nr-app-id:
+        description: "Newrelic App ID"
+        type: string
+        required: false
+    
+      nr-alert-muting-rule-id: 
+        description: NewRelic Alert Mute Rule ID 
+        type: string
+        required: false
+      nr-account-id:
+        description: "NewRelic Account ID" 
+        type: string
+        required: false
+
+      debug:
+        description: "Turn on extra debug information" 
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      nr-user-key:
+        description: "NewRelic User Key" 
+        required: false
+      magento-cloud-cli-token:
+        description: "Magento Cluod Deploy User API token"
+        required: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make bash script executable
+        run: chmod +x ./scripts/adobe-commerce-deployment-bash.sh
+      
+      - name: Run script with Environment Variables
+        run: ./scripts/adobe-commerce-deployment-bash.sh
+        env:
+          MAGENTO_CLOUD_REMOTE: ${{ inputs.magento-cloud-remote }}
+          NR_APP_ID: ${{ inputs.nr-app-id }}
+          NR_USER_KEY: ${{ secrets.nr-user-key }}
+          NR_ALERT_MUTING_RULE_ID: ${{ inputs.nr-alert-muting-rule-id }}
+          NR_ACCOUNT_ID: ${{ inputs.nr-account-id }}
+          MAGENTO_CLOUD_CLI_TOKEN: ${{ secrets.magento-cloud-cli-token }}
+          DEBUG: ${{ inputs.debug }}
