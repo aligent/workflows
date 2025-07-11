@@ -1,0 +1,15 @@
+{"query":"mutation {
+  alertsMutingRuleUpdate(accountId: NR_ACCOUNT_ID, id: NR_ALERT_MUTING_RULE_ID, rule: {condition: {conditions: {attribute: \"accountId\", values: \"NR_ACCOUNT_ID\", operator: EQUALS}, operator: AND}, enabled: RULE_ENABLED}) {
+    accountId
+    condition {
+      conditions {
+        attribute
+        operator
+        values
+      }
+      operator
+    }
+    enabled
+  }
+}
+", "variables":""}
