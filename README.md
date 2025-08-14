@@ -80,7 +80,6 @@ A comprehensive Progressive Web Application deployment workflow supporting S3 st
 |------|----------|-------------|
 | aws-access-key-id | ✅ | AWS access key ID |
 | aws-secret-access-key | ✅ | AWS secret access key |
-| cloudfront-signing-key | ❌ | CloudFront signing key (optional, for signed URLs) |
 
 #### **Outputs**
 | Name | Description |

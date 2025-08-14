@@ -109,9 +109,6 @@ on:
       aws-secret-access-key:
         description: "AWS secret access key"
         required: true
-      cloudfront-signing-key:
-        description: "CloudFront signing key (optional, for signed URLs)"
-        required: false
 
     outputs:
       deployment-url:
