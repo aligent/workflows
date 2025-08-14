@@ -516,6 +516,143 @@ jobs:
       composer-args: "--no-dev"
 ```
 
+### CLI Tools Release
+
+A comprehensive CLI tools release workflow supporting OCLIF packaging, multi-platform compilation, S3-based distribution, GPG signing, Homebrew formula generation, and self-updating CLI capabilities with automated version management.
+
+#### **Features**
+- **OCLIF packaging**: Complete CLI bundling and optimization for multiple architectures
+- **Multi-platform builds**: Support for linux, darwin, windows across x64 and arm64
+- **S3 distribution**: Automated package distribution with versioned and latest channels
+- **GPG signing**: Optional cryptographic signing for release integrity and security
+- **Homebrew integration**: Automatic formula generation and tap repository updates
+- **Self-updating support**: Update manifest generation for CLI auto-update capabilities
+- **Version strategies**: Semantic versioning, git tags, and custom versioning support
+- **GitHub releases**: Automated release creation with comprehensive release notes
+- **Security validation**: Input validation and secure credential handling
+- **Debug support**: Verbose logging and comprehensive error reporting
+
+#### **Inputs**
+| Name | Required | Type | Default | Description |
+|------|----------|------|---------|-------------|
+| **Core Configuration** |
+| tool-name | ✅ | string | | CLI tool name (alphanumeric, hyphens, underscores only) |
+| version-strategy | ❌ | string | semantic | Version strategy (semantic/tag/custom) |
+| platforms | ❌ | string | linux-x64,darwin-x64,darwin-arm64 | Target platforms for compilation |
+| **Distribution Configuration** |
+| s3-bucket | ✅ | string | | S3 bucket for distribution (required) |
+| s3-path | ❌ | string | | S3 path prefix for distribution |
+| homebrew-tap | ❌ | string | | Homebrew tap repository (format: owner/repo) |
+| **Security Configuration** |
+| gpg-sign | ❌ | boolean | true | Enable GPG signing for release integrity |
+| **Release Configuration** |
+| create-release | ❌ | boolean | true | Create GitHub release with assets |
+| release-notes | ❌ | string | | Custom release notes (optional) |
+| **Technical Configuration** |
+| node-version | ❌ | string | 18 | Node.js version for OCLIF environment |
+| oclif-version | ❌ | string | | Pin specific OCLIF version (optional) |
+| aws-region | ❌ | string | ap-southeast-2 | AWS region for S3 distribution |
+| **Advanced Configuration** |
+| debug | ❌ | boolean | false | Enable verbose logging and debug output |
+
+#### **Secrets**
+| Name | Required | Description |
+|------|----------|-------------|
+| aws-access-key-id | ✅ | AWS access key ID for S3 distribution |
+| aws-secret-access-key | ✅ | AWS secret access key for S3 distribution |
+| gpg-private-key | ❌ | GPG private key for signing (recommended when gpg-sign enabled) |
+| gpg-passphrase | ❌ | GPG passphrase for signing (recommended when gpg-sign enabled) |
+| homebrew-github-token | ❌ | GitHub token for Homebrew tap updates (required for Homebrew) |
+
+#### **Outputs**
+| Name | Description |
+|------|-------------|
+| release-version | Released version identifier |
+| release-url | GitHub release URL |
+| distribution-urls | Distribution URLs as JSON object with platform mappings |
+| homebrew-formula | Homebrew formula update status |
+
+#### **Example Usage**
+
+**Basic CLI Release:**
+```yaml
+jobs:
+  release-cli:
+    uses: aligent/workflows/.github/workflows/cli-tools-release.yml@main
+    with:
+      tool-name: my-awesome-cli
+      s3-bucket: my-distribution-bucket
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+**Production Release with Signing and Homebrew:**
+```yaml
+jobs:
+  release-production:
+    uses: aligent/workflows/.github/workflows/cli-tools-release.yml@main
+    with:
+      tool-name: production-cli
+      version-strategy: semantic
+      platforms: "linux-x64,linux-arm64,darwin-x64,darwin-arm64,win32-x64"
+      s3-bucket: cli-releases-bucket
+      s3-path: "releases"
+      homebrew-tap: "myorg/homebrew-tools"
+      gpg-sign: true
+      create-release: true
+      node-version: "18"
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+      gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+      homebrew-github-token: ${{ secrets.HOMEBREW_TOKEN }}
+```
+
+**Custom Version with Debug:**
+```yaml
+jobs:
+  release-custom:
+    uses: aligent/workflows/.github/workflows/cli-tools-release.yml@main
+    with:
+      tool-name: beta-cli
+      version-strategy: custom
+      platforms: "linux-x64,darwin-x64"
+      s3-bucket: beta-releases
+      gpg-sign: false
+      create-release: true
+      debug: true
+      release-notes: |
+        Beta release with experimental features.
+        
+        ⚠️ This is a pre-release version for testing purposes.
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+**Cross-platform with Specific OCLIF Version:**
+```yaml
+jobs:
+  release-cross-platform:
+    uses: aligent/workflows/.github/workflows/cli-tools-release.yml@main
+    with:
+      tool-name: cross-platform-cli
+      version-strategy: tag
+      platforms: "linux-x64,linux-arm64,darwin-x64,darwin-arm64,win32-x64,win32-arm64"
+      s3-bucket: universal-cli-bucket
+      s3-path: "tools"
+      oclif-version: "3.0.0"
+      aws-region: "us-east-1"
+      gpg-sign: true
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+      gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+```
+
 ### BigCommerce Theme Deployment
 
 A comprehensive BigCommerce Stencil theme deployment workflow supporting theme bundling, environment promotion, asset optimization, backup/restore capabilities, and multi-environment deployment with comprehensive validation.

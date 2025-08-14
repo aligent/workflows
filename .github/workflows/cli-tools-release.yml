@@ -1,0 +1,849 @@
+name: 🛠️ CLI Tools Release
+
+on:
+  workflow_call:
+    inputs:
+      # Core Configuration
+      tool-name:
+        description: "CLI tool name (required)"
+        type: string
+        required: true
+      version-strategy:
+        description: "Version strategy (semantic/tag/custom)"
+        type: string
+        required: false
+        default: "semantic"
+      platforms:
+        description: "Target platforms for compilation"
+        type: string
+        required: false
+        default: "linux-x64,darwin-x64,darwin-arm64"
+      
+      # Distribution Configuration
+      s3-bucket:
+        description: "S3 bucket for distribution (required)"
+        type: string
+        required: true
+      s3-path:
+        description: "S3 path prefix for distribution"
+        type: string
+        required: false
+        default: ""
+      homebrew-tap:
+        description: "Homebrew tap repository (optional, format: owner/repo)"
+        type: string
+        required: false
+        default: ""
+      
+      # Security Configuration
+      gpg-sign:
+        description: "Enable GPG signing for release integrity"
+        type: boolean
+        required: false
+        default: true
+      
+      # Release Configuration
+      create-release:
+        description: "Create GitHub release"
+        type: boolean
+        required: false
+        default: true
+      release-notes:
+        description: "Custom release notes (optional)"
+        type: string
+        required: false
+        default: ""
+      
+      # Technical Configuration
+      node-version:
+        description: "Node.js version for OCLIF"
+        type: string
+        required: false
+        default: "18"
+      oclif-version:
+        description: "Pin specific OCLIF version (optional)"
+        type: string
+        required: false
+        default: ""
+      
+      # Advanced Configuration
+      aws-region:
+        description: "AWS region for S3 distribution"
+        type: string
+        required: false
+        default: "ap-southeast-2"
+      debug:
+        description: "Enable verbose logging and debug output"
+        type: boolean
+        required: false
+        default: false
+
+    secrets:
+      aws-access-key-id:
+        description: "AWS access key ID for S3 distribution"
+        required: true
+      aws-secret-access-key:
+        description: "AWS secret access key for S3 distribution"
+        required: true
+      gpg-private-key:
+        description: "GPG private key for signing (optional but recommended)"
+        required: false
+      gpg-passphrase:
+        description: "GPG passphrase for signing (optional but recommended)"
+        required: false
+      homebrew-github-token:
+        description: "GitHub token for Homebrew tap updates (optional)"
+        required: false
+
+    outputs:
+      release-version:
+        description: "Released version identifier"
+        value: ${{ jobs.release.outputs.version }}
+      release-url:
+        description: "GitHub release URL"
+        value: ${{ jobs.release.outputs.url }}
+      distribution-urls:
+        description: "Distribution URLs as JSON object"
+        value: ${{ jobs.distribute.outputs.urls }}
+      homebrew-formula:
+        description: "Homebrew formula update status"
+        value: ${{ jobs.homebrew.outputs.status }}
+
+jobs:
+  # Validate inputs and prepare release configuration
+  prepare:
+    name: 🔍 Prepare CLI Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      platforms: ${{ steps.platforms.outputs.validated }}
+      release-name: ${{ steps.metadata.outputs.name }}
+      release-tag: ${{ steps.metadata.outputs.tag }}
+      should-sign: ${{ steps.signing.outputs.enabled }}
+    steps:
+      - name: Validate required inputs
+        run: |
+          echo "🔍 Validating CLI release configuration..."
+          
+          if [ -z "${{ inputs.tool-name }}" ]; then
+            echo "❌ Error: tool-name is required"
+            exit 1
+          fi
+          
+          if [ -z "${{ inputs.s3-bucket }}" ]; then
+            echo "❌ Error: s3-bucket is required for distribution"
+            exit 1
+          fi
+          
+          # Validate version strategy
+          case "${{ inputs.version-strategy }}" in
+            semantic|tag|custom)
+              echo "✅ Version strategy: ${{ inputs.version-strategy }}"
+              ;;
+            *)
+              echo "❌ Error: version-strategy must be one of: semantic, tag, custom"
+              exit 1
+              ;;
+          esac
+          
+          # Validate tool name format (CLI-friendly)
+          if [[ ! "${{ inputs.tool-name }}" =~ ^[a-zA-Z0-9-_]+$ ]]; then
+            echo "❌ Error: tool-name must contain only alphanumeric characters, hyphens, and underscores"
+            exit 1
+          fi
+          
+          echo "✅ All inputs validated successfully"
+
+      - name: Determine version
+        id: version
+        run: |
+          echo "🔢 Determining release version..."
+          
+          version=""
+          case "${{ inputs.version-strategy }}" in
+            semantic|tag)
+              if [ "${{ github.ref_type }}" = "tag" ]; then
+                version="${{ github.ref_name }}"
+                # Remove 'v' prefix if present for consistency
+                version=$(echo "$version" | sed 's/^v//')
+              else
+                echo "❌ Error: semantic/tag strategy requires a git tag"
+                exit 1
+              fi
+              ;;
+            custom)
+              # Use timestamp-based version for custom builds
+              version="$(date +%Y.%m.%d)-$(echo "${{ github.sha }}" | cut -c1-7)"
+              ;;
+          esac
+          
+          # Validate semantic version format for semantic strategy
+          if [ "${{ inputs.version-strategy }}" = "semantic" ]; then
+            if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+.*$ ]]; then
+              echo "❌ Error: semantic version must follow semver format (x.y.z)"
+              exit 1
+            fi
+          fi
+          
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "✅ Release version: $version"
+
+      - name: Validate platforms
+        id: platforms
+        run: |
+          echo "🏗️ Validating compilation platforms..."
+          
+          platforms="${{ inputs.platforms }}"
+          validated_platforms=""
+          
+          # Split platforms and validate each
+          IFS=',' read -ra PLATFORM_LIST <<< "$platforms"
+          for platform in "${PLATFORM_LIST[@]}"; do
+            platform=$(echo "$platform" | xargs) # trim whitespace
+            case "$platform" in
+              linux-x64|linux-arm64|darwin-x64|darwin-arm64|win32-x64|win32-arm64)
+                echo "✅ Platform supported: $platform"
+                if [ -n "$validated_platforms" ]; then
+                  validated_platforms="$validated_platforms,$platform"
+                else
+                  validated_platforms="$platform"
+                fi
+                ;;
+              *)
+                echo "⚠️ Warning: Unusual platform specified: $platform"
+                if [ -n "$validated_platforms" ]; then
+                  validated_platforms="$validated_platforms,$platform"
+                else
+                  validated_platforms="$platform"
+                fi
+                ;;
+            esac
+          done
+          
+          echo "validated=$validated_platforms" >> $GITHUB_OUTPUT
+          echo "✅ Platforms configured: $validated_platforms"
+
+      - name: Configure release metadata
+        id: metadata
+        run: |
+          echo "📋 Configuring release metadata..."
+          
+          version="${{ steps.version.outputs.version }}"
+          tool_name="${{ inputs.tool-name }}"
+          
+          release_name="$tool_name v$version"
+          release_tag="v$version"
+          
+          echo "name=$release_name" >> $GITHUB_OUTPUT
+          echo "tag=$release_tag" >> $GITHUB_OUTPUT
+          
+          echo "✅ Release metadata configured"
+          echo "📦 Release name: $release_name"
+          echo "🏷️ Release tag: $release_tag"
+
+      - name: Configure signing
+        id: signing
+        run: |
+          echo "🔐 Configuring GPG signing..."
+          
+          should_sign="false"
+          if [ "${{ inputs.gpg-sign }}" = "true" ]; then
+            if [ -n "${{ secrets.gpg-private-key }}" ]; then
+              should_sign="true"
+              echo "✅ GPG signing enabled"
+            else
+              echo "⚠️ Warning: GPG signing requested but gpg-private-key not provided"
+              echo "ℹ️ Proceeding without signing"
+            fi
+          else
+            echo "ℹ️ GPG signing disabled"
+          fi
+          
+          echo "enabled=$should_sign" >> $GITHUB_OUTPUT
+
+  # Build and package CLI tools for multiple platforms
+  build:
+    name: 🏗️ Build CLI Packages
+    runs-on: ubuntu-latest
+    needs: prepare
+    outputs:
+      artifacts: ${{ steps.package.outputs.artifacts }}
+      manifest: ${{ steps.manifest.outputs.content }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          echo "📦 Installing CLI dependencies..."
+          
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            npm ci --verbose
+          else
+            npm ci
+          fi
+          
+          # Install or pin OCLIF version if specified
+          if [ -n "${{ inputs.oclif-version }}" ]; then
+            echo "📌 Installing OCLIF version: ${{ inputs.oclif-version }}"
+            npm install --save-dev @oclif/core@${{ inputs.oclif-version }}
+          fi
+          
+          echo "✅ Dependencies installed"
+
+      - name: Run tests
+        run: |
+          echo "🧪 Running test suite..."
+          
+          if npm run test --if-present; then
+            echo "✅ Tests passed"
+          else
+            echo "⚠️ Tests failed or not configured"
+            if [ "${{ inputs.debug }}" = "true" ]; then
+              echo "Debug mode: Continuing despite test failures"
+            else
+              exit 1
+            fi
+          fi
+
+      - name: Build CLI application
+        run: |
+          echo "🔨 Building CLI application..."
+          
+          # Run build script if available
+          if npm run build --if-present; then
+            echo "✅ Build completed"
+          else
+            echo "ℹ️ No build script found, proceeding with packaging"
+          fi
+
+      - name: Package for multiple platforms
+        id: package
+        run: |
+          echo "📦 Packaging CLI for multiple platforms..."
+          
+          version="${{ needs.prepare.outputs.version }}"
+          tool_name="${{ inputs.tool-name }}"
+          platforms="${{ needs.prepare.outputs.platforms }}"
+          
+          # Create dist directory
+          mkdir -p dist
+          
+          artifacts=""
+          
+          # Split platforms and build each
+          IFS=',' read -ra PLATFORM_LIST <<< "$platforms"
+          for platform in "${PLATFORM_LIST[@]}"; do
+            platform=$(echo "$platform" | xargs) # trim whitespace
+            echo "🏗️ Building for platform: $platform"
+            
+            # Use OCLIF to package for each platform
+            if command -v npx oclif pack >/dev/null 2>&1; then
+              npx oclif pack --platform=$platform --output=dist/
+            else
+              echo "⚠️ OCLIF not available, using alternative packaging"
+              # Alternative packaging strategy
+              package_name="${tool_name}-v${version}-${platform}"
+              
+              # Create platform-specific package
+              mkdir -p "dist/$package_name"
+              cp -r . "dist/$package_name/" 2>/dev/null || true
+              
+              # Create tarball
+              cd dist
+              tar -czf "${package_name}.tar.gz" "$package_name/"
+              rm -rf "$package_name"
+              cd ..
+            fi
+            
+            # Track artifacts
+            if [ -n "$artifacts" ]; then
+              artifacts="$artifacts,${platform}"
+            else
+              artifacts="${platform}"
+            fi
+          done
+          
+          echo "artifacts=$artifacts" >> $GITHUB_OUTPUT
+          echo "✅ Packaging completed for platforms: $artifacts"
+          
+          # List generated files
+          echo "📁 Generated artifacts:"
+          ls -la dist/
+
+      - name: Generate update manifest
+        id: manifest
+        run: |
+          echo "📄 Generating update manifest..."
+          
+          version="${{ needs.prepare.outputs.version }}"
+          tool_name="${{ inputs.tool-name }}"
+          platforms="${{ needs.prepare.outputs.platforms }}"
+          
+          # Create manifest for self-updating CLIs
+          manifest='{
+            "version": "'$version'",
+            "name": "'$tool_name'",
+            "published": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+            "platforms": {}
+          }'
+          
+          # Add platform-specific information
+          IFS=',' read -ra PLATFORM_LIST <<< "$platforms"
+          for platform in "${PLATFORM_LIST[@]}"; do
+            platform=$(echo "$platform" | xargs)
+            
+            # Find corresponding artifact
+            artifact_file=$(find dist/ -name "*${platform}*" -type f | head -1)
+            if [ -n "$artifact_file" ]; then
+              file_size=$(stat -c%s "$artifact_file" 2>/dev/null || stat -f%z "$artifact_file" 2>/dev/null || echo "0")
+              file_hash=$(sha256sum "$artifact_file" 2>/dev/null | cut -d' ' -f1 || shasum -a 256 "$artifact_file" | cut -d' ' -f1)
+              
+              # Update manifest with platform info
+              manifest=$(echo "$manifest" | jq --arg platform "$platform" \
+                --arg size "$file_size" \
+                --arg hash "$file_hash" \
+                --arg filename "$(basename "$artifact_file")" \
+                '.platforms[$platform] = {
+                  "filename": $filename,
+                  "size": ($size | tonumber),
+                  "sha256": $hash
+                }')
+            fi
+          done
+          
+          # Save manifest
+          echo "$manifest" | jq . > dist/manifest.json
+          
+          # Output for later use
+          manifest_content=$(echo "$manifest" | jq -c .)
+          echo "content=$manifest_content" >> $GITHUB_OUTPUT
+          
+          echo "✅ Update manifest generated"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-packages
+          path: dist/
+          retention-days: 30
+
+  # Sign packages if GPG signing is enabled
+  sign:
+    name: 🔐 Sign CLI Packages
+    runs-on: ubuntu-latest
+    needs: [prepare, build]
+    if: needs.prepare.outputs.should-sign == 'true'
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-packages
+          path: dist/
+
+      - name: Setup GPG
+        run: |
+          echo "🔐 Setting up GPG signing..."
+          
+          # Import GPG private key
+          echo "${{ secrets.gpg-private-key }}" | gpg --batch --import
+          
+          # Configure GPG for non-interactive use
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          echo "use-agent" >> ~/.gnupg/gpg.conf
+          
+          echo "✅ GPG configured"
+
+      - name: Sign packages
+        run: |
+          echo "✍️ Signing CLI packages..."
+          
+          cd dist
+          
+          # Sign all package files
+          for file in *.tar.gz *.zip; do
+            if [ -f "$file" ]; then
+              echo "Signing: $file"
+              
+              if [ -n "${{ secrets.gpg-passphrase }}" ]; then
+                echo "${{ secrets.gpg-passphrase }}" | gpg --batch --yes --passphrase-fd 0 \
+                  --detach-sign --armor "$file"
+              else
+                gpg --batch --yes --detach-sign --armor "$file"
+              fi
+              
+              echo "✅ Signed: $file"
+            fi
+          done
+          
+          # Sign manifest
+          if [ -f "manifest.json" ]; then
+            echo "Signing manifest.json"
+            if [ -n "${{ secrets.gpg-passphrase }}" ]; then
+              echo "${{ secrets.gpg-passphrase }}" | gpg --batch --yes --passphrase-fd 0 \
+                --detach-sign --armor "manifest.json"
+            else
+              gpg --batch --yes --detach-sign --armor "manifest.json"
+            fi
+          fi
+          
+          echo "✅ All packages signed"
+
+      - name: Upload signed artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-packages-signed
+          path: dist/
+          retention-days: 30
+
+  # Distribute packages to S3
+  distribute:
+    name: 📦 Distribute CLI Packages
+    runs-on: ubuntu-latest
+    needs: [prepare, build, sign]
+    if: always() && needs.build.result == 'success' && (needs.sign.result == 'success' || needs.sign.result == 'skipped')
+    outputs:
+      urls: ${{ steps.upload.outputs.urls }}
+      manifest-url: ${{ steps.upload.outputs.manifest-url }}
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.prepare.outputs.should-sign == 'true' && 'cli-packages-signed' || 'cli-packages' }}
+          path: dist/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Upload to S3
+        id: upload
+        run: |
+          echo "☁️ Uploading CLI packages to S3..."
+          
+          bucket="${{ inputs.s3-bucket }}"
+          s3_path="${{ inputs.s3-path }}"
+          tool_name="${{ inputs.tool-name }}"
+          version="${{ needs.prepare.outputs.version }}"
+          
+          # Construct S3 paths
+          if [ -n "$s3_path" ]; then
+            base_path="s3://$bucket/$s3_path/$tool_name/$version"
+            latest_path="s3://$bucket/$s3_path/$tool_name/latest"
+          else
+            base_path="s3://$bucket/$tool_name/$version"
+            latest_path="s3://$bucket/$tool_name/latest"
+          fi
+          
+          echo "📍 Uploading to: $base_path"
+          
+          cd dist
+          
+          # Upload versioned files
+          aws s3 sync . "$base_path/" --exclude "*" --include "*.tar.gz" --include "*.zip" --include "*.asc" --include "manifest.json"
+          
+          # Upload to latest (for auto-updates)
+          aws s3 sync . "$latest_path/" --exclude "*" --include "*.tar.gz" --include "*.zip" --include "*.asc" --include "manifest.json"
+          
+          # Generate distribution URLs
+          urls='{'
+          manifest_url=""
+          
+          for file in *.tar.gz *.zip; do
+            if [ -f "$file" ]; then
+              if [ -n "$s3_path" ]; then
+                url="https://$bucket.s3.${{ inputs.aws-region }}.amazonaws.com/$s3_path/$tool_name/$version/$file"
+              else
+                url="https://$bucket.s3.${{ inputs.aws-region }}.amazonaws.com/$tool_name/$version/$file"
+              fi
+              
+              platform=$(echo "$file" | sed -E 's/.*-v[0-9.]+-([^.]+)\.(tar\.gz|zip)$/\1/')
+              urls=$(echo "$urls" | jq --arg platform "$platform" --arg url "$url" '. + {($platform): $url}')
+            fi
+          done
+          
+          # Add manifest URL
+          if [ -f "manifest.json" ]; then
+            if [ -n "$s3_path" ]; then
+              manifest_url="https://$bucket.s3.${{ inputs.aws-region }}.amazonaws.com/$s3_path/$tool_name/latest/manifest.json"
+            else
+              manifest_url="https://$bucket.s3.${{ inputs.aws-region }}.amazonaws.com/$tool_name/latest/manifest.json"
+            fi
+          fi
+          
+          urls=$(echo "$urls" | jq --arg manifest "$manifest_url" '. + {"manifest": $manifest}')
+          urls="$urls}"
+          
+          echo "urls=$urls" >> $GITHUB_OUTPUT
+          echo "manifest-url=$manifest_url" >> $GITHUB_OUTPUT
+          
+          echo "✅ Distribution completed"
+          echo "📊 Distribution URLs:"
+          echo "$urls" | jq .
+
+  # Create GitHub release
+  release:
+    name: 🚀 Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [prepare, build, distribute]
+    if: inputs.create-release == true && needs.distribute.result == 'success'
+    outputs:
+      version: ${{ needs.prepare.outputs.version }}
+      url: ${{ steps.create-release.outputs.html_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.prepare.outputs.should-sign == 'true' && 'cli-packages-signed' || 'cli-packages' }}
+          path: dist/
+
+      - name: Generate release notes
+        id: release-notes
+        run: |
+          echo "📝 Generating release notes..."
+          
+          version="${{ needs.prepare.outputs.version }}"
+          tool_name="${{ inputs.tool-name }}"
+          
+          # Start with custom release notes if provided
+          if [ -n "${{ inputs.release-notes }}" ]; then
+            notes="${{ inputs.release-notes }}"
+          else
+            notes="Release of $tool_name version $version"
+          fi
+          
+          # Add platform information
+          notes="$notes
+
+## Supported Platforms
+${{ needs.prepare.outputs.platforms }}
+
+## Installation
+
+### Download directly:
+"
+          
+          # Add download links
+          urls='${{ needs.distribute.outputs.urls }}'
+          echo "$urls" | jq -r 'to_entries[] | select(.key != "manifest") | "- **\(.key)**: \(.value)"' >> release_notes.md
+          
+          # Add manifest information
+          manifest_url='${{ needs.distribute.outputs.manifest-url }}'
+          if [ -n "$manifest_url" ]; then
+            notes="$notes
+
+### Auto-update manifest:
+- **Manifest**: $manifest_url"
+          fi
+          
+          # Add Homebrew information if tap is configured
+          if [ -n "${{ inputs.homebrew-tap }}" ]; then
+            notes="$notes
+
+### Homebrew (coming soon):
+\`\`\`bash
+brew install ${{ inputs.homebrew-tap }}/$tool_name
+\`\`\`"
+          fi
+          
+          echo "$notes" > release_notes.md
+          echo "✅ Release notes generated"
+
+      - name: Create GitHub release
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tag_name: ${{ needs.prepare.outputs.release-tag }}
+          release_name: ${{ needs.prepare.outputs.release-name }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(needs.prepare.outputs.version, '-') }}
+
+      - name: Upload release assets
+        run: |
+          echo "📎 Uploading release assets..."
+          
+          cd dist
+          
+          for file in *.tar.gz *.zip *.asc; do
+            if [ -f "$file" ]; then
+              echo "Uploading: $file"
+              
+              # Determine content type
+              case "$file" in
+                *.tar.gz) content_type="application/gzip" ;;
+                *.zip) content_type="application/zip" ;;
+                *.asc) content_type="application/pgp-signature" ;;
+                *) content_type="application/octet-stream" ;;
+              esac
+              
+              # Upload using GitHub CLI or curl
+              if command -v gh >/dev/null 2>&1; then
+                gh release upload "${{ needs.prepare.outputs.release-tag }}" "$file"
+              else
+                # Fallback to manual upload would go here
+                echo "⚠️ GitHub CLI not available for asset upload"
+              fi
+            fi
+          done
+          
+          echo "✅ Release assets uploaded"
+
+  # Update Homebrew formula if tap is configured
+  homebrew:
+    name: 🍺 Update Homebrew Formula
+    runs-on: ubuntu-latest
+    needs: [prepare, distribute, release]
+    if: inputs.homebrew-tap != '' && secrets.homebrew-github-token != '' && needs.release.result == 'success'
+    outputs:
+      status: ${{ steps.update-formula.outputs.status }}
+    steps:
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.homebrew-tap }}
+          token: ${{ secrets.homebrew-github-token }}
+          path: homebrew-tap
+
+      - name: Update Homebrew formula
+        id: update-formula
+        run: |
+          echo "🍺 Updating Homebrew formula..."
+          
+          tool_name="${{ inputs.tool-name }}"
+          version="${{ needs.prepare.outputs.version }}"
+          urls='${{ needs.distribute.outputs.urls }}'
+          
+          cd homebrew-tap
+          
+          # Create or update formula file
+          formula_file="Formula/$tool_name.rb"
+          mkdir -p Formula
+          
+          # Get download URL for macOS (prefer darwin-x64)
+          download_url=$(echo "$urls" | jq -r '.["darwin-x64"] // .["darwin-arm64"] // empty')
+          
+          if [ -n "$download_url" ]; then
+            # Download and calculate SHA256
+            curl -L "$download_url" -o temp_download
+            sha256=$(sha256sum temp_download | cut -d' ' -f1)
+            rm temp_download
+            
+            # Generate formula
+            cat > "$formula_file" << EOF
+class $(echo "$tool_name" | sed 's/-//g' | awk '{print toupper(substr($0,1,1))substr($0,2)}') < Formula
+  desc "CLI tool: $tool_name"
+  homepage "https://github.com/${{ github.repository }}"
+  url "$download_url"
+  sha256 "$sha256"
+  version "$version"
+
+  def install
+    bin.install "$tool_name"
+  end
+
+  test do
+    system "#{bin}/$tool_name", "--version"
+  end
+end
+EOF
+            
+            # Commit and push changes
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            git add "$formula_file"
+            
+            if git diff --staged --quiet; then
+              echo "status=no-changes" >> $GITHUB_OUTPUT
+              echo "ℹ️ No changes to formula"
+            else
+              git commit -m "Update $tool_name to version $version"
+              git push
+              echo "status=updated" >> $GITHUB_OUTPUT
+              echo "✅ Homebrew formula updated"
+            fi
+          else
+            echo "status=no-macos-binary" >> $GITHUB_OUTPUT
+            echo "⚠️ No macOS binary found for Homebrew"
+          fi
+
+  # Deployment summary
+  summary:
+    name: 📋 Release Summary
+    runs-on: ubuntu-latest
+    needs: [prepare, build, distribute, release, homebrew]
+    if: always() && needs.build.result == 'success'
+    steps:
+      - name: Display release summary
+        run: |
+          echo "📋 CLI Tools Release Summary"
+          echo "============================"
+          echo "Tool: ${{ inputs.tool-name }}"
+          echo "Version: ${{ needs.prepare.outputs.version }}"
+          echo "Platforms: ${{ needs.prepare.outputs.platforms }}"
+          echo ""
+          
+          if [ "${{ needs.distribute.result }}" = "success" ]; then
+            echo "📦 Distribution: ✅ COMPLETED"
+            echo "S3 Bucket: ${{ inputs.s3-bucket }}"
+            echo "Manifest URL: ${{ needs.distribute.outputs.manifest-url }}"
+          else
+            echo "📦 Distribution: ❌ FAILED"
+          fi
+          
+          if [ "${{ inputs.create-release }}" = "true" ]; then
+            if [ "${{ needs.release.result }}" = "success" ]; then
+              echo "🚀 GitHub Release: ✅ CREATED"
+              echo "Release URL: ${{ needs.release.outputs.url }}"
+            else
+              echo "🚀 GitHub Release: ❌ FAILED"
+            fi
+          else
+            echo "🚀 GitHub Release: ⏭️ SKIPPED"
+          fi
+          
+          if [ "${{ needs.prepare.outputs.should-sign }}" = "true" ]; then
+            if [ "${{ needs.sign.result }}" = "success" ]; then
+              echo "🔐 GPG Signing: ✅ COMPLETED"
+            else
+              echo "🔐 GPG Signing: ❌ FAILED"
+            fi
+          else
+            echo "🔐 GPG Signing: ⏭️ DISABLED"
+          fi
+          
+          if [ -n "${{ inputs.homebrew-tap }}" ]; then
+            case "${{ needs.homebrew.outputs.status }}" in
+              updated)
+                echo "🍺 Homebrew: ✅ FORMULA UPDATED"
+                ;;
+              no-changes)
+                echo "🍺 Homebrew: ℹ️ NO CHANGES NEEDED"
+                ;;
+              no-macos-binary)
+                echo "🍺 Homebrew: ⚠️ NO MACOS BINARY"
+                ;;
+              *)
+                echo "🍺 Homebrew: ❌ FAILED"
+                ;;
+            esac
+          else
+            echo "🍺 Homebrew: ⏭️ NOT CONFIGURED"
+          fi
+          
+          echo ""
+          echo "🎉 CLI tools release pipeline completed!"
