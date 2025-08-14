@@ -4,6 +4,131 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 
 ## Workflows
 
+### AWS CDK Deployment
+
+A comprehensive AWS CDK deployment workflow supporting multi-environment infrastructure deployments, stack management, and infrastructure validation with approval gates.
+
+#### **Features**
+- **CDK synth → diff → deploy workflow**: Complete infrastructure deployment pipeline
+- **Multi-environment support**: development, staging, and production deployments
+- **Bootstrap validation**: Automatic CDK environment preparation and validation
+- **Infrastructure validation**: Comprehensive stack validation and drift detection
+- **Approval gates**: Manual approval workflows for production deployments
+- **Changeset preview**: CloudFormation diff analysis before deployment
+- **Rollback capabilities**: Support for stack destruction and rollback operations
+- **Node.js optimization**: Configurable Node.js versions with dependency caching
+- **Debug support**: Verbose logging and debug output for troubleshooting
+
+#### **Inputs**
+| Name | Required | Type | Default | Description |
+|------|----------|------|---------|-------------|
+| **Core Configuration** |
+| aws-region | ❌ | string | ap-southeast-2 | AWS region for deployment |
+| cdk-stack-name | ✅ | string | | CDK stack name to deploy (required) |
+| environment-target | ❌ | string | development | Target environment (staging/production/development) |
+| **Deployment Control** |
+| approval-required | ❌ | boolean | true | Require manual approval before deployment |
+| destroy-mode | ❌ | boolean | false | Destroy stack instead of deploying |
+| bootstrap-stack | ❌ | boolean | false | Bootstrap CDK environment before deployment |
+| **Node.js and CDK Configuration** |
+| node-version | ❌ | string | 18 | Node.js version to use |
+| cdk-version | ❌ | string | | Pin specific CDK version (optional) |
+| **Advanced Configuration** |
+| context-values | ❌ | string | {} | CDK context values as JSON object |
+| debug | ❌ | boolean | false | Enable verbose logging and debug output |
+
+#### **Secrets**
+| Name | Required | Description |
+|------|----------|-------------|
+| aws-access-key-id | ✅ | AWS access key ID |
+| aws-secret-access-key | ✅ | AWS secret access key |
+| cfn-execution-role | ❌ | CloudFormation execution role ARN (optional, for cross-account deployments) |
+
+#### **Outputs**
+| Name | Description |
+|------|-------------|
+| stack-outputs | CloudFormation stack outputs as JSON |
+| deployment-status | Deployment status (success/failed/destroyed) |
+
+#### **Example Usage**
+
+**Basic Development Deployment:**
+```yaml
+jobs:
+  deploy-dev:
+    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    with:
+      cdk-stack-name: my-app-dev
+      environment-target: development
+      approval-required: false
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+**Production Deployment with Manual Approval:**
+```yaml
+jobs:
+  deploy-prod:
+    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    with:
+      cdk-stack-name: my-app-prod
+      environment-target: production
+      approval-required: true
+      node-version: "18"
+      debug: true
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      cfn-execution-role: ${{ secrets.CFN_EXECUTION_ROLE }}
+```
+
+**Bootstrap New Environment:**
+```yaml
+jobs:
+  bootstrap-staging:
+    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    with:
+      cdk-stack-name: my-app-staging
+      environment-target: staging
+      bootstrap-stack: true
+      aws-region: us-east-1
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+**Custom CDK Context and Version:**
+```yaml
+jobs:
+  deploy-custom:
+    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    with:
+      cdk-stack-name: my-app-custom
+      environment-target: staging
+      cdk-version: "2.100.0"
+      context-values: '{"vpc-id": "vpc-12345", "environment": "staging"}'
+      node-version: "20"
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+**Destroy Stack:**
+```yaml
+jobs:
+  destroy-stack:
+    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    with:
+      cdk-stack-name: my-app-old
+      environment-target: development
+      destroy-mode: true
+      approval-required: false
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
 ### Node Pull Request Checks
 
 #### **Inputs**
