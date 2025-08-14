@@ -32,6 +32,117 @@ jobs:
       skip-format: false
 ```
 
+### Magento Cloud Deployment
+
+A comprehensive Magento Cloud deployment workflow supporting multi-environment deployments, ECE patches, dependency injection compilation, NewRelic monitoring, and production approval gates.
+
+#### **Features**
+- **Multi-environment support**: integration, staging, and production deployments
+- **PHP 8.1-8.3 support**: Magento-optimized container environments
+- **ECE patches integration**: Automatic application of Magento Cloud patches
+- **DI compilation**: Memory-optimized dependency injection compilation
+- **NewRelic integration**: Deployment markers and performance monitoring
+- **Production gates**: Manual approval workflow for production deployments
+- **CST system integration**: Version reporting to centralized tracking systems
+- **Full git history support**: Required for Magento Cloud deployment requirements
+- **Health monitoring**: Post-deployment verification and performance checks
+
+#### **Inputs**
+| Name | Required | Type | Default | Description |
+|------|----------|------|---------|-------------|
+| **Magento Cloud Configuration** |
+| magento-cloud-project-id | ✅ | string | | Magento Cloud project ID (required) |
+| environment | ❌ | string | integration | Target environment (integration/staging/production) |
+| **PHP Configuration** |
+| php-version | ❌ | string | 8.1 | PHP version for Magento (8.1, 8.2, 8.3) |
+| memory-limit | ❌ | string | -1 | PHP memory limit for compilation (-1 for unlimited) |
+| **Magento-specific Configuration** |
+| apply-patches | ❌ | boolean | true | Apply ECE patches before deployment |
+| di-compile | ❌ | boolean | true | Run dependency injection compilation |
+| **Deployment Control** |
+| manual-deploy | ❌ | boolean | false | Require manual approval for production deployments |
+| **Monitoring and Reporting** |
+| newrelic-app-id | ❌ | string | | NewRelic application ID for deployment markers (optional) |
+| **Advanced Configuration** |
+| debug | ❌ | boolean | false | Enable verbose logging and debug output |
+
+#### **Secrets**
+| Name | Required | Description |
+|------|----------|-------------|
+| magento-cloud-cli-token | ✅ | Magento Cloud CLI token for authentication |
+| newrelic-api-key | ❌ | NewRelic API key for deployment markers (optional) |
+| cst-reporting-token | ❌ | CST system reporting token (optional) |
+
+#### **Outputs**
+| Name | Description |
+|------|-------------|
+| deployment-url | URL of the deployed Magento application |
+| deployment-id | Magento Cloud deployment ID |
+
+#### **Example Usage**
+
+**Basic Integration Deployment:**
+```yaml
+jobs:
+  deploy-integration:
+    uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
+    with:
+      magento-cloud-project-id: abc123def456
+      environment: integration
+      php-version: "8.1"
+    secrets:
+      magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
+```
+
+**Production Deployment with Manual Approval:**
+```yaml
+jobs:
+  deploy-production:
+    uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
+    with:
+      magento-cloud-project-id: abc123def456
+      environment: production
+      php-version: "8.2"
+      manual-deploy: true
+      newrelic-app-id: "123456789"
+    secrets:
+      magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
+      newrelic-api-key: ${{ secrets.NEWRELIC_API_KEY }}
+      cst-reporting-token: ${{ secrets.CST_REPORTING_TOKEN }}
+```
+
+**Staging Deployment with Custom PHP and Debug:**
+```yaml
+jobs:
+  deploy-staging:
+    uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
+    with:
+      magento-cloud-project-id: abc123def456
+      environment: staging
+      php-version: "8.3"
+      memory-limit: "4G"
+      debug: true
+      apply-patches: true
+      di-compile: true
+    secrets:
+      magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
+```
+
+**Skip ECE Patches and DI Compilation:**
+```yaml
+jobs:
+  deploy-fast:
+    uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
+    with:
+      magento-cloud-project-id: abc123def456
+      environment: integration
+      apply-patches: false
+      di-compile: false
+      debug: true
+    secrets:
+      magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
+```
+
 ### Nx Serverless Deployment
 
 #### **Inputs**
