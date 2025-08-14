@@ -1,0 +1,607 @@
+name: 🐘 PHP Quality Checks
+
+on:
+  workflow_call:
+    inputs:
+      # PHP Configuration
+      php-version:
+        description: "PHP version to use (8.1, 8.2, 8.3)"
+        type: string
+        required: false
+        default: "8.1"
+      
+      # PHPStan Configuration
+      phpstan-level:
+        description: "PHPStan analysis level (1-9)"
+        type: string
+        required: false
+        default: "6"
+      skip-phpstan:
+        description: "Skip PHPStan static analysis"
+        type: boolean
+        required: false
+        default: false
+      
+      # PHP CodeSniffer Configuration
+      coding-standard:
+        description: "Coding standard to use (Magento2, PSR12, PSR2)"
+        type: string
+        required: false
+        default: "Magento2"
+      skip-phpcs:
+        description: "Skip PHP CodeSniffer checks"
+        type: boolean
+        required: false
+        default: false
+      
+      # Testing Configuration
+      coverage-threshold:
+        description: "Code coverage threshold percentage (0-100)"
+        type: string
+        required: false
+        default: "80"
+      skip-tests:
+        description: "Skip PHP unit testing"
+        type: boolean
+        required: false
+        default: false
+      
+      # Composer Configuration
+      composer-args:
+        description: "Additional composer install arguments"
+        type: string
+        required: false
+        default: ""
+      
+      # System Configuration
+      memory-limit:
+        description: "PHP memory limit for analysis tools"
+        type: string
+        required: false
+        default: "512M"
+      
+      # Debug Configuration
+      debug:
+        description: "Enable verbose logging and debug output"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  # Validate configuration and detect available tools
+  prepare:
+    name: 🔍 Prepare PHP Analysis
+    runs-on: ubuntu-latest
+    outputs:
+      has-composer: ${{ steps.check-files.outputs.has-composer }}
+      has-phpunit: ${{ steps.check-tools.outputs.has-phpunit }}
+      has-phpstan-config: ${{ steps.check-tools.outputs.has-phpstan-config }}
+      has-phpcs-config: ${{ steps.check-tools.outputs.has-phpcs-config }}
+      has-phpmd-config: ${{ steps.check-tools.outputs.has-phpmd-config }}
+      php-container: ${{ steps.php-config.outputs.container }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for required files
+        id: check-files
+        run: |
+          if [ -f "composer.json" ]; then
+            echo "✅ composer.json found"
+            echo "has-composer=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ composer.json not found"
+            echo "has-composer=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate PHP version
+        run: |
+          case "${{ inputs.php-version }}" in
+            8.1|8.2|8.3)
+              echo "✅ PHP version ${{ inputs.php-version }} is supported"
+              ;;
+            *)
+              echo "❌ Error: PHP version must be 8.1, 8.2, or 8.3"
+              exit 1
+              ;;
+          esac
+
+      - name: Validate PHPStan level
+        run: |
+          level="${{ inputs.phpstan-level }}"
+          if [[ "$level" =~ ^[1-9]$ ]]; then
+            echo "✅ PHPStan level $level is valid"
+          else
+            echo "❌ Error: PHPStan level must be between 1-9"
+            exit 1
+          fi
+
+      - name: Validate coding standard
+        run: |
+          case "${{ inputs.coding-standard }}" in
+            Magento2|PSR12|PSR2)
+              echo "✅ Coding standard ${{ inputs.coding-standard }} is supported"
+              ;;
+            *)
+              echo "❌ Error: Coding standard must be Magento2, PSR12, or PSR2"
+              exit 1
+              ;;
+          esac
+
+      - name: Set PHP container configuration
+        id: php-config
+        run: |
+          container="php:${{ inputs.php-version }}-cli-alpine"
+          echo "container=$container" >> $GITHUB_OUTPUT
+          echo "🐘 Using PHP container: $container"
+
+      - name: Check for analysis tool configurations
+        id: check-tools
+        run: |
+          # Check for PHPUnit
+          if [ -f "phpunit.xml" ] || [ -f "phpunit.xml.dist" ] || [ -f "phpunit.dist.xml" ]; then
+            echo "✅ PHPUnit configuration found"
+            echo "has-phpunit=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No PHPUnit configuration found"
+            echo "has-phpunit=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Check for PHPStan
+          if [ -f "phpstan.neon" ] || [ -f "phpstan.neon.dist" ] || [ -f "phpstan.dist.neon" ]; then
+            echo "✅ PHPStan configuration found"
+            echo "has-phpstan-config=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No PHPStan configuration found, will use defaults"
+            echo "has-phpstan-config=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Check for PHPCS
+          if [ -f "phpcs.xml" ] || [ -f "phpcs.xml.dist" ] || [ -f "phpcs.dist.xml" ] || [ -f ".phpcs.xml" ]; then
+            echo "✅ PHPCS configuration found"
+            echo "has-phpcs-config=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No PHPCS configuration found, will use standard"
+            echo "has-phpcs-config=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Check for PHPMD
+          if [ -f "phpmd.xml" ] || [ -f "phpmd.xml.dist" ] || [ -f "phpmd.dist.xml" ]; then
+            echo "✅ PHPMD configuration found"
+            echo "has-phpmd-config=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No PHPMD configuration found, will use defaults"
+            echo "has-phpmd-config=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Install Composer dependencies with caching
+  install:
+    name: 📦 Install Dependencies
+    needs: prepare
+    if: needs.prepare.outputs.has-composer == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.prepare.outputs.php-container }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: |
+          echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-php${{ inputs.php-version }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-php${{ inputs.php-version }}-
+            ${{ runner.os }}-composer-
+
+      - name: Install system dependencies
+        run: |
+          apk add --no-cache git unzip
+
+      - name: Install Composer
+        run: |
+          curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+          composer --version
+
+      - name: Validate composer.json and composer.lock
+        run: |
+          composer validate --strict ${{ inputs.debug && '--verbose' || '' }}
+
+      - name: Install dependencies
+        run: |
+          php -ini | grep memory_limit
+          php -d memory_limit=${{ inputs.memory-limit }} /usr/local/bin/composer install \
+            --no-progress \
+            --no-suggest \
+            --no-interaction \
+            --optimize-autoloader \
+            --classmap-authoritative \
+            ${{ inputs.composer-args }} \
+            ${{ inputs.debug && '--verbose' || '' }}
+
+      # Archive vendor directory for other jobs
+      - name: Archive vendor directory
+        run: tar -czf vendor.tar.gz vendor/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendor-php${{ inputs.php-version }}
+          path: vendor.tar.gz
+          retention-days: 1
+
+  # Composer security audit
+  security-audit:
+    name: 🔒 Security Audit
+    needs: [prepare, install]
+    if: needs.prepare.outputs.has-composer == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.prepare.outputs.php-container }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Composer
+        run: |
+          apk add --no-cache git unzip
+          curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract vendor directory
+        run: tar -xzf vendor.tar.gz
+
+      - name: Run Composer security audit
+        run: |
+          echo "🔒 Running Composer security audit..."
+          composer audit --format=table ${{ inputs.debug && '--verbose' || '' }}
+
+  # PHPStan static analysis
+  phpstan:
+    name: 🔍 PHPStan Analysis
+    needs: [prepare, install]
+    if: |
+      inputs.skip-phpstan == false && 
+      needs.prepare.outputs.has-composer == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.prepare.outputs.php-container }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install system dependencies
+        run: apk add --no-cache git
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract vendor directory
+        run: tar -xzf vendor.tar.gz
+
+      - name: Cache PHPStan results
+        uses: actions/cache@v4
+        with:
+          path: /tmp/phpstan
+          key: phpstan-php${{ inputs.php-version }}-${{ inputs.phpstan-level }}-${{ hashFiles('**/*.php') }}
+          restore-keys: |
+            phpstan-php${{ inputs.php-version }}-${{ inputs.phpstan-level }}-
+            phpstan-php${{ inputs.php-version }}-
+
+      - name: Run PHPStan analysis
+        run: |
+          echo "🔍 Running PHPStan analysis (Level ${{ inputs.phpstan-level }})..."
+          
+          # Check if PHPStan is installed
+          if [ -f "vendor/bin/phpstan" ]; then
+            phpstan_cmd="vendor/bin/phpstan"
+          else
+            echo "Installing PHPStan globally..."
+            composer global require phpstan/phpstan:^1.0
+            phpstan_cmd="phpstan"
+          fi
+
+          # Build PHPStan command
+          cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpstan_cmd analyse"
+          
+          # Use existing config or set defaults
+          if [ "${{ needs.prepare.outputs.has-phpstan-config }}" = "true" ]; then
+            echo "✅ Using existing PHPStan configuration"
+          else
+            echo "ℹ️ Using default PHPStan configuration"
+            cmd="$cmd --level=${{ inputs.phpstan-level }} src/ app/"
+          fi
+
+          # Add debug flags if enabled
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            cmd="$cmd --verbose --debug"
+          fi
+
+          # Execute PHPStan
+          eval $cmd
+
+  # PHP CodeSniffer style checks
+  phpcs:
+    name: 🎨 Code Style Check
+    needs: [prepare, install]
+    if: |
+      inputs.skip-phpcs == false && 
+      needs.prepare.outputs.has-composer == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.prepare.outputs.php-container }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install system dependencies
+        run: apk add --no-cache git
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract vendor directory
+        run: tar -xzf vendor.tar.gz
+
+      - name: Run PHP CodeSniffer
+        run: |
+          echo "🎨 Running PHP CodeSniffer (${{ inputs.coding-standard }} standard)..."
+          
+          # Check if PHPCS is installed
+          if [ -f "vendor/bin/phpcs" ]; then
+            phpcs_cmd="vendor/bin/phpcs"
+          else
+            echo "Installing PHP CodeSniffer globally..."
+            composer global require squizlabs/php_codesniffer:^3.0
+            phpcs_cmd="phpcs"
+            
+            # Install Magento2 standard if needed
+            if [ "${{ inputs.coding-standard }}" = "Magento2" ]; then
+              composer global require magento/magento-coding-standard:*
+            fi
+          fi
+
+          # Build PHPCS command
+          cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd"
+          
+          # Use existing config or set standard
+          if [ "${{ needs.prepare.outputs.has-phpcs-config }}" = "true" ]; then
+            echo "✅ Using existing PHPCS configuration"
+          else
+            echo "ℹ️ Using ${{ inputs.coding-standard }} coding standard"
+            cmd="$cmd --standard=${{ inputs.coding-standard }} src/ app/"
+          fi
+
+          # Add output formatting and debug flags
+          cmd="$cmd --report=full --colors"
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            cmd="$cmd --verbose"
+          fi
+
+          # Execute PHPCS
+          eval $cmd
+
+  # PHPMD mess detection
+  phpmd:
+    name: 🧹 Mess Detection
+    needs: [prepare, install]
+    if: needs.prepare.outputs.has-composer == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.prepare.outputs.php-container }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install system dependencies
+        run: apk add --no-cache git
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract vendor directory
+        run: tar -xzf vendor.tar.gz
+
+      - name: Run PHP Mess Detector
+        run: |
+          echo "🧹 Running PHP Mess Detector..."
+          
+          # Check if PHPMD is installed
+          if [ -f "vendor/bin/phpmd" ]; then
+            phpmd_cmd="vendor/bin/phpmd"
+          else
+            echo "Installing PHPMD globally..."
+            composer global require phpmd/phpmd:^2.0
+            phpmd_cmd="phpmd"
+          fi
+
+          # Build PHPMD command
+          cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpmd_cmd"
+          
+          # Use existing config or set defaults
+          if [ "${{ needs.prepare.outputs.has-phpmd-config }}" = "true" ]; then
+            echo "✅ Using existing PHPMD configuration"
+            cmd="$cmd src/,app/ text phpmd.xml"
+          else
+            echo "ℹ️ Using default PHPMD rules"
+            cmd="$cmd src/,app/ text cleancode,codesize,controversial,design,naming,unusedcode"
+          fi
+
+          # Add debug flags if enabled
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            cmd="$cmd --verbose"
+          fi
+
+          # Execute PHPMD (allow to fail as it's often too strict)
+          eval $cmd || echo "⚠️ PHPMD detected potential issues (non-blocking)"
+
+  # PHPUnit testing with coverage
+  test:
+    name: 🧪 Unit Tests
+    needs: [prepare, install]
+    if: |
+      inputs.skip-tests == false && 
+      needs.prepare.outputs.has-composer == 'true' &&
+      needs.prepare.outputs.has-phpunit == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.prepare.outputs.php-container }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install system dependencies
+        run: |
+          apk add --no-cache git
+          
+          # Install Xdebug for coverage
+          apk add --no-cache $PHPIZE_DEPS
+          pecl install xdebug
+          docker-php-ext-enable xdebug
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract vendor directory
+        run: tar -xzf vendor.tar.gz
+
+      - name: Run PHPUnit tests
+        run: |
+          echo "🧪 Running PHPUnit tests with coverage..."
+          
+          # Check if PHPUnit is installed
+          if [ -f "vendor/bin/phpunit" ]; then
+            phpunit_cmd="vendor/bin/phpunit"
+          else
+            echo "❌ PHPUnit not found in vendor/bin/"
+            exit 1
+          fi
+
+          # Build PHPUnit command with coverage
+          cmd="php -d memory_limit=${{ inputs.memory-limit }} -d xdebug.mode=coverage $phpunit_cmd"
+          cmd="$cmd --coverage-text --coverage-clover=coverage.xml"
+          
+          # Add debug flags if enabled
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            cmd="$cmd --verbose"
+          fi
+
+          # Execute PHPUnit
+          eval $cmd
+
+      - name: Check coverage threshold
+        run: |
+          threshold=${{ inputs.coverage-threshold }}
+          if [ -f "coverage.xml" ] && [ "$threshold" != "0" ]; then
+            echo "📊 Checking coverage threshold ($threshold%)..."
+            
+            # Extract coverage percentage from clover XML
+            coverage=$(php -r "
+              \$xml = simplexml_load_file('coverage.xml');
+              \$metrics = \$xml->project->metrics;
+              \$covered = (float)\$metrics['coveredstatements'];
+              \$total = (float)\$metrics['statements'];
+              \$percentage = \$total > 0 ? (\$covered / \$total) * 100 : 0;
+              echo round(\$percentage, 2);
+            ")
+            
+            echo "📊 Current coverage: $coverage%"
+            
+            # Compare with threshold
+            if (( $(echo "$coverage < $threshold" | bc -l) )); then
+              echo "❌ Coverage $coverage% is below threshold $threshold%"
+              exit 1
+            else
+              echo "✅ Coverage $coverage% meets threshold $threshold%"
+            fi
+          else
+            echo "ℹ️ Skipping coverage threshold check"
+          fi
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-php${{ inputs.php-version }}
+          path: coverage.xml
+          retention-days: 7
+
+  # Matrix testing across PHP versions
+  matrix-test:
+    name: 🔄 Matrix Testing
+    if: |
+      inputs.skip-tests == false && 
+      needs.prepare.outputs.has-composer == 'true' &&
+      needs.prepare.outputs.has-phpunit == 'true'
+    needs: [prepare, install]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ["8.1", "8.2", "8.3"]
+        exclude:
+          - php-version: ${{ inputs.php-version }} # Skip the version already tested above
+    container:
+      image: php:${{ matrix.php-version }}-cli-alpine
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install system dependencies
+        run: apk add --no-cache git unzip
+
+      - name: Install Composer
+        run: |
+          curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+      - name: Install dependencies
+        run: |
+          php -d memory_limit=${{ inputs.memory-limit }} composer install \
+            --no-progress \
+            --no-suggest \
+            --no-interaction \
+            --optimize-autoloader \
+            ${{ inputs.composer-args }}
+
+      - name: Run quick tests
+        run: |
+          echo "🧪 Running tests on PHP ${{ matrix.php-version }}..."
+          if [ -f "vendor/bin/phpunit" ]; then
+            php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit --no-coverage
+          else
+            echo "⚠️ PHPUnit not found, skipping tests"
+          fi
+
+  # Cleanup artifacts
+  cleanup:
+    name: 🧹 Cleanup
+    runs-on: ubuntu-latest
+    needs: [install, security-audit, phpstan, phpcs, phpmd, test, matrix-test]
+    if: always()
+    permissions:
+      actions: write
+    steps:
+      - name: Delete temporary artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: process.env.GITHUB_RUN_ID,
+            });
+
+            for (const artifact of artifacts.data.artifacts) {
+              if (artifact.name.startsWith('vendor-php')) {
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id
+                });
+                core.info(`🗑️ Deleted artifact '${artifact.name}'`);
+              }
+            }
