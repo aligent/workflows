@@ -129,6 +129,135 @@ jobs:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
+### Docker ECR Deployment
+
+A comprehensive Docker container deployment workflow supporting multi-platform builds, ECR registry management, vulnerability scanning, and container security with build optimization and registry lifecycle management.
+
+#### **Features**
+- **Multi-platform builds**: Support for linux/amd64, linux/arm64, and ARM variants
+- **ECR integration**: Automated ECR repository creation and lifecycle management  
+- **Vulnerability scanning**: Trivy security scanning with configurable thresholds
+- **Container signing**: Optional cosign-based image signing and attestation
+- **Smart tagging**: Multiple tagging strategies (latest, semantic, branch, custom)
+- **Build optimization**: Advanced caching with registry and inline cache support
+- **Registry cleanup**: Automated cleanup of old images with retention policies
+- **Multi-stage builds**: Support for target build stages and build arguments
+- **Security gates**: Configurable vulnerability thresholds blocking insecure deployments
+
+#### **Inputs**
+| Name | Required | Type | Default | Description |
+|------|----------|------|---------|-------------|
+| **Core Configuration** |
+| aws-region | ❌ | string | ap-southeast-2 | AWS region for ECR registry |
+| ecr-repository | ✅ | string | | ECR repository name (required) |
+| dockerfile-path | ❌ | string | Dockerfile | Path to Dockerfile |
+| build-context | ❌ | string | . | Docker build context path |
+| **Platform and Build Configuration** |
+| platforms | ❌ | string | linux/amd64,linux/arm64 | Target platforms for multi-platform builds |
+| push-to-registry | ❌ | boolean | true | Push built images to ECR registry |
+| **Security and Scanning** |
+| vulnerability-scan | ❌ | boolean | true | Enable container vulnerability scanning |
+| security-threshold | ❌ | string | HIGH | Security vulnerability threshold (CRITICAL/HIGH/MEDIUM/LOW) |
+| **Tagging Strategy** |
+| tag-strategy | ❌ | string | latest | Image tagging strategy (latest/semantic/branch/custom) |
+| custom-tags | ❌ | string | | Custom tags (comma-separated) when using custom strategy |
+| **Build Optimization** |
+| cache-from | ❌ | string | | Cache sources for build optimization (comma-separated) |
+| build-args | ❌ | string | {} | Docker build arguments as JSON object |
+| target-stage | ❌ | string | | Target build stage for multi-stage Dockerfiles |
+| **Registry Management** |
+| cleanup-old-images | ❌ | boolean | false | Clean up old images from ECR registry |
+| retention-count | ❌ | string | 10 | Number of images to retain when cleaning up |
+| **Container Signing** |
+| enable-signing | ❌ | boolean | false | Enable container image signing with cosign |
+| **Advanced Configuration** |
+| debug | ❌ | boolean | false | Enable verbose logging and debug output |
+
+#### **Secrets**
+| Name | Required | Description |
+|------|----------|-------------|
+| aws-access-key-id | ✅ | AWS access key ID |
+| aws-secret-access-key | ✅ | AWS secret access key |
+| container-signing-key | ❌ | Private key for container signing (optional) |
+
+#### **Outputs**
+| Name | Description |
+|------|-------------|
+| image-uri | Full URI of the built container image |
+| image-digest | SHA256 digest of the built image |
+| image-tags | Applied image tags as JSON array |
+| vulnerability-report | Container vulnerability scan results |
+
+#### **Example Usage**
+
+**Basic Docker Build and Push:**
+```yaml
+jobs:
+  docker-deploy:
+    uses: aligent/workflows/.github/workflows/docker-ecr-deploy.yml@main
+    with:
+      ecr-repository: my-app
+      dockerfile-path: Dockerfile
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+**Multi-platform with Vulnerability Scanning:**
+```yaml
+jobs:
+  secure-deploy:
+    uses: aligent/workflows/.github/workflows/docker-ecr-deploy.yml@main
+    with:
+      ecr-repository: my-secure-app
+      platforms: "linux/amd64,linux/arm64"
+      vulnerability-scan: true
+      security-threshold: "CRITICAL"
+      tag-strategy: "semantic"
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+**Production with Signing and Cleanup:**
+```yaml
+jobs:
+  production-deploy:
+    uses: aligent/workflows/.github/workflows/docker-ecr-deploy.yml@main
+    with:
+      ecr-repository: my-prod-app
+      tag-strategy: "semantic"
+      enable-signing: true
+      cleanup-old-images: true
+      retention-count: "5"
+      security-threshold: "HIGH"
+      aws-region: "us-east-1"
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      container-signing-key: ${{ secrets.COSIGN_PRIVATE_KEY }}
+```
+
+**Custom Build with Optimization:**
+```yaml
+jobs:
+  optimized-build:
+    uses: aligent/workflows/.github/workflows/docker-ecr-deploy.yml@main
+    with:
+      ecr-repository: my-optimized-app
+      build-context: "./backend"
+      dockerfile-path: "./backend/Dockerfile.prod"
+      target-stage: "production"
+      build-args: '{"NODE_ENV": "production", "API_VERSION": "v2"}'
+      cache-from: "my-optimized-app:buildcache,my-base-image:latest"
+      tag-strategy: "custom"
+      custom-tags: "latest,v2.1.0,production"
+      debug: true
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
 ### Node Pull Request Checks
 
 #### **Inputs**
