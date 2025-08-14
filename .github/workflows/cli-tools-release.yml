@@ -619,21 +619,22 @@ jobs:
           
           # Start with custom release notes if provided
           if [ -n "${{ inputs.release-notes }}" ]; then
-            notes="${{ inputs.release-notes }}"
+            base_notes="${{ inputs.release-notes }}"
           else
-            notes="Release of $tool_name version $version"
+            base_notes="Release of $tool_name version $version"
           fi
           
-          # Add platform information
-          notes="$notes
+          # Create release notes using heredoc
+          cat > release_notes.md << EOF
+          $base_notes
 
-## Supported Platforms
-${{ needs.prepare.outputs.platforms }}
+          ## Supported Platforms
+          ${{ needs.prepare.outputs.platforms }}
 
-## Installation
+          ## Installation
 
-### Download directly:
-"
+          ### Download directly:
+          EOF
           
           # Add download links
           urls='${{ needs.distribute.outputs.urls }}'
@@ -642,23 +643,24 @@ ${{ needs.prepare.outputs.platforms }}
           # Add manifest information
           manifest_url='${{ needs.distribute.outputs.manifest-url }}'
           if [ -n "$manifest_url" ]; then
-            notes="$notes
+            cat >> release_notes.md << EOF
 
-### Auto-update manifest:
-- **Manifest**: $manifest_url"
+          ### Auto-update manifest:
+          - **Manifest**: $manifest_url
+          EOF
           fi
           
           # Add Homebrew information if tap is configured
           if [ -n "${{ inputs.homebrew-tap }}" ]; then
-            notes="$notes
+            cat >> release_notes.md << EOF
 
-### Homebrew (coming soon):
-\`\`\`bash
-brew install ${{ inputs.homebrew-tap }}/$tool_name
-\`\`\`"
+          ### Homebrew (coming soon):
+          \`\`\`bash
+          brew install ${{ inputs.homebrew-tap }}/$tool_name
+          \`\`\`
+          EOF
           fi
           
-          echo "$notes" > release_notes.md
           echo "✅ Release notes generated"
 
       - name: Create GitHub release
@@ -744,23 +746,26 @@ brew install ${{ inputs.homebrew-tap }}/$tool_name
             rm temp_download
             
             # Generate formula
-            cat > "$formula_file" << EOF
-class $(echo "$tool_name" | sed 's/-//g' | awk '{print toupper(substr($0,1,1))substr($0,2)}') < Formula
-  desc "CLI tool: $tool_name"
-  homepage "https://github.com/${{ github.repository }}"
-  url "$download_url"
-  sha256 "$sha256"
-  version "$version"
-
-  def install
-    bin.install "$tool_name"
-  end
-
-  test do
-    system "#{bin}/$tool_name", "--version"
-  end
-end
-EOF
+            class_name=$(echo "$tool_name" | sed 's/-//g' | awk '{print toupper(substr($0,1,1))substr($0,2)}')
+            
+            # Create Homebrew formula file
+            {
+              echo "class $class_name < Formula"
+              echo "  desc \"CLI tool: $tool_name\""
+              echo "  homepage \"https://github.com/${{ github.repository }}\""
+              echo "  url \"$download_url\""
+              echo "  sha256 \"$sha256\""
+              echo "  version \"$version\""
+              echo ""
+              echo "  def install"
+              echo "    bin.install \"$tool_name\""
+              echo "  end"
+              echo ""
+              echo "  test do"
+              echo "    system \"#{bin}/$tool_name\", \"--version\""
+              echo "  end"
+              echo "end"
+            } > "$formula_file"
             
             # Commit and push changes
             git config user.name "GitHub Actions"
