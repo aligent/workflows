@@ -54,7 +54,7 @@ A comprehensive Progressive Web Application deployment workflow supporting S3 st
 | s3-bucket | ✅ | string | | S3 bucket name for deployment |
 | cloudfront-distribution-id | ✅ | string | | CloudFront distribution ID for cache invalidation |
 | **Environment Configuration** |
-| environment | ❌ | string | staging | Deployment environment (staging/production/preview) |
+| environment | ❌ | string | staging | Deployment environment (GitHub environment name for protection rules) |
 | **Build Configuration** |
 | package-manager | ❌ | string | yarn | Node package manager (yarn/npm) |
 | is-yarn-classic | ❌ | boolean | false | Use Yarn Classic (pre-Berry) instead of modern Yarn |

@@ -20,7 +20,7 @@ on:
 
       # Environment Configuration
       environment:
-        description: "Deployment environment (staging/production/preview)"
+        description: "Deployment environment (GitHub environment name for protection rules)"
         type: string
         required: false
         default: "staging"
@@ -146,9 +146,9 @@ jobs:
             exit 1
           fi
 
-          if [ "${{ inputs.environment }}" != "staging" ] && [ "${{ inputs.environment }}" != "production" ] && [ "${{ inputs.environment }}" != "preview" ]; then
-            echo "❌ Error: environment must be one of: staging, production, preview"
-            exit 1
+          # Environment name is validated by GitHub's environment protection rules
+          if [ -n "${{ inputs.environment }}" ]; then
+            echo "🔐 Using GitHub environment: ${{ inputs.environment }}"
           fi
 
           if [ "${{ inputs.cache-strategy }}" != "immutable" ] && [ "${{ inputs.cache-strategy }}" != "no-cache" ]; then
