@@ -1,0 +1,640 @@
+name: ☁️ AWS CDK Deployment
+
+on:
+  workflow_call:
+    inputs:
+      # Core Configuration
+      aws-region:
+        description: "AWS region for deployment"
+        type: string
+        required: false
+        default: "ap-southeast-2"
+      cdk-stack-name:
+        description: "CDK stack name to deploy (required)"
+        type: string
+        required: true
+      environment-target:
+        description: "Target environment (staging/production/development)"
+        type: string
+        required: false
+        default: "development"
+      
+      # Deployment Control
+      approval-required:
+        description: "Require manual approval before deployment"
+        type: boolean
+        required: false
+        default: true
+      destroy-mode:
+        description: "Destroy stack instead of deploying"
+        type: boolean
+        required: false
+        default: false
+      bootstrap-stack:
+        description: "Bootstrap CDK environment before deployment"
+        type: boolean
+        required: false
+        default: false
+      
+      # Node.js and CDK Configuration
+      node-version:
+        description: "Node.js version to use"
+        type: string
+        required: false
+        default: "18"
+      cdk-version:
+        description: "Pin specific CDK version (optional)"
+        type: string
+        required: false
+        default: ""
+      
+      # Advanced Configuration
+      context-values:
+        description: "CDK context values as JSON object"
+        type: string
+        required: false
+        default: "{}"
+      debug:
+        description: "Enable verbose logging and debug output"
+        type: boolean
+        required: false
+        default: false
+
+    secrets:
+      aws-access-key-id:
+        description: "AWS access key ID"
+        required: true
+      aws-secret-access-key:
+        description: "AWS secret access key"
+        required: true
+      cfn-execution-role:
+        description: "CloudFormation execution role ARN (optional, for cross-account deployments)"
+        required: false
+
+    outputs:
+      stack-outputs:
+        description: "CloudFormation stack outputs as JSON"
+        value: ${{ jobs.deploy.outputs.stack-outputs }}
+      deployment-status:
+        description: "Deployment status (success/failed/destroyed)"
+        value: ${{ jobs.deploy.outputs.deployment-status }}
+
+jobs:
+  # Validate inputs and prepare deployment configuration
+  prepare:
+    name: 🔍 Prepare CDK Deployment
+    runs-on: ubuntu-latest
+    outputs:
+      node-setup: ${{ steps.node-config.outputs.setup }}
+      deployment-strategy: ${{ steps.deployment-config.outputs.strategy }}
+      requires-approval: ${{ steps.deployment-config.outputs.requires-approval }}
+      cdk-command: ${{ steps.deployment-config.outputs.cdk-command }}
+      context-args: ${{ steps.context-config.outputs.args }}
+    steps:
+      - name: Validate required inputs
+        run: |
+          echo "🔍 Validating deployment configuration..."
+          
+          if [ -z "${{ inputs.cdk-stack-name }}" ]; then
+            echo "❌ Error: cdk-stack-name is required"
+            exit 1
+          fi
+          
+          # Validate environment target
+          case "${{ inputs.environment-target }}" in
+            staging|production|development)
+              echo "✅ Environment target: ${{ inputs.environment-target }}"
+              ;;
+            *)
+              echo "❌ Error: environment-target must be one of: staging, production, development"
+              exit 1
+              ;;
+          esac
+          
+          # Validate context JSON if provided
+          if [ "${{ inputs.context-values }}" != "{}" ]; then
+            echo '${{ inputs.context-values }}' | jq . > /dev/null
+            if [ $? -ne 0 ]; then
+              echo "❌ Error: context-values must be valid JSON"
+              exit 1
+            fi
+          fi
+          
+          echo "✅ All inputs validated successfully"
+
+      - name: Configure Node.js setup
+        id: node-config
+        run: |
+          echo "🔧 Configuring Node.js environment..."
+          
+          # Validate Node.js version
+          case "${{ inputs.node-version }}" in
+            16|18|20)
+              echo "setup=standard" >> $GITHUB_OUTPUT
+              echo "✅ Using Node.js ${{ inputs.node-version }}"
+              ;;
+            *)
+              echo "⚠️ Warning: Unusual Node.js version ${{ inputs.node-version }}, proceeding anyway"
+              echo "setup=custom" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Configure deployment strategy
+        id: deployment-config
+        run: |
+          echo "📋 Configuring deployment strategy..."
+          
+          # Determine approval requirement
+          if [ "${{ inputs.environment-target }}" = "production" ] && [ "${{ inputs.approval-required }}" = "true" ]; then
+            echo "requires-approval=true" >> $GITHUB_OUTPUT
+            echo "🔒 Production deployment requires manual approval"
+          else
+            echo "requires-approval=false" >> $GITHUB_OUTPUT
+            echo "🚀 Deployment will proceed automatically"
+          fi
+          
+          # Determine deployment strategy
+          if [ "${{ inputs.destroy-mode }}" = "true" ]; then
+            echo "strategy=destroy" >> $GITHUB_OUTPUT
+            echo "cdk-command=destroy" >> $GITHUB_OUTPUT
+            echo "💥 Strategy: Destroy stack"
+          else
+            echo "strategy=deploy" >> $GITHUB_OUTPUT
+            echo "cdk-command=deploy" >> $GITHUB_OUTPUT
+            echo "🏗️ Strategy: Deploy stack"
+          fi
+
+      - name: Configure CDK context
+        id: context-config
+        run: |
+          echo "⚙️ Configuring CDK context..."
+          
+          context_args=""
+          
+          # Add environment-specific context
+          context_args="$context_args --context environment=${{ inputs.environment-target }}"
+          
+          # Add custom context values
+          if [ "${{ inputs.context-values }}" != "{}" ]; then
+            echo '${{ inputs.context-values }}' | jq -r 'to_entries[] | "--context \(.key)=\(.value)"' | while read -r ctx; do
+              context_args="$context_args $ctx"
+            done
+          fi
+          
+          echo "args=$context_args" >> $GITHUB_OUTPUT
+          echo "✅ Context arguments configured"
+
+  # Bootstrap CDK environment if required
+  bootstrap:
+    name: 🥾 CDK Bootstrap
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: inputs.bootstrap-stack == true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ secrets.cfn-execution-role }}
+
+      - name: Install dependencies
+        run: |
+          echo "📦 Installing Node.js dependencies..."
+          
+          verbose=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            verbose="--verbose"
+          fi
+          
+          npm ci $verbose
+
+      - name: Install or update CDK CLI
+        run: |
+          echo "🔧 Setting up AWS CDK CLI..."
+          
+          if [ -n "${{ inputs.cdk-version }}" ]; then
+            echo "📌 Installing CDK version: ${{ inputs.cdk-version }}"
+            npm install -g aws-cdk@${{ inputs.cdk-version }}
+          else
+            echo "📦 Installing latest CDK version"
+            npm install -g aws-cdk
+          fi
+          
+          cdk --version
+
+      - name: Bootstrap CDK environment
+        run: |
+          echo "🥾 Bootstrapping CDK environment..."
+          
+          verbose=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            verbose="--verbose"
+          fi
+          
+          role_args=""
+          if [ -n "${{ secrets.cfn-execution-role }}" ]; then
+            role_args="--cloudformation-execution-policies ${{ secrets.cfn-execution-role }}"
+          fi
+          
+          cdk bootstrap \
+            aws://$(aws sts get-caller-identity --query Account --output text)/${{ inputs.aws-region }} \
+            $role_args \
+            $verbose
+          
+          echo "✅ CDK environment bootstrapped successfully"
+
+  # Synthesize CDK application
+  synth:
+    name: 🔨 CDK Synthesis
+    runs-on: ubuntu-latest
+    needs: [prepare, bootstrap]
+    if: always() && (needs.prepare.result == 'success' && (needs.bootstrap.result == 'success' || needs.bootstrap.result == 'skipped'))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ secrets.cfn-execution-role }}
+
+      - name: Install dependencies
+        run: |
+          echo "📦 Installing Node.js dependencies..."
+          
+          verbose=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            verbose="--verbose"
+          fi
+          
+          npm ci $verbose
+
+      - name: Install or update CDK CLI
+        run: |
+          echo "🔧 Setting up AWS CDK CLI..."
+          
+          if [ -n "${{ inputs.cdk-version }}" ]; then
+            echo "📌 Installing CDK version: ${{ inputs.cdk-version }}"
+            npm install -g aws-cdk@${{ inputs.cdk-version }}
+          else
+            echo "📦 Installing latest CDK version"
+            npm install -g aws-cdk
+          fi
+          
+          cdk --version
+
+      - name: Synthesize CDK application
+        run: |
+          echo "🔨 Synthesizing CDK application..."
+          
+          verbose=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            verbose="--verbose"
+          fi
+          
+          cdk synth ${{ inputs.cdk-stack-name }} \
+            ${{ needs.prepare.outputs.context-args }} \
+            $verbose
+          
+          echo "✅ CDK synthesis completed successfully"
+
+      - name: Upload synthesis artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdk-synthesis-${{ inputs.cdk-stack-name }}
+          path: cdk.out/
+          retention-days: 30
+
+  # Generate deployment diff
+  diff:
+    name: 📊 CDK Diff Analysis
+    runs-on: ubuntu-latest
+    needs: [prepare, synth]
+    if: always() && needs.synth.result == 'success' && inputs.destroy-mode == false
+    outputs:
+      has-changes: ${{ steps.diff-analysis.outputs.has-changes }}
+      diff-summary: ${{ steps.diff-analysis.outputs.summary }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ secrets.cfn-execution-role }}
+
+      - name: Download synthesis artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cdk-synthesis-${{ inputs.cdk-stack-name }}
+          path: cdk.out/
+
+      - name: Install dependencies
+        run: |
+          echo "📦 Installing Node.js dependencies..."
+          npm ci
+
+      - name: Install CDK CLI
+        run: |
+          if [ -n "${{ inputs.cdk-version }}" ]; then
+            npm install -g aws-cdk@${{ inputs.cdk-version }}
+          else
+            npm install -g aws-cdk
+          fi
+
+      - name: Generate deployment diff
+        id: diff-analysis
+        run: |
+          echo "📊 Analyzing deployment changes..."
+          
+          # Generate diff output
+          diff_output=$(cdk diff ${{ inputs.cdk-stack-name }} \
+            ${{ needs.prepare.outputs.context-args }} \
+            --no-color 2>&1 || true)
+          
+          # Save diff to file for analysis
+          echo "$diff_output" > deployment-diff.txt
+          
+          # Analyze diff for changes
+          if echo "$diff_output" | grep -q "There were no differences"; then
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "summary=No infrastructure changes detected" >> $GITHUB_OUTPUT
+            echo "ℹ️ No changes detected in infrastructure"
+          else
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+            
+            # Create summary
+            summary="Infrastructure changes detected"
+            if echo "$diff_output" | grep -q "Resources"; then
+              summary="$summary - Resource modifications found"
+            fi
+            
+            echo "summary=$summary" >> $GITHUB_OUTPUT
+            echo "⚠️ Infrastructure changes detected!"
+            echo "$diff_output"
+          fi
+
+      - name: Upload diff analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-diff-${{ inputs.cdk-stack-name }}
+          path: deployment-diff.txt
+          retention-days: 30
+
+  # Manual approval for production deployments
+  approval:
+    name: 🔐 Production Approval
+    runs-on: ubuntu-latest
+    needs: [prepare, diff]
+    if: needs.prepare.outputs.requires-approval == 'true' && (needs.diff.result == 'success' || needs.diff.result == 'skipped')
+    environment: 
+      name: ${{ inputs.environment-target }}
+    steps:
+      - name: Request deployment approval
+        run: |
+          echo "🔐 Manual approval required for production deployment"
+          echo "Stack: ${{ inputs.cdk-stack-name }}"
+          echo "Environment: ${{ inputs.environment-target }}"
+          echo "Region: ${{ inputs.aws-region }}"
+          
+          if [ "${{ needs.diff.outputs.has-changes }}" = "true" ]; then
+            echo "⚠️ Infrastructure changes detected: ${{ needs.diff.outputs.diff-summary }}"
+          else
+            echo "ℹ️ No infrastructure changes detected"
+          fi
+          
+          echo "✅ Deployment approved - proceeding..."
+
+  # Deploy or destroy CDK stack
+  deploy:
+    name: ${{ inputs.destroy-mode == true && '💥 Destroy Stack' || '🚀 Deploy Stack' }}
+    runs-on: ubuntu-latest
+    needs: [prepare, synth, approval, diff]
+    if: always() && needs.prepare.result == 'success' && needs.synth.result == 'success' && (needs.approval.result == 'success' || needs.approval.result == 'skipped') && (needs.diff.result == 'success' || needs.diff.result == 'skipped')
+    environment: ${{ inputs.environment-target }}
+    outputs:
+      stack-outputs: ${{ steps.deployment.outputs.stack-outputs }}
+      deployment-status: ${{ steps.deployment.outputs.status }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ secrets.cfn-execution-role }}
+
+      - name: Download synthesis artifacts
+        if: inputs.destroy-mode == false
+        uses: actions/download-artifact@v4
+        with:
+          name: cdk-synthesis-${{ inputs.cdk-stack-name }}
+          path: cdk.out/
+
+      - name: Install dependencies
+        run: |
+          echo "📦 Installing Node.js dependencies..."
+          npm ci
+
+      - name: Install CDK CLI
+        run: |
+          if [ -n "${{ inputs.cdk-version }}" ]; then
+            npm install -g aws-cdk@${{ inputs.cdk-version }}
+          else
+            npm install -g aws-cdk
+          fi
+
+      - name: Execute CDK deployment
+        id: deployment
+        run: |
+          verbose=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            verbose="--verbose"
+          fi
+          
+          if [ "${{ inputs.destroy-mode }}" = "true" ]; then
+            echo "💥 Destroying CDK stack: ${{ inputs.cdk-stack-name }}"
+            
+            cdk destroy ${{ inputs.cdk-stack-name }} \
+              ${{ needs.prepare.outputs.context-args }} \
+              --force \
+              $verbose
+            
+            echo "status=destroyed" >> $GITHUB_OUTPUT
+            echo "stack-outputs={}" >> $GITHUB_OUTPUT
+            echo "✅ Stack destroyed successfully"
+          else
+            echo "🚀 Deploying CDK stack: ${{ inputs.cdk-stack-name }}"
+            
+            cdk deploy ${{ inputs.cdk-stack-name }} \
+              ${{ needs.prepare.outputs.context-args }} \
+              --require-approval never \
+              --outputs-file stack-outputs.json \
+              $verbose
+            
+            # Extract stack outputs
+            if [ -f "stack-outputs.json" ]; then
+              outputs=$(cat stack-outputs.json)
+              echo "stack-outputs=$outputs" >> $GITHUB_OUTPUT
+            else
+              echo "stack-outputs={}" >> $GITHUB_OUTPUT
+            fi
+            
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "✅ Stack deployed successfully"
+          fi
+
+      - name: Upload deployment artifacts
+        if: inputs.destroy-mode == false && steps.deployment.outputs.status == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-outputs-${{ inputs.cdk-stack-name }}
+          path: stack-outputs.json
+          retention-days: 30
+
+  # Post-deployment validation and drift detection
+  validate:
+    name: 🔍 Post-Deployment Validation
+    runs-on: ubuntu-latest
+    needs: [prepare, deploy]
+    if: needs.deploy.result == 'success' && inputs.destroy-mode == false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ secrets.cfn-execution-role }}
+
+      - name: Install dependencies
+        run: |
+          echo "📦 Installing Node.js dependencies..."
+          npm ci
+
+      - name: Install CDK CLI
+        run: |
+          if [ -n "${{ inputs.cdk-version }}" ]; then
+            npm install -g aws-cdk@${{ inputs.cdk-version }}
+          else
+            npm install -g aws-cdk
+          fi
+
+      - name: Validate stack deployment
+        run: |
+          echo "🔍 Validating deployed stack..."
+          
+          # Check stack status
+          stack_status=$(aws cloudformation describe-stacks \
+            --stack-name ${{ inputs.cdk-stack-name }} \
+            --query 'Stacks[0].StackStatus' \
+            --output text)
+          
+          echo "Stack status: $stack_status"
+          
+          if [[ "$stack_status" =~ ^(CREATE_COMPLETE|UPDATE_COMPLETE)$ ]]; then
+            echo "✅ Stack deployment validated successfully"
+          else
+            echo "❌ Stack is in unexpected state: $stack_status"
+            exit 1
+          fi
+
+      - name: Check for stack drift
+        run: |
+          echo "🔍 Checking for infrastructure drift..."
+          
+          # Initiate drift detection
+          drift_id=$(aws cloudformation detect-stack-drift \
+            --stack-name ${{ inputs.cdk-stack-name }} \
+            --query 'StackDriftDetectionId' \
+            --output text)
+          
+          echo "Drift detection initiated: $drift_id"
+          
+          # Wait for drift detection to complete
+          aws cloudformation wait stack-drift-detection-complete \
+            --stack-drift-detection-id $drift_id
+          
+          # Get drift detection results
+          drift_status=$(aws cloudformation describe-stack-drift-detection-status \
+            --stack-drift-detection-id $drift_id \
+            --query 'StackDriftStatus' \
+            --output text)
+          
+          echo "Stack drift status: $drift_status"
+          
+          case $drift_status in
+            "IN_SYNC")
+              echo "✅ No infrastructure drift detected"
+              ;;
+            "DRIFTED")
+              echo "⚠️ Infrastructure drift detected - manual review recommended"
+              ;;
+            *)
+              echo "❓ Unknown drift status: $drift_status"
+              ;;
+          esac
+
+      - name: Display deployment summary
+        run: |
+          echo "📋 Deployment Summary"
+          echo "===================="
+          echo "Stack Name: ${{ inputs.cdk-stack-name }}"
+          echo "Environment: ${{ inputs.environment-target }}"
+          echo "Region: ${{ inputs.aws-region }}"
+          echo "Status: ${{ needs.deploy.outputs.deployment-status }}"
+          echo "Node Version: ${{ inputs.node-version }}"
+          
+          if [ -n "${{ inputs.cdk-version }}" ]; then
+            echo "CDK Version: ${{ inputs.cdk-version }}"
+          fi
+          
+          echo ""
+          echo "🎉 Deployment completed successfully!"

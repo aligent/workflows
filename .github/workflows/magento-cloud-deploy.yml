@@ -1,0 +1,567 @@
+name: 🛍️ Magento Cloud Deployment
+
+on:
+  workflow_call:
+    inputs:
+      # Magento Cloud Configuration
+      magento-cloud-project-id:
+        description: "Magento Cloud project ID (required)"
+        type: string
+        required: true
+      environment:
+        description: "Target environment (integration/staging/production)"
+        type: string
+        required: false
+        default: "integration"
+      
+      # PHP Configuration
+      php-version:
+        description: "PHP version for Magento (8.1, 8.2, 8.3)"
+        type: string
+        required: false
+        default: "8.1"
+      memory-limit:
+        description: "PHP memory limit for compilation (-1 for unlimited)"
+        type: string
+        required: false
+        default: "-1"
+      
+      # Magento-specific Configuration
+      apply-patches:
+        description: "Apply ECE patches before deployment"
+        type: boolean
+        required: false
+        default: true
+      di-compile:
+        description: "Run dependency injection compilation"
+        type: boolean
+        required: false
+        default: true
+      
+      # Deployment Control
+      manual-deploy:
+        description: "Require manual approval for production deployments"
+        type: boolean
+        required: false
+        default: false
+      
+      # Monitoring and Reporting
+      newrelic-app-id:
+        description: "NewRelic application ID for deployment markers (optional)"
+        type: string
+        required: false
+        default: ""
+      
+      # Advanced Configuration
+      debug:
+        description: "Enable verbose logging and debug output"
+        type: boolean
+        required: false
+        default: false
+
+    secrets:
+      magento-cloud-cli-token:
+        description: "Magento Cloud CLI token for authentication"
+        required: true
+      newrelic-api-key:
+        description: "NewRelic API key for deployment markers (optional)"
+        required: false
+      cst-reporting-token:
+        description: "CST system reporting token (optional)"
+        required: false
+
+    outputs:
+      deployment-url:
+        description: "URL of the deployed Magento application"
+        value: ${{ jobs.deploy.outputs.deployment-url }}
+      deployment-id:
+        description: "Magento Cloud deployment ID"
+        value: ${{ jobs.deploy.outputs.deployment-id }}
+
+jobs:
+  # Validate inputs and prepare deployment configuration
+  prepare:
+    name: 🔍 Prepare Magento Deployment
+    runs-on: ubuntu-latest
+    outputs:
+      php-container: ${{ steps.php-config.outputs.container }}
+      memory-limit: ${{ steps.php-config.outputs.memory-limit }}
+      deployment-strategy: ${{ steps.deployment-config.outputs.strategy }}
+      requires-approval: ${{ steps.deployment-config.outputs.requires-approval }}
+    steps:
+      - name: Validate required inputs
+        run: |
+          if [ -z "${{ inputs.magento-cloud-project-id }}" ]; then
+            echo "❌ Error: magento-cloud-project-id is required"
+            exit 1
+          fi
+          
+          if [ "${{ inputs.environment }}" != "integration" ] && [ "${{ inputs.environment }}" != "staging" ] && [ "${{ inputs.environment }}" != "production" ]; then
+            echo "❌ Error: environment must be one of: integration, staging, production"
+            exit 1
+          fi
+
+          case "${{ inputs.php-version }}" in
+            "8.1"|"8.2"|"8.3")
+              echo "✅ PHP version ${{ inputs.php-version }} is supported"
+              ;;
+            *)
+              echo "❌ Error: php-version must be one of: 8.1, 8.2, 8.3"
+              exit 1
+              ;;
+          esac
+
+          echo "✅ All required inputs validated"
+
+      - name: Configure PHP environment
+        id: php-config
+        run: |
+          # Set Magento-optimized PHP container based on version
+          case "${{ inputs.php-version }}" in
+            "8.1")
+              echo "container=magento/magento-cloud-docker-php:8.1-cli" >> $GITHUB_OUTPUT
+              ;;
+            "8.2")
+              echo "container=magento/magento-cloud-docker-php:8.2-cli" >> $GITHUB_OUTPUT
+              ;;
+            "8.3")
+              echo "container=magento/magento-cloud-docker-php:8.3-cli" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+          # Configure memory limit for DI compilation
+          MEMORY_LIMIT="${{ inputs.memory-limit }}"
+          if [ "$MEMORY_LIMIT" = "-1" ]; then
+            MEMORY_LIMIT="unlimited"
+          fi
+          echo "memory-limit=${MEMORY_LIMIT}" >> $GITHUB_OUTPUT
+
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            echo "🔍 PHP configuration:"
+            echo "  Version: ${{ inputs.php-version }}"
+            echo "  Container: $(cat $GITHUB_OUTPUT | grep container | cut -d'=' -f2-)"
+            echo "  Memory Limit: $(cat $GITHUB_OUTPUT | grep memory-limit | cut -d'=' -f2-)"
+          fi
+
+      - name: Configure deployment strategy
+        id: deployment-config
+        run: |
+          # Determine deployment strategy based on environment
+          case "${{ inputs.environment }}" in
+            "production")
+              echo "strategy=production" >> $GITHUB_OUTPUT
+              if [ "${{ inputs.manual-deploy }}" = "true" ]; then
+                echo "requires-approval=true" >> $GITHUB_OUTPUT
+              else
+                echo "requires-approval=false" >> $GITHUB_OUTPUT
+              fi
+              ;;
+            "staging")
+              echo "strategy=staging" >> $GITHUB_OUTPUT
+              echo "requires-approval=false" >> $GITHUB_OUTPUT
+              ;;
+            "integration")
+              echo "strategy=integration" >> $GITHUB_OUTPUT
+              echo "requires-approval=false" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            echo "🔍 Deployment configuration:"
+            echo "  Environment: ${{ inputs.environment }}"
+            echo "  Strategy: $(cat $GITHUB_OUTPUT | grep strategy | cut -d'=' -f2-)"
+            echo "  Requires Approval: $(cat $GITHUB_OUTPUT | grep requires-approval | cut -d'=' -f2-)"
+          fi
+
+  # Pre-deployment preparation and validation
+  pre-deploy:
+    name: 🛠️ Pre-deployment Setup
+    runs-on: ubuntu-latest
+    needs: [prepare]
+    container:
+      image: ${{ needs.prepare.outputs.php-container }}
+      options: --user root
+    steps:
+      - name: Checkout code with full git history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full git history required for Magento Cloud
+
+      - name: Install Magento Cloud CLI
+        run: |
+          echo "📦 Installing Magento Cloud CLI..."
+          curl -fsS https://accounts.magento.cloud/cli/installer | php
+          export PATH=$HOME/.magento-cloud/bin:$PATH
+          echo "$HOME/.magento-cloud/bin" >> $GITHUB_PATH
+          
+          # Verify installation
+          magento-cloud --version
+          echo "✅ Magento Cloud CLI installed successfully"
+
+      - name: Configure Magento Cloud CLI authentication
+        run: |
+          echo "🔐 Configuring Magento Cloud authentication..."
+          magento-cloud auth:login --token "${{ secrets.magento-cloud-cli-token }}"
+          echo "✅ Authentication configured"
+
+      - name: Validate project access
+        run: |
+          echo "🔍 Validating project access..."
+          magento-cloud project:info --project "${{ inputs.magento-cloud-project-id }}" --format plain
+          echo "✅ Project access validated"
+
+      - name: Configure PHP for Magento
+        run: |
+          echo "🔧 Configuring PHP for Magento..."
+          
+          # Set memory limit for DI compilation
+          if [ "${{ needs.prepare.outputs.memory-limit }}" = "unlimited" ]; then
+            echo "memory_limit = -1" > /usr/local/etc/php/conf.d/memory-limit.ini
+          else
+            echo "memory_limit = ${{ needs.prepare.outputs.memory-limit }}" > /usr/local/etc/php/conf.d/memory-limit.ini
+          fi
+          
+          # Magento-specific PHP settings
+          cat > /usr/local/etc/php/conf.d/magento.ini << 'EOF'
+          max_execution_time = 18000
+          max_input_vars = 10000
+          upload_max_filesize = 64M
+          post_max_size = 64M
+          realpath_cache_size = 10M
+          realpath_cache_ttl = 7200
+          opcache.memory_consumption = 512
+          opcache.max_accelerated_files = 60000
+          opcache.consistency_checks = 0
+          opcache.validate_timestamps = 0
+          opcache.enable_cli = 1
+          EOF
+
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            echo "🔍 PHP configuration:"
+            php -i | grep memory_limit
+            php -i | grep max_execution_time
+          fi
+
+      - name: Install Composer dependencies
+        run: |
+          echo "📦 Installing Composer dependencies..."
+          
+          debug=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            debug="--verbose"
+          fi
+          
+          # Use Composer with Magento-specific optimizations
+          composer install \
+            --no-dev \
+            --optimize-autoloader \
+            --no-interaction \
+            --prefer-dist \
+            $debug
+          
+          echo "✅ Composer dependencies installed"
+
+      - name: Apply ECE patches
+        if: inputs.apply-patches == true
+        run: |
+          echo "🩹 Applying ECE patches..."
+          
+          debug=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            debug="--verbose"
+          fi
+          
+          # Apply Magento Cloud patches
+          if [ -f "vendor/magento/ece-tools/bin/ece-patches" ]; then
+            php vendor/magento/ece-tools/bin/ece-patches apply $debug
+            echo "✅ ECE patches applied successfully"
+          else
+            echo "⚠️ ECE patches tool not found, skipping patch application"
+          fi
+
+      - name: Run dependency injection compilation
+        if: inputs.di-compile == true
+        run: |
+          echo "⚙️ Running dependency injection compilation..."
+          
+          debug=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            debug="--verbose"
+          fi
+          
+          # DI compilation with unlimited memory
+          php -dmemory_limit=-1 bin/magento setup:di:compile $debug
+          echo "✅ DI compilation completed successfully"
+
+      - name: Generate static content (if required)
+        run: |
+          echo "🎨 Checking for static content deployment..."
+          
+          # Only run if in production mode or if static content is missing
+          if php bin/magento deploy:mode:show | grep -q "production" || [ ! -d "pub/static/_cache" ]; then
+            echo "Generating static content..."
+            php -dmemory_limit=-1 bin/magento setup:static-content:deploy -f
+            echo "✅ Static content generated"
+          else
+            echo "ℹ️ Static content generation skipped (developer mode or already exists)"
+          fi
+
+  # Manual approval gate for production deployments
+  approval:
+    name: 🚦 Production Deployment Approval
+    runs-on: ubuntu-latest
+    needs: [prepare, pre-deploy]
+    if: needs.prepare.outputs.requires-approval == 'true'
+    environment: production-approval
+    steps:
+      - name: Request manual approval
+        run: |
+          echo "🚦 Manual approval required for production deployment"
+          echo "Project: ${{ inputs.magento-cloud-project-id }}"
+          echo "Environment: ${{ inputs.environment }}"
+          echo "⚠️ Please review and approve this deployment to continue"
+
+  # Deploy to Magento Cloud
+  deploy:
+    name: 🚀 Deploy to Magento Cloud
+    runs-on: ubuntu-latest
+    needs: [prepare, pre-deploy, approval]
+    if: always() && needs.pre-deploy.result == 'success' && (needs.approval.result == 'success' || needs.prepare.outputs.requires-approval == 'false')
+    environment: ${{ inputs.environment }}
+    container:
+      image: ${{ needs.prepare.outputs.php-container }}
+      options: --user root
+    outputs:
+      deployment-url: ${{ steps.deploy-info.outputs.url }}
+      deployment-id: ${{ steps.deploy-info.outputs.id }}
+    steps:
+      - name: Checkout code with full git history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Magento Cloud CLI
+        run: |
+          curl -fsS https://accounts.magento.cloud/cli/installer | php
+          export PATH=$HOME/.magento-cloud/bin:$PATH
+          echo "$HOME/.magento-cloud/bin" >> $GITHUB_PATH
+          magento-cloud auth:login --token "${{ secrets.magento-cloud-cli-token }}"
+
+      - name: Create NewRelic deployment marker (start)
+        if: inputs.newrelic-app-id != '' && secrets.newrelic-api-key != ''
+        run: |
+          echo "📊 Creating NewRelic deployment marker (start)..."
+          
+          curl -X POST "https://api.newrelic.com/v2/applications/${{ inputs.newrelic-app-id }}/deployments.json" \
+            -H "X-Api-Key: ${{ secrets.newrelic-api-key }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "deployment": {
+                "revision": "${{ github.sha }}",
+                "changelog": "Magento Cloud deployment started",
+                "description": "Deployment to ${{ inputs.environment }} environment",
+                "user": "${{ github.actor }}"
+              }
+            }'
+          
+          echo "✅ NewRelic deployment marker created"
+
+      - name: Deploy to Magento Cloud
+        id: deployment
+        run: |
+          echo "🚀 Starting deployment to ${{ inputs.environment }}..."
+          
+          debug=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            debug="--verbose"
+          fi
+          
+          # Set project context
+          magento-cloud project:set-remote "${{ inputs.magento-cloud-project-id }}"
+          
+          # Deploy based on environment type
+          case "${{ inputs.environment }}" in
+            "integration")
+              # Push to integration environment
+              echo "Deploying to integration environment..."
+              magento-cloud push --force --wait $debug
+              ;;
+            "staging"|"production")
+              # Merge to staging/production branch
+              echo "Deploying to ${{ inputs.environment }} environment..."
+              magento-cloud merge --environment "${{ inputs.environment }}" --wait $debug
+              ;;
+          esac
+          
+          echo "✅ Deployment completed successfully"
+
+      - name: Get deployment information
+        id: deploy-info
+        run: |
+          echo "📋 Retrieving deployment information..."
+          
+          # Get environment URL
+          URL=$(magento-cloud url --environment "${{ inputs.environment }}" --project "${{ inputs.magento-cloud-project-id }}" --pipe)
+          echo "url=${URL}" >> $GITHUB_OUTPUT
+          
+          # Get deployment ID
+          DEPLOYMENT_ID=$(magento-cloud activity:list --environment "${{ inputs.environment }}" --type push --limit 1 --format csv --columns id --no-header | head -1)
+          echo "id=${DEPLOYMENT_ID}" >> $GITHUB_OUTPUT
+          
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            echo "🔍 Deployment information:"
+            echo "  URL: ${URL}"
+            echo "  Deployment ID: ${DEPLOYMENT_ID}"
+          fi
+
+      - name: Verify deployment health
+        run: |
+          echo "🏥 Verifying deployment health..."
+          
+          URL="${{ steps.deploy-info.outputs.url }}"
+          
+          # Wait for the site to be available
+          for i in {1..10}; do
+            if curl -f -s -o /dev/null "$URL"; then
+              echo "✅ Site is responding successfully"
+              break
+            else
+              echo "⏳ Waiting for site to respond (attempt $i/10)..."
+              sleep 30
+            fi
+            
+            if [ $i -eq 10 ]; then
+              echo "❌ Site health check failed after 10 attempts"
+              exit 1
+            fi
+          done
+
+      - name: Report version to CST systems
+        if: secrets.cst-reporting-token != ''
+        run: |
+          echo "📡 Reporting deployment to CST systems..."
+          
+          # Extract version information
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "unknown")
+          COMMIT_SHA="${{ github.sha }}"
+          
+          # Report to CST endpoint
+          curl -X POST "$CST_ENDPOINT/deployments" \
+            -H "Authorization: Bearer ${{ secrets.cst-reporting-token }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "project_id": "${{ inputs.magento-cloud-project-id }}",
+              "environment": "${{ inputs.environment }}",
+              "version": "'$VERSION'",
+              "commit_sha": "'$COMMIT_SHA'",
+              "deployment_url": "${{ steps.deploy-info.outputs.url }}",
+              "deployment_id": "${{ steps.deploy-info.outputs.id }}",
+              "deployed_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+              "deployed_by": "${{ github.actor }}"
+            }'
+          
+          echo "✅ Version reported to CST systems"
+        env:
+          CST_ENDPOINT: "https://cst-api.example.com"  # Configure as needed
+
+      - name: Create NewRelic deployment marker (complete)
+        if: inputs.newrelic-app-id != '' && secrets.newrelic-api-key != ''
+        run: |
+          echo "📊 Creating NewRelic deployment marker (complete)..."
+          
+          curl -X POST "https://api.newrelic.com/v2/applications/${{ inputs.newrelic-app-id }}/deployments.json" \
+            -H "X-Api-Key: ${{ secrets.newrelic-api-key }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "deployment": {
+                "revision": "${{ github.sha }}",
+                "changelog": "Magento Cloud deployment completed successfully",
+                "description": "Deployment to ${{ inputs.environment }} completed at ${{ steps.deploy-info.outputs.url }}",
+                "user": "${{ github.actor }}"
+              }
+            }'
+          
+          echo "✅ NewRelic deployment marker updated"
+
+      - name: Generate deployment summary
+        run: |
+          echo "## 🛍️ Magento Cloud Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Project ID** | ${{ inputs.magento-cloud-project-id }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | ${{ inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **PHP Version** | ${{ inputs.php-version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **ECE Patches** | ${{ inputs.apply-patches && '✅ Applied' || '❌ Skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **DI Compilation** | ${{ inputs.di-compile && '✅ Completed' || '❌ Skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Deployment ID** | ${{ steps.deploy-info.outputs.id }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Site URL** | [${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔧 Technical Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Memory Limit**: ${{ needs.prepare.outputs.memory-limit }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Container**: ${{ needs.prepare.outputs.php-container }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Git Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed By**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ inputs.newrelic-app-id }}" != "" ]; then
+            echo "### 📊 Monitoring" >> $GITHUB_STEP_SUMMARY
+            echo "- **NewRelic App ID**: ${{ inputs.newrelic-app-id }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Deployment Markers**: ✅ Created" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          case "${{ inputs.environment }}" in
+            "production")
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### 🌍 Production Deployment" >> $GITHUB_STEP_SUMMARY
+              echo "Your Magento store is now live at:" >> $GITHUB_STEP_SUMMARY
+              echo "**[${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }})**" >> $GITHUB_STEP_SUMMARY
+              ;;
+            "staging")
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### 🚀 Staging Environment" >> $GITHUB_STEP_SUMMARY
+              echo "Staging environment updated successfully:" >> $GITHUB_STEP_SUMMARY
+              echo "**[${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }})**" >> $GITHUB_STEP_SUMMARY
+              ;;
+            *)
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### 🔧 Integration Environment" >> $GITHUB_STEP_SUMMARY
+              echo "Integration environment deployed for testing:" >> $GITHUB_STEP_SUMMARY
+              echo "**[${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }})**" >> $GITHUB_STEP_SUMMARY
+              ;;
+          esac
+
+  # Post-deployment monitoring and reporting
+  post-deploy:
+    name: 🔍 Post-deployment Monitoring
+    runs-on: ubuntu-latest
+    needs: [prepare, deploy]
+    if: always() && needs.deploy.result == 'success'
+    steps:
+      - name: Monitor deployment performance
+        run: |
+          echo "📊 Monitoring deployment performance..."
+          
+          URL="${{ needs.deploy.outputs.deployment-url }}"
+          
+          # Basic performance check
+          RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}\n' "$URL")
+          echo "Response time: ${RESPONSE_TIME} seconds"
+          
+          if (( $(echo "$RESPONSE_TIME > 5.0" | bc -l) )); then
+            echo "⚠️ Warning: Response time is slower than expected (${RESPONSE_TIME}s > 5.0s)"
+          else
+            echo "✅ Response time is acceptable (${RESPONSE_TIME}s)"
+          fi
+
+      - name: Generate performance report
+        run: |
+          echo "## 📊 Performance Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Post-deployment monitoring completed for environment: **${{ inputs.environment }}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. ✅ Verify core functionality on the deployed site" >> $GITHUB_STEP_SUMMARY
+          echo "2. 🧪 Run smoke tests against the environment" >> $GITHUB_STEP_SUMMARY
+          echo "3. 👀 Monitor application logs for any issues" >> $GITHUB_STEP_SUMMARY
+          echo "4. 📈 Check NewRelic dashboards for performance metrics" >> $GITHUB_STEP_SUMMARY
