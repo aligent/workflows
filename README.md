@@ -42,10 +42,9 @@ A comprehensive Magento Cloud deployment workflow supporting multi-environment d
 - **ECE patches integration**: Automatic application of Magento Cloud patches
 - **DI compilation**: Memory-optimized dependency injection compilation
 - **NewRelic integration**: Deployment markers and performance monitoring
-- **Production gates**: Manual approval workflow for production deployments
-- **CST system integration**: Version reporting to centralized tracking systems
+- **Environment protection**: Uses GitHub environment protection rules for deployment gates
+- **CST system integration**: Composer.lock reporting to Confidentiality and Security Team
 - **Full git history support**: Required for Magento Cloud deployment requirements
-- **Health monitoring**: Post-deployment verification and performance checks
 
 #### **Inputs**
 | Name | Required | Type | Default | Description |
@@ -59,8 +58,6 @@ A comprehensive Magento Cloud deployment workflow supporting multi-environment d
 | **Magento-specific Configuration** |
 | apply-patches | ❌ | boolean | true | Apply ECE patches before deployment |
 | di-compile | ❌ | boolean | true | Run dependency injection compilation |
-| **Deployment Control** |
-| manual-deploy | ❌ | boolean | false | Require manual approval for production deployments |
 | **Monitoring and Reporting** |
 | newrelic-app-id | ❌ | string | | NewRelic application ID for deployment markers (optional) |
 | **Advanced Configuration** |
@@ -71,7 +68,7 @@ A comprehensive Magento Cloud deployment workflow supporting multi-environment d
 |------|----------|-------------|
 | magento-cloud-cli-token | ✅ | Magento Cloud CLI token for authentication |
 | newrelic-api-key | ❌ | NewRelic API key for deployment markers (optional) |
-| cst-reporting-token | ❌ | CST system reporting token (optional) |
+| cst-reporting-token | ❌ | Confidentiality and Security Team reporting token (optional) |
 
 #### **Outputs**
 | Name | Description |
@@ -94,7 +91,7 @@ jobs:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
 ```
 
-**Production Deployment with Manual Approval:**
+**Production Deployment with Monitoring:**
 ```yaml
 jobs:
   deploy-production:
@@ -103,7 +100,6 @@ jobs:
       magento-cloud-project-id: abc123def456
       environment: production
       php-version: "8.2"
-      manual-deploy: true
       newrelic-app-id: "123456789"
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}

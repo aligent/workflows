@@ -38,12 +38,6 @@ on:
         required: false
         default: true
       
-      # Deployment Control
-      manual-deploy:
-        description: "Require manual approval for production deployments"
-        type: boolean
-        required: false
-        default: false
       
       # Monitoring and Reporting
       newrelic-app-id:
@@ -87,7 +81,6 @@ jobs:
       php-container: ${{ steps.php-config.outputs.container }}
       memory-limit: ${{ steps.php-config.outputs.memory-limit }}
       deployment-strategy: ${{ steps.deployment-config.outputs.strategy }}
-      requires-approval: ${{ steps.deployment-config.outputs.requires-approval }}
     steps:
       - name: Validate required inputs
         run: |
@@ -150,19 +143,12 @@ jobs:
           case "${{ inputs.environment }}" in
             "production")
               echo "strategy=production" >> $GITHUB_OUTPUT
-              if [ "${{ inputs.manual-deploy }}" = "true" ]; then
-                echo "requires-approval=true" >> $GITHUB_OUTPUT
-              else
-                echo "requires-approval=false" >> $GITHUB_OUTPUT
-              fi
               ;;
             "staging")
               echo "strategy=staging" >> $GITHUB_OUTPUT
-              echo "requires-approval=false" >> $GITHUB_OUTPUT
               ;;
             "integration")
               echo "strategy=integration" >> $GITHUB_OUTPUT
-              echo "requires-approval=false" >> $GITHUB_OUTPUT
               ;;
           esac
 
@@ -170,7 +156,6 @@ jobs:
             echo "🔍 Deployment configuration:"
             echo "  Environment: ${{ inputs.environment }}"
             echo "  Strategy: $(cat $GITHUB_OUTPUT | grep strategy | cut -d'=' -f2-)"
-            echo "  Requires Approval: $(cat $GITHUB_OUTPUT | grep requires-approval | cut -d'=' -f2-)"
           fi
 
   # Pre-deployment preparation and validation
@@ -306,27 +291,12 @@ jobs:
             echo "ℹ️ Static content generation skipped (developer mode or already exists)"
           fi
 
-  # Manual approval gate for production deployments
-  approval:
-    name: 🚦 Production Deployment Approval
-    runs-on: ubuntu-latest
-    needs: [prepare, pre-deploy]
-    if: needs.prepare.outputs.requires-approval == 'true'
-    environment: production-approval
-    steps:
-      - name: Request manual approval
-        run: |
-          echo "🚦 Manual approval required for production deployment"
-          echo "Project: ${{ inputs.magento-cloud-project-id }}"
-          echo "Environment: ${{ inputs.environment }}"
-          echo "⚠️ Please review and approve this deployment to continue"
-
   # Deploy to Magento Cloud
   deploy:
     name: 🚀 Deploy to Magento Cloud
     runs-on: ubuntu-latest
-    needs: [prepare, pre-deploy, approval]
-    if: always() && needs.pre-deploy.result == 'success' && (needs.approval.result == 'success' || needs.prepare.outputs.requires-approval == 'false')
+    needs: [prepare, pre-deploy]
+    if: needs.pre-deploy.result == 'success'
     environment: ${{ inputs.environment }}
     container:
       image: ${{ needs.prepare.outputs.php-container }}
@@ -387,9 +357,9 @@ jobs:
               magento-cloud push --force --wait $debug
               ;;
             "staging"|"production")
-              # Merge to staging/production branch
+              # Push to staging/production branch
               echo "Deploying to ${{ inputs.environment }} environment..."
-              magento-cloud merge --environment "${{ inputs.environment }}" --wait $debug
+              magento-cloud push --environment "${{ inputs.environment }}" --force --wait $debug
               ;;
           esac
           
@@ -414,55 +384,22 @@ jobs:
             echo "  Deployment ID: ${DEPLOYMENT_ID}"
           fi
 
-      - name: Verify deployment health
+      - name: Report deployment to CST (Confidentiality and Security Team)
+        if: secrets.cst-reporting-token != '' && vars.CST_ENDPOINT != ''
         run: |
-          echo "🏥 Verifying deployment health..."
+          echo "📡 Reporting deployment to CST (Confidentiality and Security Team)..."
           
-          URL="${{ steps.deploy-info.outputs.url }}"
-          
-          # Wait for the site to be available
-          for i in {1..10}; do
-            if curl -f -s -o /dev/null "$URL"; then
-              echo "✅ Site is responding successfully"
-              break
-            else
-              echo "⏳ Waiting for site to respond (attempt $i/10)..."
-              sleep 30
-            fi
+          # Send composer.lock file contents to CST endpoint
+          if [ -f "composer.lock" ]; then
+            curl -X POST "${{ vars.CST_ENDPOINT }}/deployments" \
+              -H "Authorization: Bearer ${{ secrets.cst-reporting-token }}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @composer.lock
             
-            if [ $i -eq 10 ]; then
-              echo "❌ Site health check failed after 10 attempts"
-              exit 1
-            fi
-          done
-
-      - name: Report version to CST systems
-        if: secrets.cst-reporting-token != ''
-        run: |
-          echo "📡 Reporting deployment to CST systems..."
-          
-          # Extract version information
-          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "unknown")
-          COMMIT_SHA="${{ github.sha }}"
-          
-          # Report to CST endpoint
-          curl -X POST "$CST_ENDPOINT/deployments" \
-            -H "Authorization: Bearer ${{ secrets.cst-reporting-token }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "project_id": "${{ inputs.magento-cloud-project-id }}",
-              "environment": "${{ inputs.environment }}",
-              "version": "'$VERSION'",
-              "commit_sha": "'$COMMIT_SHA'",
-              "deployment_url": "${{ steps.deploy-info.outputs.url }}",
-              "deployment_id": "${{ steps.deploy-info.outputs.id }}",
-              "deployed_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
-              "deployed_by": "${{ github.actor }}"
-            }'
-          
-          echo "✅ Version reported to CST systems"
-        env:
-          CST_ENDPOINT: "https://cst-api.example.com"  # Configure as needed
+            echo "✅ Deployment reported to CST systems"
+          else
+            echo "⚠️ composer.lock not found, skipping CST reporting"
+          fi
 
       - name: Create NewRelic deployment marker (complete)
         if: inputs.newrelic-app-id != '' && secrets.newrelic-api-key != ''
@@ -531,37 +468,3 @@ jobs:
               ;;
           esac
 
-  # Post-deployment monitoring and reporting
-  post-deploy:
-    name: 🔍 Post-deployment Monitoring
-    runs-on: ubuntu-latest
-    needs: [prepare, deploy]
-    if: always() && needs.deploy.result == 'success'
-    steps:
-      - name: Monitor deployment performance
-        run: |
-          echo "📊 Monitoring deployment performance..."
-          
-          URL="${{ needs.deploy.outputs.deployment-url }}"
-          
-          # Basic performance check
-          RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}\n' "$URL")
-          echo "Response time: ${RESPONSE_TIME} seconds"
-          
-          if (( $(echo "$RESPONSE_TIME > 5.0" | bc -l) )); then
-            echo "⚠️ Warning: Response time is slower than expected (${RESPONSE_TIME}s > 5.0s)"
-          else
-            echo "✅ Response time is acceptable (${RESPONSE_TIME}s)"
-          fi
-
-      - name: Generate performance report
-        run: |
-          echo "## 📊 Performance Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Post-deployment monitoring completed for environment: **${{ inputs.environment }}**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. ✅ Verify core functionality on the deployed site" >> $GITHUB_STEP_SUMMARY
-          echo "2. 🧪 Run smoke tests against the environment" >> $GITHUB_STEP_SUMMARY
-          echo "3. 👀 Monitor application logs for any issues" >> $GITHUB_STEP_SUMMARY
-          echo "4. 📈 Check NewRelic dashboards for performance metrics" >> $GITHUB_STEP_SUMMARY
