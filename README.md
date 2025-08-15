@@ -84,7 +84,7 @@ A comprehensive PHP quality assurance workflow supporting static analysis, codin
 | Name | Required | Type | Default | Description |
 |------|----------|------|---------|-------------|
 | **PHP Configuration** |
-| php-version | ❌ | string | 8.1 | PHP version to use (8.1, 8.2, 8.3) |
+| php-version | ✅ | string | | PHP version to use (8.1, 8.2, 8.3) |
 | memory-limit | ❌ | string | 512M | PHP memory limit for analysis tools |
 | **PHPStan Configuration** |
 | phpstan-level | ❌ | string | 6 | PHPStan analysis level (1-9) |
@@ -97,6 +97,7 @@ A comprehensive PHP quality assurance workflow supporting static analysis, codin
 | skip-tests | ❌ | boolean | false | Skip PHP unit testing |
 | **Composer Configuration** |
 | composer-args | ❌ | string |  | Additional composer install arguments |
+| skip-security-audit | ❌ | boolean | false | Skip Composer security audit |
 | **Advanced Configuration** |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 

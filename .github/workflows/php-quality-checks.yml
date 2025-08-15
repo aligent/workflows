@@ -7,8 +7,7 @@ on:
       php-version:
         description: "PHP version to use (8.1, 8.2, 8.3)"
         type: string
-        required: false
-        default: "8.1"
+        required: true
       
       # PHPStan Configuration
       phpstan-level:
@@ -52,6 +51,11 @@ on:
         type: string
         required: false
         default: ""
+      skip-security-audit:
+        description: "Skip Composer security audit"
+        type: boolean
+        required: false
+        default: false
       
       # System Configuration
       memory-limit:
@@ -92,18 +96,6 @@ jobs:
             echo "❌ composer.json not found"
             echo "has-composer=false" >> $GITHUB_OUTPUT
           fi
-
-      - name: Validate PHP version
-        run: |
-          case "${{ inputs.php-version }}" in
-            8.1|8.2|8.3)
-              echo "✅ PHP version ${{ inputs.php-version }} is supported"
-              ;;
-            *)
-              echo "❌ Error: PHP version must be 8.1, 8.2, or 8.3"
-              exit 1
-              ;;
-          esac
 
       - name: Validate PHPStan level
         run: |
@@ -202,10 +194,31 @@ jobs:
         run: |
           apk add --no-cache git unzip
 
+      - name: Cache Composer binary
+        id: composer-binary-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/composer.phar
+          key: composer-binary-${{ runner.os }}
+
       - name: Install Composer
+        if: steps.composer-binary-cache.outputs.cache-hit != 'true'
         run: |
-          curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+          curl -sS https://getcomposer.org/installer | php -- --install-dir=/tmp --filename=composer.phar
+
+      - name: Setup Composer
+        run: |
+          cp /tmp/composer.phar /usr/local/bin/composer
+          chmod +x /usr/local/bin/composer
           composer --version
+
+      # Archive Composer binary for other jobs
+      - name: Upload Composer binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: composer-binary
+          path: /tmp/composer.phar
+          retention-days: 1
 
       - name: Validate composer.json and composer.lock
         run: |
@@ -237,17 +250,28 @@ jobs:
   security-audit:
     name: 🔒 Security Audit
     needs: [prepare, install]
-    if: needs.prepare.outputs.has-composer == 'true'
+    if: needs.prepare.outputs.has-composer == 'true' && inputs.skip-security-audit == false
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.prepare.outputs.php-container }}
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Composer
+      - name: Install system dependencies
         run: |
           apk add --no-cache git unzip
-          curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+      - name: Download Composer binary
+        uses: actions/download-artifact@v4
+        with:
+          name: composer-binary
+          path: /tmp
+
+      - name: Setup Composer
+        run: |
+          cp /tmp/composer.phar /usr/local/bin/composer
+          chmod +x /usr/local/bin/composer
+          composer --version
 
       - uses: actions/download-artifact@v4
         with:
@@ -554,9 +578,17 @@ jobs:
       - name: Install system dependencies
         run: apk add --no-cache git unzip
 
-      - name: Install Composer
+      - name: Download Composer binary
+        uses: actions/download-artifact@v4
+        with:
+          name: composer-binary
+          path: /tmp
+
+      - name: Setup Composer
         run: |
-          curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+          cp /tmp/composer.phar /usr/local/bin/composer
+          chmod +x /usr/local/bin/composer
+          composer --version
 
       - name: Install dependencies
         run: |
