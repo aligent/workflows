@@ -429,7 +429,7 @@ jobs:
 
       - name: Sign container image
         if: inputs.enable-signing == true && secrets.container-signing-key != ''
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
       - name: Sign the container image
         if: inputs.enable-signing == true && secrets.container-signing-key != ''
@@ -463,7 +463,7 @@ jobs:
 
       - name: Run Trivy vulnerability scanner
         id: scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@77137e9dc3ab1b329b7c8a38c2eb7475850a14e8 # master
         with:
           image-ref: ${{ needs.build.outputs.image-uri }}
           format: 'sarif'
