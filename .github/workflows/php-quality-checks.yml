@@ -97,27 +97,6 @@ jobs:
             echo "has-composer=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Validate PHPStan level
-        run: |
-          level="${{ inputs.phpstan-level }}"
-          if [[ "$level" =~ ^[1-9]$ ]]; then
-            echo "✅ PHPStan level $level is valid"
-          else
-            echo "❌ Error: PHPStan level must be between 1-9"
-            exit 1
-          fi
-
-      - name: Validate coding standard
-        run: |
-          case "${{ inputs.coding-standard }}" in
-            Magento2|PSR12|PSR2)
-              echo "✅ Coding standard ${{ inputs.coding-standard }} is supported"
-              ;;
-            *)
-              echo "❌ Error: Coding standard must be Magento2, PSR12, or PSR2"
-              exit 1
-              ;;
-          esac
 
       - name: Set PHP container configuration
         id: php-config
