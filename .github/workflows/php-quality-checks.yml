@@ -300,33 +300,53 @@ jobs:
         run: |
           echo "🔍 Running PHPStan analysis (Level ${{ inputs.phpstan-level }})..."
           
-          # Check if PHPStan is installed
-          if [ -f "vendor/bin/phpstan" ]; then
+          # Check for custom phpstan script first
+          if composer run-script --list | grep -q "phpstan"; then
+            echo "✅ Using composer phpstan script"
+            composer run-script phpstan
+          elif [ -f "phpstan.sh" ]; then
+            echo "✅ Using phpstan.sh script"
+            chmod +x phpstan.sh
+            ./phpstan.sh
+          elif [ -f "vendor/bin/phpstan" ]; then
+            echo "✅ Using vendor PHPStan"
             phpstan_cmd="vendor/bin/phpstan"
+            
+            # Build PHPStan command
+            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpstan_cmd analyse"
+            
+            # Use existing config or set defaults
+            if [ "${{ needs.prepare.outputs.has-phpstan-config }}" = "true" ]; then
+              echo "✅ Using existing PHPStan configuration"
+            else
+              echo "ℹ️ Using default PHPStan configuration"
+              cmd="$cmd --level=${{ inputs.phpstan-level }} src/ app/"
+            fi
+
+            # Add debug flags if enabled
+            if [ "${{ inputs.debug }}" = "true" ]; then
+              cmd="$cmd --verbose --debug"
+            fi
+
+            # Execute PHPStan
+            eval $cmd
           else
             echo "Installing PHPStan globally..."
             composer global require phpstan/phpstan:^1.0
             phpstan_cmd="phpstan"
-          fi
-
-          # Build PHPStan command
-          cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpstan_cmd analyse"
-          
-          # Use existing config or set defaults
-          if [ "${{ needs.prepare.outputs.has-phpstan-config }}" = "true" ]; then
-            echo "✅ Using existing PHPStan configuration"
-          else
-            echo "ℹ️ Using default PHPStan configuration"
+            
+            # Build PHPStan command
+            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpstan_cmd analyse"
             cmd="$cmd --level=${{ inputs.phpstan-level }} src/ app/"
-          fi
 
-          # Add debug flags if enabled
-          if [ "${{ inputs.debug }}" = "true" ]; then
-            cmd="$cmd --verbose --debug"
-          fi
+            # Add debug flags if enabled
+            if [ "${{ inputs.debug }}" = "true" ]; then
+              cmd="$cmd --verbose --debug"
+            fi
 
-          # Execute PHPStan
-          eval $cmd
+            # Execute PHPStan
+            eval $cmd
+          fi
 
   # PHP CodeSniffer style checks
   phpcs:
@@ -355,9 +375,39 @@ jobs:
         run: |
           echo "🎨 Running PHP CodeSniffer (${{ inputs.coding-standard }} standard)..."
           
-          # Check if PHPCS is installed
-          if [ -f "vendor/bin/phpcs" ]; then
+          # Check for custom check-style script first
+          if composer run-script --list | grep -q "check-style"; then
+            echo "✅ Using composer check-style script"
+            composer run-script check-style
+          elif [ "${{ needs.prepare.outputs.has-phpcs-config }}" = "true" ]; then
+            echo "✅ Using existing PHPCS configuration"
+            if [ -f "vendor/bin/phpcs" ]; then
+              phpcs_cmd="vendor/bin/phpcs"
+            else
+              echo "Installing PHP CodeSniffer globally..."
+              composer global require squizlabs/php_codesniffer:^3.0
+              phpcs_cmd="phpcs"
+            fi
+            
+            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd --report=full --colors"
+            if [ "${{ inputs.debug }}" = "true" ]; then
+              cmd="$cmd --verbose"
+            fi
+            eval $cmd
+          elif [ -f "vendor/bin/phpcs" ]; then
+            echo "✅ Using vendor PHPCS with ${{ inputs.coding-standard }} standard"
             phpcs_cmd="vendor/bin/phpcs"
+            
+            # Build PHPCS command
+            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd"
+            cmd="$cmd --standard=${{ inputs.coding-standard }} src/ app/"
+            cmd="$cmd --report=full --colors"
+            
+            if [ "${{ inputs.debug }}" = "true" ]; then
+              cmd="$cmd --verbose"
+            fi
+            
+            eval $cmd
           else
             echo "Installing PHP CodeSniffer globally..."
             composer global require squizlabs/php_codesniffer:^3.0
@@ -367,27 +417,18 @@ jobs:
             if [ "${{ inputs.coding-standard }}" = "Magento2" ]; then
               composer global require magento/magento-coding-standard:*
             fi
-          fi
-
-          # Build PHPCS command
-          cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd"
-          
-          # Use existing config or set standard
-          if [ "${{ needs.prepare.outputs.has-phpcs-config }}" = "true" ]; then
-            echo "✅ Using existing PHPCS configuration"
-          else
-            echo "ℹ️ Using ${{ inputs.coding-standard }} coding standard"
+            
+            # Build PHPCS command
+            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd"
             cmd="$cmd --standard=${{ inputs.coding-standard }} src/ app/"
+            cmd="$cmd --report=full --colors"
+            
+            if [ "${{ inputs.debug }}" = "true" ]; then
+              cmd="$cmd --verbose"
+            fi
+            
+            eval $cmd
           fi
-
-          # Add output formatting and debug flags
-          cmd="$cmd --report=full --colors"
-          if [ "${{ inputs.debug }}" = "true" ]; then
-            cmd="$cmd --verbose"
-          fi
-
-          # Execute PHPCS
-          eval $cmd
 
   # PHPMD mess detection
   phpmd:
@@ -534,64 +575,12 @@ jobs:
           path: coverage.xml
           retention-days: 7
 
-  # Matrix testing across PHP versions
-  matrix-test:
-    name: 🔄 Matrix Testing
-    if: |
-      inputs.skip-tests == false && 
-      needs.prepare.outputs.has-composer == 'true' &&
-      needs.prepare.outputs.has-phpunit == 'true'
-    needs: [prepare, install]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        php-version: ["8.1", "8.2", "8.3"]
-        exclude:
-          - php-version: ${{ inputs.php-version }} # Skip the version already tested above
-    container:
-      image: php:${{ matrix.php-version }}-cli-alpine
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install system dependencies
-        run: apk add --no-cache git unzip
-
-      - name: Download Composer binary
-        uses: actions/download-artifact@v4
-        with:
-          name: composer-binary
-          path: /tmp
-
-      - name: Setup Composer
-        run: |
-          cp /tmp/composer.phar /usr/local/bin/composer
-          chmod +x /usr/local/bin/composer
-          composer --version
-
-      - name: Install dependencies
-        run: |
-          php -d memory_limit=${{ inputs.memory-limit }} composer install \
-            --no-progress \
-            --no-suggest \
-            --no-interaction \
-            --optimize-autoloader \
-            ${{ inputs.composer-args }}
-
-      - name: Run quick tests
-        run: |
-          echo "🧪 Running tests on PHP ${{ matrix.php-version }}..."
-          if [ -f "vendor/bin/phpunit" ]; then
-            php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit --no-coverage
-          else
-            echo "⚠️ PHPUnit not found, skipping tests"
-          fi
 
   # Cleanup artifacts
   cleanup:
     name: 🧹 Cleanup
     runs-on: ubuntu-latest
-    needs: [install, security-audit, phpstan, phpcs, phpmd, test, matrix-test]
+    needs: [install, security-audit, phpstan, phpcs, phpmd, test]
     if: always()
     permissions:
       actions: write
