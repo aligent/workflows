@@ -43,7 +43,7 @@ A comprehensive Magento Cloud deployment workflow supporting multi-environment d
 - **DI compilation**: Memory-optimized dependency injection compilation
 - **NewRelic integration**: Deployment markers and performance monitoring
 - **Environment protection**: Uses GitHub environment protection rules for deployment gates
-- **CST system integration**: Composer.lock reporting to Confidentiality and Security Team
+- **CST system integration**: Optional composer.lock reporting to Confidentiality and Security Team with workspace-level configuration
 - **Full git history support**: Required for Magento Cloud deployment requirements
 
 #### **Inputs**
@@ -60,6 +60,9 @@ A comprehensive Magento Cloud deployment workflow supporting multi-environment d
 | di-compile | ❌ | boolean | true | Run dependency injection compilation |
 | **Monitoring and Reporting** |
 | newrelic-app-id | ❌ | string | | NewRelic application ID for deployment markers (optional) |
+| **CST Reporting Configuration** |
+| cst-endpoint | ❌ | string | | CST endpoint URL (optional, overrides workspace variable) |
+| cst-reporting-key | ❌ | string | | CST reporting key (optional, overrides workspace secret) |
 | **Advanced Configuration** |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 
@@ -68,7 +71,7 @@ A comprehensive Magento Cloud deployment workflow supporting multi-environment d
 |------|----------|-------------|
 | magento-cloud-cli-token | ✅ | Magento Cloud CLI token for authentication |
 | newrelic-api-key | ❌ | NewRelic API key for deployment markers (optional) |
-| cst-reporting-token | ❌ | Confidentiality and Security Team reporting token (optional) |
+| cst-reporting-token | ❌ | CST reporting token (workspace-level secret, optional) |
 
 #### **Outputs**
 | Name | Description |
@@ -104,7 +107,6 @@ jobs:
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
       newrelic-api-key: ${{ secrets.NEWRELIC_API_KEY }}
-      cst-reporting-token: ${{ secrets.CST_REPORTING_TOKEN }}
 ```
 
 **Staging Deployment with Custom PHP and Debug:**
@@ -138,6 +140,36 @@ jobs:
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
 ```
+
+**Deployment with CST Reporting Override:**
+```yaml
+jobs:
+  deploy-with-cst:
+    uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
+    with:
+      magento-cloud-project-id: abc123def456
+      environment: staging
+      cst-endpoint: "https://cst.example.com"  # Overrides workspace variable
+      cst-reporting-key: "custom-key-123"      # Overrides workspace secret
+    secrets:
+      magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
+```
+
+#### **CST Reporting Configuration**
+
+The CST (Confidentiality and Security Team) reporting feature can be configured in two ways:
+
+1. **Workspace-level configuration (recommended):**
+   - Set `CST_ENDPOINT` as a repository/organization variable
+   - Set `cst-reporting-token` as a repository/organization secret
+   - The workflow will automatically use these when available
+
+2. **Input overrides (optional):**
+   - Use `cst-endpoint` input to override the workspace variable
+   - Use `cst-reporting-key` input to override the workspace secret
+   - Useful for testing or special deployments
+
+CST reporting only runs when both endpoint and key are configured. If either is missing, the step is skipped with an informational message.
 
 ### Nx Serverless Deployment
 
