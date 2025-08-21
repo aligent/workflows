@@ -48,7 +48,12 @@ on:
       
       # CST Reporting Configuration
       cst-endpoint:
-        description: "CST endpoint URL (optional, overrides workspace variable)"
+        description: "CST endpoint base URL (optional, overrides workspace variable)"
+        type: string
+        required: false
+        default: ""
+      cst-project-key:
+        description: "CST project key (optional, overrides workspace variable)"
         type: string
         required: false
         default: ""
@@ -404,29 +409,38 @@ jobs:
             CST_ENDPOINT="${{ vars.CST_ENDPOINT }}"
           fi
           
+          # Determine CST project key - input overrides workspace variable
+          CST_PROJECT_KEY="${{ inputs.cst-project-key }}"
+          if [ -z "$CST_PROJECT_KEY" ]; then
+            CST_PROJECT_KEY="${{ vars.CST_PROJECT_KEY }}"
+          fi
+          
           # Determine CST reporting key - input overrides workspace secret
           CST_KEY="${{ inputs.cst-reporting-key }}"
           if [ -z "$CST_KEY" ]; then
             CST_KEY="${{ secrets.cst-reporting-token }}"
           fi
           
-          # Only run CST reporting if both endpoint and key are available
-          if [ -n "$CST_ENDPOINT" ] && [ -n "$CST_KEY" ]; then
+          # Only run CST reporting if endpoint, project key, and auth key are available
+          if [ -n "$CST_ENDPOINT" ] && [ -n "$CST_PROJECT_KEY" ] && [ -n "$CST_KEY" ]; then
             echo "📡 Reporting deployment to CST (Confidentiality and Security Team)..."
+            
+            # Construct full CST URL: endpoint/project_key/adobe-commerce
+            CST_FULL_URL="${CST_ENDPOINT}/${CST_PROJECT_KEY}/adobe-commerce"
             
             # Send composer.lock file contents to CST endpoint
             if [ -f "composer.lock" ]; then
-              curl -X POST "${CST_ENDPOINT}/deployments" \
+              curl -X POST "${CST_FULL_URL}" \
                 -H "Authorization: Bearer ${CST_KEY}" \
                 -H "Content-Type: application/octet-stream" \
                 --data-binary @composer.lock
               
-              echo "✅ Deployment reported to CST systems"
+              echo "✅ Deployment reported to CST systems at ${CST_FULL_URL}"
             else
               echo "⚠️ composer.lock not found, skipping CST reporting"
             fi
           else
-            echo "ℹ️ CST reporting skipped (no endpoint or key configured)"
+            echo "ℹ️ CST reporting skipped (missing endpoint, project key, or auth key)"
           fi
 
       - name: Create NewRelic deployment marker (complete)

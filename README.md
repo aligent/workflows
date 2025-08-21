@@ -61,7 +61,8 @@ A comprehensive Magento Cloud deployment workflow supporting multi-environment d
 | **Monitoring and Reporting** |
 | newrelic-app-id | ❌ | string | | NewRelic application ID for deployment markers (optional) |
 | **CST Reporting Configuration** |
-| cst-endpoint | ❌ | string | | CST endpoint URL (optional, overrides workspace variable) |
+| cst-endpoint | ❌ | string | | CST endpoint base URL (optional, overrides workspace variable) |
+| cst-project-key | ❌ | string | | CST project key (optional, overrides workspace variable) |
 | cst-reporting-key | ❌ | string | | CST reporting key (optional, overrides workspace secret) |
 | **Advanced Configuration** |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
@@ -72,6 +73,12 @@ A comprehensive Magento Cloud deployment workflow supporting multi-environment d
 | magento-cloud-cli-token | ✅ | Magento Cloud CLI token for authentication |
 | newrelic-api-key | ❌ | NewRelic API key for deployment markers (optional) |
 | cst-reporting-token | ❌ | CST reporting token (workspace-level secret, optional) |
+
+#### **Workspace Variables (Optional)**
+| Name | Description |
+|------|-------------|
+| CST_ENDPOINT | CST endpoint base URL (e.g., `https://package.report.aligent.consulting`) |
+| CST_PROJECT_KEY | CST project identifier for your organization |
 
 #### **Outputs**
 | Name | Description |
@@ -149,8 +156,9 @@ jobs:
     with:
       magento-cloud-project-id: abc123def456
       environment: staging
-      cst-endpoint: "https://cst.example.com"  # Overrides workspace variable
-      cst-reporting-key: "custom-key-123"      # Overrides workspace secret
+      cst-endpoint: "https://package.report.aligent.consulting"     # Overrides workspace variable
+      cst-project-key: "your-project-key"                          # Overrides workspace variable
+      cst-reporting-key: "custom-key-123"                           # Overrides workspace secret
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
 ```
@@ -160,16 +168,20 @@ jobs:
 The CST (Confidentiality and Security Team) reporting feature can be configured in two ways:
 
 1. **Workspace-level configuration (recommended):**
-   - Set `CST_ENDPOINT` as a repository/organization variable
+   - Set `CST_ENDPOINT` as a repository/organization variable (base URL, e.g., `https://package.report.aligent.consulting`)
+   - Set `CST_PROJECT_KEY` as a repository/organization variable (your project identifier)
    - Set `cst-reporting-token` as a repository/organization secret
    - The workflow will automatically use these when available
 
 2. **Input overrides (optional):**
-   - Use `cst-endpoint` input to override the workspace variable
+   - Use `cst-endpoint` input to override the workspace variable (base URL)
+   - Use `cst-project-key` input to override the workspace variable (project identifier)
    - Use `cst-reporting-key` input to override the workspace secret
    - Useful for testing or special deployments
 
-CST reporting only runs when both endpoint and key are configured. If either is missing, the step is skipped with an informational message.
+The workflow constructs the full CST URL as: `{endpoint}/{project-key}/adobe-commerce`
+
+CST reporting only runs when endpoint, project key, and auth key are all configured. If any are missing, the step is skipped with an informational message.
 
 ### Nx Serverless Deployment
 
