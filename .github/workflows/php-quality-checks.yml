@@ -102,8 +102,10 @@ jobs:
         id: php-config
         run: |
           container="php:${{ inputs.php-version }}-cli-alpine"
+          echo "🐘 Verifying PHP container exists: $container"
+          docker manifest inspect "$container" > /dev/null
           echo "container=$container" >> $GITHUB_OUTPUT
-          echo "🐘 Using PHP container: $container"
+          echo "✅ PHP container verified: $container"
 
       - name: Check for analysis tool configurations
         id: check-tools
