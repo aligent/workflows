@@ -32,6 +32,41 @@ jobs:
       skip-format: false
 ```
 
+### S3 Deployment
+
+#### **Inputs**
+| Name                  | Required | Type    | Default         | Description                               |
+|--------------------- |----------|---------|-----------------|--------------------------------------------|
+| aws-region           | ❌       | string  | ap-southeast-2  | AWS region                                 |
+| s3-bucket            | ✅       | string  |                 | Name of the S3 bucket                      |
+| s3-path              | ❌       | string  |                 | Path in the S3 bucket                      |
+| local-path           | ✅       | string  |                 | Path to deploy                             |
+| delete-flag          | ❌       | boolean | true            | Enable --delete flag                       |
+| cache-control        | ❌       | string  |                 | Cache control headers                      |
+| extra-args           | ❌       | string  |                 | Additional AWS CLI args                    |
+
+#### **Secrets**
+| Name                  | Required | Description                               |
+|--------------------- |----------|--------------------------------------------|
+| aws-access-key-id    | ✅       | AWS Access Key ID                          |
+| aws-secret-access-key| ✅       | AWS Secret Access Key                      |
+
+#### Example Usage
+
+```yaml
+jobs:
+  deploy-to-s3:
+    uses: aligent/workflows/.github/workflows/s3-deploy.yml@main
+    with:
+      s3-bucket: my-bucket
+      local-path: ./dist
+      s3-path: /public
+      cache-control: "max-age=3600"
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
 ### Magento Cloud Deployment
 
 A simple Magento Cloud deployment workflow that pushes code to your Magento Cloud git repository with optional NewRelic monitoring and CST reporting.
@@ -154,7 +189,6 @@ The CST (Confidentiality and Security Team) reporting feature can be configured 
 The workflow constructs the full CST URL as: `{endpoint}/{project-key}/adobe-commerce`
 
 CST reporting only runs when endpoint, project key, and auth key are all configured. If any are missing, the step is skipped with an informational message.
-
 ### Nx Serverless Deployment
 
 #### **Inputs**
