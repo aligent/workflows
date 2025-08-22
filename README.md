@@ -34,17 +34,16 @@ jobs:
 
 ### Magento Cloud Deployment
 
-A comprehensive Magento Cloud deployment workflow supporting multi-environment deployments, ECE patches, dependency injection compilation, NewRelic monitoring, and production approval gates.
+A simple Magento Cloud deployment workflow that pushes code to your Magento Cloud git repository with optional NewRelic monitoring and CST reporting.
 
 #### **Features**
 - **Multi-environment support**: integration, staging, and production deployments
-- **PHP 8.1-8.3 support**: Magento-optimized container environments
-- **ECE patches integration**: Automatic application of Magento Cloud patches
-- **DI compilation**: Memory-optimized dependency injection compilation
-- **NewRelic integration**: Deployment markers and performance monitoring
+- **Simple git push**: No composer install, patching, or building - just pushes code
+- **NewRelic integration**: Optional deployment markers for tracking deployment lifecycle (start/complete)
+- **CST system integration**: Optional composer.lock reporting to Confidentiality and Security Team
 - **Environment protection**: Uses GitHub environment protection rules for deployment gates
-- **CST system integration**: Optional composer.lock reporting to Confidentiality and Security Team with workspace-level configuration
 - **Full git history support**: Required for Magento Cloud deployment requirements
+- **Parallel post-deployment**: NewRelic completion and CST reporting run in parallel for efficiency
 
 #### **Inputs**
 | Name | Required | Type | Default | Description |
@@ -52,12 +51,6 @@ A comprehensive Magento Cloud deployment workflow supporting multi-environment d
 | **Magento Cloud Configuration** |
 | magento-cloud-project-id | ✅ | string | | Magento Cloud project ID (required) |
 | environment | ❌ | string | integration | Target environment (integration/staging/production) |
-| **PHP Configuration** |
-| php-version | ❌ | string | 8.1 | PHP version for Magento (8.1, 8.2, 8.3) |
-| memory-limit | ❌ | string | -1 | PHP memory limit for compilation (-1 for unlimited) |
-| **Magento-specific Configuration** |
-| apply-patches | ❌ | boolean | true | Apply ECE patches before deployment |
-| di-compile | ❌ | boolean | true | Run dependency injection compilation |
 | **Monitoring and Reporting** |
 | newrelic-app-id | ❌ | string | | NewRelic application ID for deployment markers (optional) |
 | **CST Reporting Configuration** |
@@ -96,12 +89,11 @@ jobs:
     with:
       magento-cloud-project-id: abc123def456
       environment: integration
-      php-version: "8.1"
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
 ```
 
-**Production Deployment with Monitoring:**
+**Production Deployment with NewRelic Monitoring:**
 ```yaml
 jobs:
   deploy-production:
@@ -109,14 +101,13 @@ jobs:
     with:
       magento-cloud-project-id: abc123def456
       environment: production
-      php-version: "8.2"
       newrelic-app-id: "123456789"
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
       newrelic-api-key: ${{ secrets.NEWRELIC_API_KEY }}
 ```
 
-**Staging Deployment with Custom PHP and Debug:**
+**Staging Deployment with CST Reporting:**
 ```yaml
 jobs:
   deploy-staging:
@@ -124,25 +115,6 @@ jobs:
     with:
       magento-cloud-project-id: abc123def456
       environment: staging
-      php-version: "8.3"
-      memory-limit: "4G"
-      debug: true
-      apply-patches: true
-      di-compile: true
-    secrets:
-      magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
-```
-
-**Skip ECE Patches and DI Compilation:**
-```yaml
-jobs:
-  deploy-fast:
-    uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
-    with:
-      magento-cloud-project-id: abc123def456
-      environment: integration
-      apply-patches: false
-      di-compile: false
       debug: true
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
@@ -156,9 +128,9 @@ jobs:
     with:
       magento-cloud-project-id: abc123def456
       environment: staging
-      cst-endpoint: "https://package.report.aligent.consulting"     # Overrides workspace variable
-      cst-project-key: "your-project-key"                          # Overrides workspace variable
-      cst-reporting-key: "custom-key-123"                           # Overrides workspace secret
+      cst-endpoint: "https://package.report.aligent.consulting"
+      cst-project-key: "your-project-key"
+      cst-reporting-key: "custom-key-123"
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
 ```
