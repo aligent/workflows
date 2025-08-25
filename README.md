@@ -6,17 +6,17 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 
 ### AWS CDK Deployment
 
-A comprehensive AWS CDK deployment workflow supporting multi-environment infrastructure deployments, stack management, and infrastructure validation with approval gates.
+A streamlined AWS CDK deployment workflow supporting multi-environment infrastructure deployments with automatic package manager detection and Node.js version management.
 
 #### **Features**
 - **CDK synth → diff → deploy workflow**: Complete infrastructure deployment pipeline
 - **Multi-environment support**: development, staging, and production deployments
 - **Bootstrap validation**: Automatic CDK environment preparation and validation
 - **Infrastructure validation**: Comprehensive stack validation and drift detection
-- **Approval gates**: Manual approval workflows for production deployments
 - **Changeset preview**: CloudFormation diff analysis before deployment
 - **Rollback capabilities**: Support for stack destruction and rollback operations
-- **Node.js optimization**: Configurable Node.js versions with dependency caching
+- **Smart Node.js setup**: Automatic detection from .nvmrc file with dependency caching
+- **Package manager detection**: Automatic support for npm, yarn (classic/berry), and pnpm
 - **Debug support**: Verbose logging and debug output for troubleshooting
 
 #### **Inputs**
@@ -27,12 +27,8 @@ A comprehensive AWS CDK deployment workflow supporting multi-environment infrast
 | cdk-stack-name | ✅ | string | | CDK stack name to deploy (required) |
 | environment-target | ❌ | string | development | Target environment (staging/production/development) |
 | **Deployment Control** |
-| approval-required | ❌ | boolean | true | Require manual approval before deployment |
 | destroy-mode | ❌ | boolean | false | Destroy stack instead of deploying |
 | bootstrap-stack | ❌ | boolean | false | Bootstrap CDK environment before deployment |
-| **Node.js and CDK Configuration** |
-| node-version | ❌ | string | 18 | Node.js version to use |
-| cdk-version | ❌ | string | | Pin specific CDK version (optional) |
 | **Advanced Configuration** |
 | context-values | ❌ | string | {} | CDK context values as JSON object |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
@@ -60,13 +56,12 @@ jobs:
     with:
       cdk-stack-name: my-app-dev
       environment-target: development
-      approval-required: false
     secrets:
       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
-**Production Deployment with Manual Approval:**
+**Production Deployment:**
 ```yaml
 jobs:
   deploy-prod:
@@ -74,8 +69,6 @@ jobs:
     with:
       cdk-stack-name: my-app-prod
       environment-target: production
-      approval-required: true
-      node-version: "18"
       debug: true
     secrets:
       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -98,7 +91,7 @@ jobs:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
-**Custom CDK Context and Version:**
+**Custom CDK Context:**
 ```yaml
 jobs:
   deploy-custom:
@@ -106,9 +99,7 @@ jobs:
     with:
       cdk-stack-name: my-app-custom
       environment-target: staging
-      cdk-version: "2.100.0"
       context-values: '{"vpc-id": "vpc-12345", "environment": "staging"}'
-      node-version: "20"
     secrets:
       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -123,7 +114,6 @@ jobs:
       cdk-stack-name: my-app-old
       environment-target: development
       destroy-mode: true
-      approval-required: false
     secrets:
       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -155,117 +145,6 @@ jobs:
     uses: aligent/workflows/.github/workflows/node-pr.yml@main
     with:
       skip-format: false
-```
-
-### Magento Cloud Deployment
-
-A comprehensive Magento Cloud deployment workflow supporting multi-environment deployments, ECE patches, dependency injection compilation, NewRelic monitoring, and production approval gates.
-
-#### **Features**
-- **Multi-environment support**: integration, staging, and production deployments
-- **PHP 8.1-8.3 support**: Magento-optimized container environments
-- **ECE patches integration**: Automatic application of Magento Cloud patches
-- **DI compilation**: Memory-optimized dependency injection compilation
-- **NewRelic integration**: Deployment markers and performance monitoring
-- **Production gates**: Manual approval workflow for production deployments
-- **CST system integration**: Version reporting to centralized tracking systems
-- **Full git history support**: Required for Magento Cloud deployment requirements
-- **Health monitoring**: Post-deployment verification and performance checks
-
-#### **Inputs**
-| Name | Required | Type | Default | Description |
-|------|----------|------|---------|-------------|
-| **Magento Cloud Configuration** |
-| magento-cloud-project-id | ✅ | string | | Magento Cloud project ID (required) |
-| environment | ❌ | string | integration | Target environment (integration/staging/production) |
-| **PHP Configuration** |
-| php-version | ❌ | string | 8.1 | PHP version for Magento (8.1, 8.2, 8.3) |
-| memory-limit | ❌ | string | -1 | PHP memory limit for compilation (-1 for unlimited) |
-| **Magento-specific Configuration** |
-| apply-patches | ❌ | boolean | true | Apply ECE patches before deployment |
-| di-compile | ❌ | boolean | true | Run dependency injection compilation |
-| **Deployment Control** |
-| manual-deploy | ❌ | boolean | false | Require manual approval for production deployments |
-| **Monitoring and Reporting** |
-| newrelic-app-id | ❌ | string | | NewRelic application ID for deployment markers (optional) |
-| **Advanced Configuration** |
-| debug | ❌ | boolean | false | Enable verbose logging and debug output |
-
-#### **Secrets**
-| Name | Required | Description |
-|------|----------|-------------|
-| magento-cloud-cli-token | ✅ | Magento Cloud CLI token for authentication |
-| newrelic-api-key | ❌ | NewRelic API key for deployment markers (optional) |
-| cst-reporting-token | ❌ | CST system reporting token (optional) |
-
-#### **Outputs**
-| Name | Description |
-|------|-------------|
-| deployment-url | URL of the deployed Magento application |
-| deployment-id | Magento Cloud deployment ID |
-
-#### **Example Usage**
-
-**Basic Integration Deployment:**
-```yaml
-jobs:
-  deploy-integration:
-    uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
-    with:
-      magento-cloud-project-id: abc123def456
-      environment: integration
-      php-version: "8.1"
-    secrets:
-      magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
-```
-
-**Production Deployment with Manual Approval:**
-```yaml
-jobs:
-  deploy-production:
-    uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
-    with:
-      magento-cloud-project-id: abc123def456
-      environment: production
-      php-version: "8.2"
-      manual-deploy: true
-      newrelic-app-id: "123456789"
-    secrets:
-      magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
-      newrelic-api-key: ${{ secrets.NEWRELIC_API_KEY }}
-      cst-reporting-token: ${{ secrets.CST_REPORTING_TOKEN }}
-```
-
-**Staging Deployment with Custom PHP and Debug:**
-```yaml
-jobs:
-  deploy-staging:
-    uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
-    with:
-      magento-cloud-project-id: abc123def456
-      environment: staging
-      php-version: "8.3"
-      memory-limit: "4G"
-      debug: true
-      apply-patches: true
-      di-compile: true
-    secrets:
-      magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
-```
-
-**Skip ECE Patches and DI Compilation:**
-```yaml
-jobs:
-  deploy-fast:
-    uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
-    with:
-      magento-cloud-project-id: abc123def456
-      environment: integration
-      apply-patches: false
-      di-compile: false
-      debug: true
-    secrets:
-      magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
 ```
 
 ### Nx Serverless Deployment
