@@ -83,9 +83,8 @@ jobs:
             echo "version=$NODE_VERSION" >> $GITHUB_OUTPUT
             echo "✅ Using Node.js version from .nvmrc: $NODE_VERSION"
           else
-            NODE_VERSION="18"
-            echo "version=$NODE_VERSION" >> $GITHUB_OUTPUT
-            echo "⚠️ No .nvmrc found, using default Node.js version: $NODE_VERSION"
+            echo "❌ Error: No .nvmrc file found. Please create an .nvmrc file with the required Node.js version."
+            exit 1
           fi
 
       - name: Detect package manager
