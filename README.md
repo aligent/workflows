@@ -97,7 +97,6 @@ A comprehensive PHP quality assurance workflow supporting static analysis, codin
 | skip-tests | ❌ | boolean | false | Skip PHP unit testing |
 | **Composer Configuration** |
 | composer-args | ❌ | string |  | Additional composer install arguments |
-| skip-security-audit | ❌ | boolean | false | Skip Composer security audit |
 | **Advanced Configuration** |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 
