@@ -413,7 +413,7 @@ jobs:
           path: deployment-diff.txt
           retention-days: 30
 
-  # Deploy or destroy CDK stack
+  # Deploy CDK stack
   deploy:
     name: '🚀 Deploy Stack'
     runs-on: ubuntu-latest

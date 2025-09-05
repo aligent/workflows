@@ -27,7 +27,6 @@ A streamlined AWS CDK deployment workflow supporting multi-environment infrastru
 | cdk-stack-name | ✅ | string | | CDK stack name to deploy (required) |
 | environment-target | ❌ | string | development | Target environment (staging/production/development) |
 | **Deployment Control** |
-| destroy-mode | ❌ | boolean | false | Destroy stack instead of deploying |
 | bootstrap-stack | ❌ | boolean | false | Bootstrap CDK environment before deployment |
 | **Advanced Configuration** |
 | context-values | ❌ | string | {} | CDK context values as JSON object |
@@ -44,7 +43,7 @@ A streamlined AWS CDK deployment workflow supporting multi-environment infrastru
 | Name | Description |
 |------|-------------|
 | stack-outputs | CloudFormation stack outputs as JSON |
-| deployment-status | Deployment status (success/failed/destroyed) |
+| deployment-status | Deployment status (success/failed) |
 
 #### **Example Usage**
 
@@ -105,19 +104,6 @@ jobs:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
-**Destroy Stack:**
-```yaml
-jobs:
-  destroy-stack:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
-    with:
-      cdk-stack-name: my-app-old
-      environment-target: development
-      destroy-mode: true
-    secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-```
 
 ### Node Pull Request Checks
 
