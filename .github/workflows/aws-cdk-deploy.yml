@@ -20,11 +20,6 @@ on:
         default: "development"
       
       # Deployment Control
-      destroy-mode:
-        description: "Destroy stack instead of deploying"
-        type: boolean
-        required: false
-        default: false
       bootstrap-stack:
         description: "Bootstrap CDK environment before deployment"
         type: boolean
@@ -59,7 +54,7 @@ on:
         description: "CloudFormation stack outputs as JSON"
         value: ${{ jobs.deploy.outputs.stack-outputs }}
       deployment-status:
-        description: "Deployment status (success/failed/destroyed)"
+        description: "Deployment status (success/failed)"
         value: ${{ jobs.deploy.outputs.deployment-status }}
 
 jobs:
@@ -164,15 +159,9 @@ jobs:
           echo "📋 Configuring deployment strategy..."
           
           # Determine deployment strategy
-          if [ "${{ inputs.destroy-mode }}" = "true" ]; then
-            echo "strategy=destroy" >> $GITHUB_OUTPUT
-            echo "cdk-command=destroy" >> $GITHUB_OUTPUT
-            echo "💥 Strategy: Destroy stack"
-          else
-            echo "strategy=deploy" >> $GITHUB_OUTPUT
-            echo "cdk-command=deploy" >> $GITHUB_OUTPUT
-            echo "🏗️ Strategy: Deploy stack"
-          fi
+          echo "strategy=deploy" >> $GITHUB_OUTPUT
+          echo "cdk-command=deploy" >> $GITHUB_OUTPUT
+          echo "🏗️ Strategy: Deploy stack"
 
       - name: Configure CDK context
         id: context-config
@@ -338,7 +327,7 @@ jobs:
     name: 📊 CDK Diff Analysis
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, synth]
-    if: always() && needs.synth.result == 'success' && inputs.destroy-mode == false
+    if: always() && needs.synth.result == 'success'
     outputs:
       has-changes: ${{ steps.diff-analysis.outputs.has-changes }}
       diff-summary: ${{ steps.diff-analysis.outputs.summary }}
@@ -426,7 +415,7 @@ jobs:
 
   # Deploy or destroy CDK stack
   deploy:
-    name: ${{ inputs.destroy-mode == true && '💥 Destroy Stack' || '🚀 Deploy Stack' }}
+    name: '🚀 Deploy Stack'
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, synth, diff]
     if: always() && needs.prepare.result == 'success' && needs.synth.result == 'success' && (needs.diff.result == 'success' || needs.diff.result == 'skipped')
@@ -453,7 +442,6 @@ jobs:
           role-to-assume: ${{ secrets.cfn-execution-role }}
 
       - name: Download synthesis artifacts
-        if: inputs.destroy-mode == false
         uses: actions/download-artifact@v4
         with:
           name: cdk-synthesis-${{ inputs.cdk-stack-name }}
@@ -486,40 +474,27 @@ jobs:
             verbose="--verbose"
           fi
           
-          if [ "${{ inputs.destroy-mode }}" = "true" ]; then
-            echo "💥 Destroying CDK stack: ${{ inputs.cdk-stack-name }}"
-            
-            npx cdk destroy ${{ inputs.cdk-stack-name }} \
-              ${{ needs.prepare.outputs.context-args }} \
-              --force \
-              $verbose
-            
-            echo "status=destroyed" >> $GITHUB_OUTPUT
-            echo "stack-outputs={}" >> $GITHUB_OUTPUT
-            echo "✅ Stack destroyed successfully"
+          echo "🚀 Deploying CDK stack: ${{ inputs.cdk-stack-name }}"
+          
+          npx cdk deploy ${{ inputs.cdk-stack-name }} \
+            ${{ needs.prepare.outputs.context-args }} \
+            --require-approval never \
+            --outputs-file stack-outputs.json \
+            $verbose
+          
+          # Extract stack outputs
+          if [ -f "stack-outputs.json" ]; then
+            outputs=$(cat stack-outputs.json)
+            echo "stack-outputs=$outputs" >> $GITHUB_OUTPUT
           else
-            echo "🚀 Deploying CDK stack: ${{ inputs.cdk-stack-name }}"
-            
-            npx cdk deploy ${{ inputs.cdk-stack-name }} \
-              ${{ needs.prepare.outputs.context-args }} \
-              --require-approval never \
-              --outputs-file stack-outputs.json \
-              $verbose
-            
-            # Extract stack outputs
-            if [ -f "stack-outputs.json" ]; then
-              outputs=$(cat stack-outputs.json)
-              echo "stack-outputs=$outputs" >> $GITHUB_OUTPUT
-            else
-              echo "stack-outputs={}" >> $GITHUB_OUTPUT
-            fi
-            
-            echo "status=success" >> $GITHUB_OUTPUT
-            echo "✅ Stack deployed successfully"
+            echo "stack-outputs={}" >> $GITHUB_OUTPUT
           fi
+          
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "✅ Stack deployed successfully"
 
       - name: Upload deployment artifacts
-        if: inputs.destroy-mode == false && steps.deployment.outputs.status == 'success'
+        if: steps.deployment.outputs.status == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: deployment-outputs-${{ inputs.cdk-stack-name }}
@@ -531,7 +506,7 @@ jobs:
     name: 🔍 Post-Deployment Validation
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, deploy]
-    if: needs.deploy.result == 'success' && inputs.destroy-mode == false
+    if: needs.deploy.result == 'success'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
