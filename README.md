@@ -107,18 +107,16 @@ jobs:
 
 ### Docker ECR Deployment
 
-A comprehensive Docker container deployment workflow supporting multi-platform builds, ECR registry management, vulnerability scanning, and container security with build optimization and registry lifecycle management.
+A comprehensive Docker container deployment workflow supporting multi-platform builds, ECR registry management, and container security with build optimization and registry lifecycle management.
 
 #### **Features**
 - **Multi-platform builds**: Support for linux/amd64, linux/arm64, and ARM variants
 - **ECR integration**: Automated ECR repository creation and lifecycle management  
-- **Vulnerability scanning**: Trivy security scanning with configurable thresholds
 - **Container signing**: Optional cosign-based image signing and attestation
 - **Smart tagging**: Multiple tagging strategies (latest, semantic, branch, custom)
 - **Build optimization**: Advanced caching with registry and inline cache support
 - **Registry cleanup**: Automated cleanup of old images with retention policies
 - **Multi-stage builds**: Support for target build stages and build arguments
-- **Security gates**: Configurable vulnerability thresholds blocking insecure deployments
 
 #### **Inputs**
 | Name | Required | Type | Default | Description |
@@ -131,9 +129,6 @@ A comprehensive Docker container deployment workflow supporting multi-platform b
 | **Platform and Build Configuration** |
 | platforms | ❌ | string | linux/amd64,linux/arm64 | Target platforms for multi-platform builds |
 | push-to-registry | ❌ | boolean | true | Push built images to ECR registry |
-| **Security and Scanning** |
-| vulnerability-scan | ❌ | boolean | true | Enable container vulnerability scanning |
-| security-threshold | ❌ | string | HIGH | Security vulnerability threshold (CRITICAL/HIGH/MEDIUM/LOW) |
 | **Tagging Strategy** |
 | tag-strategy | ❌ | string | latest | Image tagging strategy (latest/semantic/branch/custom) |
 | custom-tags | ❌ | string | | Custom tags (comma-separated) when using custom strategy |
@@ -162,7 +157,6 @@ A comprehensive Docker container deployment workflow supporting multi-platform b
 | image-uri | Full URI of the built container image |
 | image-digest | SHA256 digest of the built image |
 | image-tags | Applied image tags as JSON array |
-| vulnerability-report | Container vulnerability scan results |
 
 #### **Example Usage**
 
@@ -179,16 +173,14 @@ jobs:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
-**Multi-platform with Vulnerability Scanning:**
+**Multi-platform with Semantic Tagging:**
 ```yaml
 jobs:
-  secure-deploy:
+  multi-platform-deploy:
     uses: aligent/workflows/.github/workflows/docker-ecr-deploy.yml@main
     with:
-      ecr-repository: my-secure-app
+      ecr-repository: my-app
       platforms: "linux/amd64,linux/arm64"
-      vulnerability-scan: true
-      security-threshold: "CRITICAL"
       tag-strategy: "semantic"
     secrets:
       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -206,7 +198,6 @@ jobs:
       enable-signing: true
       cleanup-old-images: true
       retention-count: "5"
-      security-threshold: "HIGH"
       aws-region: "us-east-1"
     secrets:
       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
