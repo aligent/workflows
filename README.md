@@ -4,285 +4,132 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 
 ## Workflows
 
-### AWS CDK Deployment
+### BigCommerce Theme Deployment
 
-A streamlined AWS CDK deployment workflow supporting multi-environment infrastructure deployments with automatic package manager detection and Node.js version management.
+A comprehensive BigCommerce Stencil theme deployment workflow supporting theme bundling, environment promotion, asset optimization, backup/restore capabilities, and multi-environment deployment with comprehensive validation.
 
 #### **Features**
-- **CDK synth → diff → deploy workflow**: Complete infrastructure deployment pipeline
-- **Multi-environment support**: development, staging, and production deployments
-- **Bootstrap validation**: Automatic CDK environment preparation and validation
-- **Infrastructure validation**: Comprehensive stack validation and drift detection
-- **Changeset preview**: CloudFormation diff analysis before deployment
-- **Rollback capabilities**: Support for stack destruction and rollback operations
-- **Smart Node.js setup**: Automatic detection from .nvmrc file with dependency caching
-- **Package manager detection**: Automatic support for npm, yarn (classic/berry), and pnpm
-- **Debug support**: Verbose logging and debug output for troubleshooting
+- **Stencil CLI integration**: Complete theme bundling, validation, and deployment pipeline
+- **Multi-environment support**: Staging and production deployment workflows
+- **Theme validation**: Bundle size checks, file permissions, and configuration validation
+- **Asset optimization**: CSS/JS compression, image optimization, and bundle optimization
+- **Backup & recovery**: Automatic current theme backup with rollback capabilities
+- **Version management**: Theme versioning and deployment tracking
+- **Environment templating**: Configuration management across environments
+- **Security validation**: Theme structure validation and dependency auditing
+- **Channel management**: Support for multi-channel theme deployment
+- **Debug support**: Verbose logging and comprehensive error reporting
 
 #### **Inputs**
 | Name | Required | Type | Default | Description |
 |------|----------|------|---------|-------------|
 | **Core Configuration** |
-| aws-region | ❌ | string | ap-southeast-2 | AWS region for deployment |
-| cdk-stack-name | ✅ | string | | CDK stack name to deploy (required) |
-| environment-target | ❌ | string | development | Target environment (staging/production/development) |
+| store-hash | ✅ | string | | BigCommerce store hash (10 character alphanumeric) |
+| environment | ❌ | string | staging | Target environment (staging/production) |
+| theme-name | ✅ | string | | Theme name for identification |
 | **Deployment Control** |
-| bootstrap-stack | ❌ | boolean | false | Bootstrap CDK environment before deployment |
+| activate-theme | ❌ | boolean | true | Activate theme after successful deployment |
+| bundle-optimization | ❌ | boolean | true | Enable theme asset optimization and compression |
+| backup-current | ❌ | boolean | true | Backup current theme before deployment |
+| **Technical Configuration** |
+| node-version | ❌ | string | 18 | Node.js version for Stencil CLI environment |
+| stencil-version | ❌ | string | | Pin specific Stencil CLI version (optional) |
+| theme-config | ❌ | string | | Theme configuration as JSON object (optional) |
+| **Theme Management** |
+| variation-name | ❌ | string | | Specific theme variation to activate (optional) |
+| channel-ids | ❌ | string | | Channel IDs for theme application (comma-separated) |
+| apply-to-all-channels | ❌ | boolean | false | Apply theme to all store channels |
+| delete-oldest | ❌ | boolean | false | Delete oldest theme to make room for new deployment |
 | **Advanced Configuration** |
-| context-values | ❌ | string | {} | CDK context values as JSON object |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 
 #### **Secrets**
 | Name | Required | Description |
 |------|----------|-------------|
-| aws-access-key-id | ✅ | AWS access key ID |
-| aws-secret-access-key | ✅ | AWS secret access key |
-| cfn-execution-role | ❌ | CloudFormation execution role ARN (optional, for cross-account deployments) |
+| bigcommerce-access-token | ✅ | BigCommerce API access token with theme modify scope |
+| bigcommerce-client-id | ✅ | BigCommerce API client ID |
+| bigcommerce-client-secret | ✅ | BigCommerce API client secret |
 
 #### **Outputs**
 | Name | Description |
 |------|-------------|
-| stack-outputs | CloudFormation stack outputs as JSON |
-| deployment-status | Deployment status (success/failed) |
+| theme-uuid | Deployed theme UUID from BigCommerce |
+| theme-version | Deployed theme version identifier |
+| deployment-url | BigCommerce store URL for theme verification |
+| backup-created | Whether current theme backup was created |
 
 #### **Example Usage**
 
-**Basic Development Deployment:**
+**Basic Staging Deployment:**
 ```yaml
 jobs:
-  deploy-dev:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+  deploy-staging:
+    uses: aligent/workflows/.github/workflows/bigcommerce-theme-deploy.yml@main
     with:
-      cdk-stack-name: my-app-dev
-      environment-target: development
+      store-hash: "abc123def4"
+      environment: staging
+      theme-name: "my-storefront-theme"
     secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      bigcommerce-access-token: ${{ secrets.BIGCOMMERCE_ACCESS_TOKEN }}
+      bigcommerce-client-id: ${{ secrets.BIGCOMMERCE_CLIENT_ID }}
+      bigcommerce-client-secret: ${{ secrets.BIGCOMMERCE_CLIENT_SECRET }}
 ```
 
-**Production Deployment:**
+**Production Deployment with Custom Configuration:**
 ```yaml
 jobs:
-  deploy-prod:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+  deploy-production:
+    uses: aligent/workflows/.github/workflows/bigcommerce-theme-deploy.yml@main
     with:
-      cdk-stack-name: my-app-prod
-      environment-target: production
+      store-hash: "xyz789abc1"
+      environment: production
+      theme-name: "my-production-theme"
+      activate-theme: true
+      bundle-optimization: true
+      backup-current: true
+      variation-name: "Desktop"
+      stencil-version: "6.15.0"
+      node-version: "18"
+    secrets:
+      bigcommerce-access-token: ${{ secrets.BIGCOMMERCE_ACCESS_TOKEN }}
+      bigcommerce-client-id: ${{ secrets.BIGCOMMERCE_CLIENT_ID }}
+      bigcommerce-client-secret: ${{ secrets.BIGCOMMERCE_CLIENT_SECRET }}
+```
+
+**Multi-Channel Deployment:**
+```yaml
+jobs:
+  deploy-multi-channel:
+    uses: aligent/workflows/.github/workflows/bigcommerce-theme-deploy.yml@main
+    with:
+      store-hash: "def456ghi7"
+      environment: staging
+      theme-name: "multi-channel-theme"
+      apply-to-all-channels: true
+      delete-oldest: true
+      theme-config: '{"logo": {"url": "https://cdn.example.com/logo.png"}, "colors": {"primary": "#ff6b35"}}'
       debug: true
     secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      cfn-execution-role: ${{ secrets.CFN_EXECUTION_ROLE }}
+      bigcommerce-access-token: ${{ secrets.BIGCOMMERCE_ACCESS_TOKEN }}
+      bigcommerce-client-id: ${{ secrets.BIGCOMMERCE_CLIENT_ID }}
+      bigcommerce-client-secret: ${{ secrets.BIGCOMMERCE_CLIENT_SECRET }}
 ```
 
-**Bootstrap New Environment:**
+**Specific Channel Deployment:**
 ```yaml
 jobs:
-  bootstrap-staging:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+  deploy-specific-channels:
+    uses: aligent/workflows/.github/workflows/bigcommerce-theme-deploy.yml@main
     with:
-      cdk-stack-name: my-app-staging
-      environment-target: staging
-      bootstrap-stack: true
-      aws-region: us-east-1
+      store-hash: "ghi789jkl0"
+      environment: production
+      theme-name: "channel-specific-theme"
+      channel-ids: "1,2,5"
+      variation-name: "Mobile"
+      bundle-optimization: false
+      backup-current: false
     secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-```
-
-**Custom CDK Context:**
-```yaml
-jobs:
-  deploy-custom:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
-    with:
-      cdk-stack-name: my-app-custom
-      environment-target: staging
-      context-values: '{"vpc-id": "vpc-12345", "environment": "staging"}'
-    secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-```
-
-
-### Node Pull Request Checks
-
-#### **Inputs**
-| Name          | Required | Type    | Default            | Description                        |
-|---------------|----------|---------|--------------------|------------------------------------|
-| package-manager | ❌      | string   | yarn             | Node package manager to use       |
-| is-yarn-classic   | ❌      | boolean  | false            | When `package-manager` is `yarn`, this can be used to indicate that the project uses a pre-Berry version of Yarn, which changes what flags we can pass to the command       |
-| skip-cache      | ❌      | boolean  | false            | When `package-manager` is `yarn`, this can be used to indicate that we should use the `--force` flag to tell Yarn to ignore cache and fetch dependencies from the package repository       |
-| build-command   | ❌      | string   | build            | Command to override the build command |
-| test-command    | ❌      | string   | test             | Command to override the test command |
-| lint-command    | ❌      | string   | lint             | Command to override the lint command |
-| format-command  | ❌      | string   | format           | Command to override the format command |
-| skip-build      | ❌      | boolean  | false            | If the build step should be skipped |
-| skip-test       | ❌      | boolean  | false            | If the test step should be skipped |
-| skip-lint       | ❌      | boolean  | false            | If the lint step should be skipped |
-| skip-format     | ❌      | boolean  | false            | If the format step should be skipped |
-| debug           | ❌      | boolean  | false            | If debug flags should be set |
-
-#### Example Usage
-
-```yaml
-jobs:
-  test-s3-deploy:
-    uses: aligent/workflows/.github/workflows/node-pr.yml@main
-    with:
-      skip-format: false
-```
-
-### S3 Deployment
-
-#### **Inputs**
-| Name                  | Required | Type    | Default         | Description                               |
-|--------------------- |----------|---------|-----------------|--------------------------------------------|
-| aws-region           | ❌       | string  | ap-southeast-2  | AWS region                                 |
-| s3-bucket            | ✅       | string  |                 | Name of the S3 bucket                      |
-| s3-path              | ❌       | string  |                 | Path in the S3 bucket                      |
-| local-path           | ✅       | string  |                 | Path to deploy                             |
-| delete-flag          | ❌       | boolean | true            | Enable --delete flag                       |
-| cache-control        | ❌       | string  |                 | Cache control headers                      |
-| extra-args           | ❌       | string  |                 | Additional AWS CLI args                    |
-
-#### **Secrets**
-| Name                  | Required | Description                               |
-|--------------------- |----------|--------------------------------------------|
-| aws-access-key-id    | ✅       | AWS Access Key ID                          |
-| aws-secret-access-key| ✅       | AWS Secret Access Key                      |
-
-#### Example Usage
-
-```yaml
-jobs:
-  deploy-to-s3:
-    uses: aligent/workflows/.github/workflows/s3-deploy.yml@main
-    with:
-      s3-bucket: my-bucket
-      local-path: ./dist
-      s3-path: /public
-      cache-control: "max-age=3600"
-    secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-```
-
-### Nx Serverless Deployment
-
-#### **Inputs**
-| Name                  | Required | Type    | Default         | Description                               |
-|--------------------- |----------|---------|-----------------|--------------------------------------------|
-| aws-access-key-id    | ✅       | string  |                 | AWS Access Key                             |
-| aws-secret-access-key| ✅       | string  |                 | AWS Secret Access Key                      |
-| cfn-role             | ✅       | string  |                 | AWS CFN Role to assume                     |
-| aws-profile          | ✅       | string  |                 | AWS Profile                                |
-| aws-region           | ❌       | string  | ap-southeast-2  | AWS Region to deploy to                    |
-| stage                | ✅       | string  |                 | Stage to deploy to                         |
-| environment          | ✅       | string  |                 | The GitHub environment to run in           |
-| command              | ❌       | string  | build           | Command to run during the deploy step      |
-| package-manager      | ❌       | string  | yarn            | Node package manager to use                |
-| build-command        | ❌       | string  | build           | Command to override the build command      |
-| debug                | ❌       | boolean | false           | If verbose logging should be enabled       |
-
-#### Example Usage
-
-```yaml
-jobs:
-  deploy-serverless:
-    uses: aligent/workflows/.github/workflows/nx-serverless-deployment.yml@main
-    with:
-      aws-profile: my-profile
-      stage: dev
-      environment: development
-      debug: true
-    secrets:
-      aws-access-key-id: '123'
-      aws-secret-access-key: '456'
-```
-
-### PHP Quality Checks
-
-A comprehensive PHP quality assurance workflow supporting static analysis, coding standards validation, security auditing, and testing with coverage reporting across multiple PHP versions.
-
-#### **Features**
-- **PHPStan static analysis**: Configurable levels (1-9) with intelligent configuration detection
-- **PHP CodeSniffer**: Support for Magento2, PSR12, and PSR2 coding standards
-- **Composer security audit**: Automated vulnerability scanning of dependencies
-- **PHPUnit testing**: Full test suite execution with coverage threshold enforcement
-- **PHPMD mess detection**: Code quality analysis for maintainability issues
-- **Multi-PHP support**: Matrix testing across PHP 8.1, 8.2, and 8.3
-- **Smart caching**: Optimized Composer and analysis result caching
-- **Parallel execution**: Concurrent quality checks for maximum efficiency
-- **Flexible configuration**: Skip individual checks and customize tool behavior
-
-#### **Inputs**
-| Name | Required | Type | Default | Description |
-|------|----------|------|---------|-------------|
-| **PHP Configuration** |
-| php-version | ❌ | string | 8.1 | PHP version to use (8.1, 8.2, 8.3) |
-| memory-limit | ❌ | string | 512M | PHP memory limit for analysis tools |
-| **PHPStan Configuration** |
-| phpstan-level | ❌ | string | 6 | PHPStan analysis level (1-9) |
-| skip-phpstan | ❌ | boolean | false | Skip PHPStan static analysis |
-| **Code Style Configuration** |
-| coding-standard | ❌ | string | Magento2 | Coding standard (Magento2, PSR12, PSR2) |
-| skip-phpcs | ❌ | boolean | false | Skip PHP CodeSniffer checks |
-| **Testing Configuration** |
-| coverage-threshold | ❌ | string | 80 | Code coverage threshold percentage (0-100) |
-| skip-tests | ❌ | boolean | false | Skip PHP unit testing |
-| **Composer Configuration** |
-| composer-args | ❌ | string |  | Additional composer install arguments |
-| **Advanced Configuration** |
-| debug | ❌ | boolean | false | Enable verbose logging and debug output |
-
-#### **Example Usage**
-
-**Basic Quality Checks:**
-```yaml
-jobs:
-  quality-check:
-    uses: aligent/workflows/.github/workflows/php-quality-checks.yml@main
-    with:
-      php-version: "8.2"
-      phpstan-level: "7"
-```
-
-**Magento 2 Project with Custom Standards:**
-```yaml
-jobs:
-  magento-quality:
-    uses: aligent/workflows/.github/workflows/php-quality-checks.yml@main
-    with:
-      php-version: "8.1"
-      coding-standard: "Magento2"
-      phpstan-level: "6"
-      coverage-threshold: "75"
-      memory-limit: "1G"
-      debug: true
-```
-
-**Skip Specific Checks:**
-```yaml
-jobs:
-  custom-checks:
-    uses: aligent/workflows/.github/workflows/php-quality-checks.yml@main
-    with:
-      php-version: "8.3"
-      skip-phpcs: true
-      skip-tests: true
-      phpstan-level: "9"
-```
-
-**PSR Standards with High Coverage:**
-```yaml
-jobs:
-  strict-quality:
-    uses: aligent/workflows/.github/workflows/php-quality-checks.yml@main
-    with:
-      php-version: "8.2"
-      coding-standard: "PSR12"
-      phpstan-level: "8"
-      coverage-threshold: "90"
-      composer-args: "--no-dev"
+      bigcommerce-access-token: ${{ secrets.BIGCOMMERCE_ACCESS_TOKEN }}
+      bigcommerce-client-id: ${{ secrets.BIGCOMMERCE_CLIENT_ID }}
+      bigcommerce-client-secret: ${{ secrets.BIGCOMMERCE_CLIENT_SECRET }}
 ```
