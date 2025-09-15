@@ -107,15 +107,14 @@ jobs:
 
 ### Docker ECR Deployment
 
-A comprehensive Docker container deployment workflow supporting multi-platform builds, ECR registry management, and container security with build optimization and registry lifecycle management.
+A comprehensive Docker container deployment workflow supporting multi-platform builds, ECR registry management, and container security with build optimization and registry lifecycle management. Note: The ECR repository must exist before running this workflow.
 
 #### **Features**
 - **Multi-platform builds**: Support for linux/amd64, linux/arm64, and ARM variants
-- **ECR integration**: Automated ECR repository creation and lifecycle management  
+- **ECR integration**: Push images to existing ECR repositories  
 - **Container signing**: Optional cosign-based image signing and attestation
 - **Smart tagging**: Multiple tagging strategies (latest, semantic, branch, custom)
 - **Build optimization**: Advanced caching with registry and inline cache support
-- **Registry cleanup**: Automated cleanup of old images with retention policies
 - **Multi-stage builds**: Support for target build stages and build arguments
 
 #### **Inputs**
@@ -136,9 +135,6 @@ A comprehensive Docker container deployment workflow supporting multi-platform b
 | cache-from | ❌ | string | | Cache sources for build optimization (comma-separated) |
 | build-args | ❌ | string | {} | Docker build arguments as JSON object |
 | target-stage | ❌ | string | | Target build stage for multi-stage Dockerfiles |
-| **Registry Management** |
-| cleanup-old-images | ❌ | boolean | false | Clean up old images from ECR registry |
-| retention-count | ❌ | string | 10 | Number of images to retain when cleaning up |
 | **Container Signing** |
 | enable-signing | ❌ | boolean | false | Enable container image signing with cosign |
 | **Advanced Configuration** |
@@ -187,7 +183,7 @@ jobs:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
-**Production with Signing and Cleanup:**
+**Production with Signing:**
 ```yaml
 jobs:
   production-deploy:
@@ -196,8 +192,6 @@ jobs:
       ecr-repository: my-prod-app
       tag-strategy: "semantic"
       enable-signing: true
-      cleanup-old-images: true
-      retention-count: "5"
       aws-region: "us-east-1"
     secrets:
       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
