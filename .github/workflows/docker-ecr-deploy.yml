@@ -112,7 +112,14 @@ jobs:
       cache-config: ${{ steps.cache-config.outputs.setup }}
       platforms: ${{ steps.platform-config.outputs.platforms }}
     steps:
-      - name: Validate required inputs
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Validate required inputs and ECR repository
         run: |
           echo "🔍 Validating Docker build configuration..."
           
@@ -120,6 +127,15 @@ jobs:
             echo "❌ Error: ecr-repository is required"
             exit 1
           fi
+          
+          # Verify ECR repository exists
+          echo "🔍 Verifying ECR repository exists..."
+          if ! aws ecr describe-repositories --repository-names ${{ inputs.ecr-repository }} --region ${{ inputs.aws-region }} 2>/dev/null; then
+            echo "❌ Error: ECR repository '${{ inputs.ecr-repository }}' does not exist in region ${{ inputs.aws-region }}"
+            echo "Please create the ECR repository before running this workflow"
+            exit 1
+          fi
+          echo "✅ ECR repository verified"
           
           # Validate tag strategy
           case "${{ inputs.tag-strategy }}" in
@@ -296,18 +312,6 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
         with:
           mask-password: 'true'
-
-      - name: Verify ECR repository exists
-        run: |
-          echo "🔍 Verifying ECR repository exists..."
-          
-          if ! aws ecr describe-repositories --repository-names ${{ inputs.ecr-repository }} --region ${{ inputs.aws-region }} 2>/dev/null; then
-            echo "❌ Error: ECR repository '${{ inputs.ecr-repository }}' does not exist in region ${{ inputs.aws-region }}"
-            echo "Please create the ECR repository before running this workflow"
-            exit 1
-          fi
-          
-          echo "✅ ECR repository verified"
 
       - name: Build and push Docker image
         id: build
