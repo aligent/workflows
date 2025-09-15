@@ -107,7 +107,9 @@ jobs:
 
 ### Docker ECR Deployment
 
-A comprehensive Docker container deployment workflow supporting multi-platform builds, ECR registry management, and container security with build optimization and registry lifecycle management. Note: The ECR repository must exist before running this workflow.
+A comprehensive Docker container deployment workflow supporting multi-platform builds, ECR registry management, and container signing with build optimization. 
+
+**Important:** The ECR repository must exist before running this workflow - the workflow will fail if the repository doesn't exist.
 
 #### **Features**
 - **Multi-platform builds**: Support for linux/amd64, linux/arm64, and ARM variants
