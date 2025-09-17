@@ -4,6 +4,107 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 
 ## Workflows
 
+### AWS CDK Deployment
+
+A streamlined AWS CDK deployment workflow supporting multi-environment infrastructure deployments with automatic package manager detection and Node.js version management.
+
+#### **Features**
+- **CDK synth → diff → deploy workflow**: Complete infrastructure deployment pipeline
+- **Multi-environment support**: development, staging, and production deployments
+- **Bootstrap validation**: Automatic CDK environment preparation and validation
+- **Infrastructure validation**: Comprehensive stack validation and drift detection
+- **Changeset preview**: CloudFormation diff analysis before deployment
+- **Rollback capabilities**: Support for stack destruction and rollback operations
+- **Smart Node.js setup**: Automatic detection from .nvmrc file with dependency caching
+- **Package manager detection**: Automatic support for npm, yarn (classic/berry), and pnpm
+- **Debug support**: Verbose logging and debug output for troubleshooting
+
+#### **Inputs**
+| Name | Required | Type | Default | Description |
+|------|----------|------|---------|-------------|
+| **Core Configuration** |
+| aws-region | ❌ | string | ap-southeast-2 | AWS region for deployment |
+| cdk-stack-name | ✅ | string | | CDK stack name to deploy (required) |
+| environment-target | ❌ | string | development | Target environment (staging/production/development) |
+| **Deployment Control** |
+| bootstrap-stack | ❌ | boolean | false | Bootstrap CDK environment before deployment |
+| **Advanced Configuration** |
+| context-values | ❌ | string | {} | CDK context values as JSON object |
+| debug | ❌ | boolean | false | Enable verbose logging and debug output |
+
+#### **Secrets**
+| Name | Required | Description |
+|------|----------|-------------|
+| aws-access-key-id | ✅ | AWS access key ID |
+| aws-secret-access-key | ✅ | AWS secret access key |
+| cfn-execution-role | ❌ | CloudFormation execution role ARN (optional, for cross-account deployments) |
+
+#### **Outputs**
+| Name | Description |
+|------|-------------|
+| stack-outputs | CloudFormation stack outputs as JSON |
+| deployment-status | Deployment status (success/failed) |
+
+#### **Example Usage**
+
+**Basic Development Deployment:**
+```yaml
+jobs:
+  deploy-dev:
+    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    with:
+      cdk-stack-name: my-app-dev
+      environment-target: development
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+**Production Deployment:**
+```yaml
+jobs:
+  deploy-prod:
+    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    with:
+      cdk-stack-name: my-app-prod
+      environment-target: production
+      debug: true
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      cfn-execution-role: ${{ secrets.CFN_EXECUTION_ROLE }}
+```
+
+**Bootstrap New Environment:**
+```yaml
+jobs:
+  bootstrap-staging:
+    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    with:
+      cdk-stack-name: my-app-staging
+      environment-target: staging
+      bootstrap-stack: true
+      aws-region: us-east-1
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+**Custom CDK Context:**
+```yaml
+jobs:
+  deploy-custom:
+    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    with:
+      cdk-stack-name: my-app-custom
+      environment-target: staging
+      context-values: '{"vpc-id": "vpc-12345", "environment": "staging"}'
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+
 ### Node Pull Request Checks
 
 #### **Inputs**
@@ -30,6 +131,41 @@ jobs:
     uses: aligent/workflows/.github/workflows/node-pr.yml@main
     with:
       skip-format: false
+```
+
+### S3 Deployment
+
+#### **Inputs**
+| Name                  | Required | Type    | Default         | Description                               |
+|--------------------- |----------|---------|-----------------|--------------------------------------------|
+| aws-region           | ❌       | string  | ap-southeast-2  | AWS region                                 |
+| s3-bucket            | ✅       | string  |                 | Name of the S3 bucket                      |
+| s3-path              | ❌       | string  |                 | Path in the S3 bucket                      |
+| local-path           | ✅       | string  |                 | Path to deploy                             |
+| delete-flag          | ❌       | boolean | true            | Enable --delete flag                       |
+| cache-control        | ❌       | string  |                 | Cache control headers                      |
+| extra-args           | ❌       | string  |                 | Additional AWS CLI args                    |
+
+#### **Secrets**
+| Name                  | Required | Description                               |
+|--------------------- |----------|--------------------------------------------|
+| aws-access-key-id    | ✅       | AWS Access Key ID                          |
+| aws-secret-access-key| ✅       | AWS Secret Access Key                      |
+
+#### Example Usage
+
+```yaml
+jobs:
+  deploy-to-s3:
+    uses: aligent/workflows/.github/workflows/s3-deploy.yml@main
+    with:
+      s3-bucket: my-bucket
+      local-path: ./dist
+      s3-path: /public
+      cache-control: "max-age=3600"
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
 ### Nx Serverless Deployment
