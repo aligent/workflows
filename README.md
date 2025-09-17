@@ -203,15 +203,13 @@ jobs:
 
 ### PHP Quality Checks
 
-A comprehensive PHP quality assurance workflow supporting static analysis, coding standards validation, security auditing, and testing with coverage reporting across multiple PHP versions.
+A comprehensive PHP quality assurance workflow supporting static analysis, coding standards validation, and testing with coverage reporting across multiple PHP versions.
 
 #### **Features**
 - **PHPStan static analysis**: Configurable levels (1-9) with intelligent configuration detection
 - **PHP CodeSniffer**: Support for Magento2, PSR12, and PSR2 coding standards
-- **Composer security audit**: Automated vulnerability scanning of dependencies
 - **PHPUnit testing**: Full test suite execution with coverage threshold enforcement
-- **PHPMD mess detection**: Code quality analysis for maintainability issues
-- **Multi-PHP support**: Matrix testing across PHP 8.1, 8.2, and 8.3
+- **Multi-PHP support**: Compatible with PHP 8.1, 8.2, and 8.3
 - **Smart caching**: Optimized Composer and analysis result caching
 - **Parallel execution**: Concurrent quality checks for maximum efficiency
 - **Flexible configuration**: Skip individual checks and customize tool behavior

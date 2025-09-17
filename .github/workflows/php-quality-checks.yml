@@ -76,7 +76,6 @@ jobs:
       has-phpunit: ${{ steps.check-tools.outputs.has-phpunit }}
       has-phpstan-config: ${{ steps.check-tools.outputs.has-phpstan-config }}
       has-phpcs-config: ${{ steps.check-tools.outputs.has-phpcs-config }}
-      has-phpmd-config: ${{ steps.check-tools.outputs.has-phpmd-config }}
       php-container: ${{ steps.php-config.outputs.container }}
     steps:
       - uses: actions/checkout@v4
@@ -132,14 +131,6 @@ jobs:
             echo "has-phpcs-config=false" >> $GITHUB_OUTPUT
           fi
 
-          # Check for PHPMD
-          if [ -f "phpmd.xml" ] || [ -f "phpmd.xml.dist" ] || [ -f "phpmd.dist.xml" ]; then
-            echo "✅ PHPMD configuration found"
-            echo "has-phpmd-config=true" >> $GITHUB_OUTPUT
-          else
-            echo "ℹ️ No PHPMD configuration found, will use defaults"
-            echo "has-phpmd-config=false" >> $GITHUB_OUTPUT
-          fi
 
   # Install Composer dependencies with caching
   install:
@@ -484,7 +475,7 @@ jobs:
   cleanup:
     name: 🧹 Cleanup
     runs-on: ubuntu-latest
-    needs: [install, phpstan, phpcs, phpmd, test]
+    needs: [install, phpstan, phpcs, test]
     if: always()
     permissions:
       actions: write
