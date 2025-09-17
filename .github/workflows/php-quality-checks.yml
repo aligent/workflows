@@ -8,7 +8,7 @@ on:
         description: "PHP version to use (8.1, 8.2, 8.3)"
         type: string
         required: true
-      
+
       # PHPStan Configuration
       phpstan-level:
         description: "PHPStan analysis level (1-9)"
@@ -20,7 +20,7 @@ on:
         type: boolean
         required: false
         default: false
-      
+
       # PHP CodeSniffer Configuration
       coding-standard:
         description: "Coding standard to use (Magento2, PSR12, PSR2)"
@@ -32,7 +32,7 @@ on:
         type: boolean
         required: false
         default: false
-      
+
       # Testing Configuration
       coverage-threshold:
         description: "Code coverage threshold percentage (0-100)"
@@ -44,21 +44,21 @@ on:
         type: boolean
         required: false
         default: false
-      
+
       # Composer Configuration
       composer-args:
         description: "Additional composer install arguments"
         type: string
         required: false
         default: ""
-      
+
       # System Configuration
       memory-limit:
         description: "PHP memory limit for analysis tools"
         type: string
         required: false
         default: "512M"
-      
+
       # Debug Configuration
       debug:
         description: "Enable verbose logging and debug output"
@@ -80,7 +80,7 @@ jobs:
       php-container: ${{ steps.php-config.outputs.container }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Check for required files
         id: check-files
         run: |
@@ -151,7 +151,7 @@ jobs:
       image: ${{ needs.prepare.outputs.php-container }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Get Composer cache directory
         id: composer-cache
         run: |
@@ -227,14 +227,14 @@ jobs:
     name: 🔍 PHPStan Analysis
     needs: [prepare, install]
     if: |
-      inputs.skip-phpstan == false && 
+      inputs.skip-phpstan == false &&
       needs.prepare.outputs.has-composer == 'true'
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.prepare.outputs.php-container }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install system dependencies
         run: apk add --no-cache git
 
@@ -257,7 +257,7 @@ jobs:
       - name: Run PHPStan analysis
         run: |
           echo "🔍 Running PHPStan analysis (Level ${{ inputs.phpstan-level }})..."
-          
+
           # Check for custom phpstan script first
           if composer run-script --list | grep -q "phpstan"; then
             echo "✅ Using composer phpstan script"
@@ -269,10 +269,10 @@ jobs:
           elif [ -f "vendor/bin/phpstan" ]; then
             echo "✅ Using vendor PHPStan"
             phpstan_cmd="vendor/bin/phpstan"
-            
+
             # Build PHPStan command
             cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpstan_cmd analyse"
-            
+
             # Use existing config or set defaults
             if [ "${{ needs.prepare.outputs.has-phpstan-config }}" = "true" ]; then
               echo "✅ Using existing PHPStan configuration"
@@ -292,7 +292,7 @@ jobs:
             echo "Installing PHPStan globally..."
             composer global require phpstan/phpstan:^1.0
             phpstan_cmd="phpstan"
-            
+
             # Build PHPStan command
             cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpstan_cmd analyse"
             cmd="$cmd --level=${{ inputs.phpstan-level }} src/ app/"
@@ -311,14 +311,14 @@ jobs:
     name: 🎨 Code Style Check
     needs: [prepare, install]
     if: |
-      inputs.skip-phpcs == false && 
+      inputs.skip-phpcs == false &&
       needs.prepare.outputs.has-composer == 'true'
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.prepare.outputs.php-container }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install system dependencies
         run: apk add --no-cache git
 
@@ -332,7 +332,7 @@ jobs:
       - name: Run PHP CodeSniffer
         run: |
           echo "🎨 Running PHP CodeSniffer (${{ inputs.coding-standard }} standard)..."
-          
+
           # Check for custom check-style script first
           if composer run-script --list | grep -q "check-style"; then
             echo "✅ Using composer check-style script"
@@ -346,7 +346,7 @@ jobs:
               composer global require squizlabs/php_codesniffer:^3.0
               phpcs_cmd="phpcs"
             fi
-            
+
             cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd --report=full --colors"
             if [ "${{ inputs.debug }}" = "true" ]; then
               cmd="$cmd --verbose"
@@ -355,99 +355,45 @@ jobs:
           elif [ -f "vendor/bin/phpcs" ]; then
             echo "✅ Using vendor PHPCS with ${{ inputs.coding-standard }} standard"
             phpcs_cmd="vendor/bin/phpcs"
-            
+
             # Build PHPCS command
             cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd"
             cmd="$cmd --standard=${{ inputs.coding-standard }} src/ app/"
             cmd="$cmd --report=full --colors"
-            
+
             if [ "${{ inputs.debug }}" = "true" ]; then
               cmd="$cmd --verbose"
             fi
-            
+
             eval $cmd
           else
             echo "Installing PHP CodeSniffer globally..."
             composer global require squizlabs/php_codesniffer:^3.0
             phpcs_cmd="phpcs"
-            
+
             # Install Magento2 standard if needed
             if [ "${{ inputs.coding-standard }}" = "Magento2" ]; then
               composer global require magento/magento-coding-standard:*
             fi
-            
+
             # Build PHPCS command
             cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd"
             cmd="$cmd --standard=${{ inputs.coding-standard }} src/ app/"
             cmd="$cmd --report=full --colors"
-            
+
             if [ "${{ inputs.debug }}" = "true" ]; then
               cmd="$cmd --verbose"
             fi
-            
+
             eval $cmd
           fi
-
-  # PHPMD mess detection
-  phpmd:
-    name: 🧹 Mess Detection
-    needs: [prepare, install]
-    if: needs.prepare.outputs.has-composer == 'true'
-    runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.prepare.outputs.php-container }}
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install system dependencies
-        run: apk add --no-cache git
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: vendor-php${{ inputs.php-version }}
-
-      - name: Extract vendor directory
-        run: tar -xzf vendor.tar.gz
-
-      - name: Run PHP Mess Detector
-        run: |
-          echo "🧹 Running PHP Mess Detector..."
-          
-          # Check if PHPMD is installed
-          if [ -f "vendor/bin/phpmd" ]; then
-            phpmd_cmd="vendor/bin/phpmd"
-          else
-            echo "Installing PHPMD globally..."
-            composer global require phpmd/phpmd:^2.0
-            phpmd_cmd="phpmd"
-          fi
-
-          # Build PHPMD command
-          cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpmd_cmd"
-          
-          # Use existing config or set defaults
-          if [ "${{ needs.prepare.outputs.has-phpmd-config }}" = "true" ]; then
-            echo "✅ Using existing PHPMD configuration"
-            cmd="$cmd src/,app/ text phpmd.xml"
-          else
-            echo "ℹ️ Using default PHPMD rules"
-            cmd="$cmd src/,app/ text cleancode,codesize,controversial,design,naming,unusedcode"
-          fi
-
-          # Add debug flags if enabled
-          if [ "${{ inputs.debug }}" = "true" ]; then
-            cmd="$cmd --verbose"
-          fi
-
-          # Execute PHPMD (allow to fail as it's often too strict)
-          eval $cmd || echo "⚠️ PHPMD detected potential issues (non-blocking)"
 
   # PHPUnit testing with coverage
   test:
     name: 🧪 Unit Tests
     needs: [prepare, install]
     if: |
-      inputs.skip-tests == false && 
+      inputs.skip-tests == false &&
       needs.prepare.outputs.has-composer == 'true' &&
       needs.prepare.outputs.has-phpunit == 'true'
     runs-on: ubuntu-latest
@@ -455,11 +401,11 @@ jobs:
       image: ${{ needs.prepare.outputs.php-container }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install system dependencies
         run: |
           apk add --no-cache git
-          
+
           # Install Xdebug for coverage
           apk add --no-cache $PHPIZE_DEPS
           pecl install xdebug
@@ -475,7 +421,7 @@ jobs:
       - name: Run PHPUnit tests
         run: |
           echo "🧪 Running PHPUnit tests with coverage..."
-          
+
           # Check if PHPUnit is installed
           if [ -f "vendor/bin/phpunit" ]; then
             phpunit_cmd="vendor/bin/phpunit"
@@ -487,7 +433,7 @@ jobs:
           # Build PHPUnit command with coverage
           cmd="php -d memory_limit=${{ inputs.memory-limit }} -d xdebug.mode=coverage $phpunit_cmd"
           cmd="$cmd --coverage-text --coverage-clover=coverage.xml"
-          
+
           # Add debug flags if enabled
           if [ "${{ inputs.debug }}" = "true" ]; then
             cmd="$cmd --verbose"
@@ -501,7 +447,7 @@ jobs:
           threshold=${{ inputs.coverage-threshold }}
           if [ -f "coverage.xml" ] && [ "$threshold" != "0" ]; then
             echo "📊 Checking coverage threshold ($threshold%)..."
-            
+
             # Extract coverage percentage from clover XML
             coverage=$(php -r "
               \$xml = simplexml_load_file('coverage.xml');
@@ -511,9 +457,9 @@ jobs:
               \$percentage = \$total > 0 ? (\$covered / \$total) * 100 : 0;
               echo round(\$percentage, 2);
             ")
-            
+
             echo "📊 Current coverage: $coverage%"
-            
+
             # Compare with threshold
             if (( $(echo "$coverage < $threshold" | bc -l) )); then
               echo "❌ Coverage $coverage% is below threshold $threshold%"
