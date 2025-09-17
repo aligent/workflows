@@ -67,14 +67,14 @@ jobs:
 
 ### BigCommerce Theme Deployment
 
-A comprehensive BigCommerce Stencil theme deployment workflow supporting theme bundling, environment promotion, asset optimization, backup/restore capabilities, and multi-environment deployment with comprehensive validation.
+A comprehensive BigCommerce Stencil theme deployment workflow supporting theme bundling, environment promotion, and multi-environment deployment with comprehensive validation.
 
 #### **Features**
 - **Stencil CLI integration**: Complete theme bundling, validation, and deployment pipeline
 - **Multi-environment support**: Staging and production deployment workflows
 - **Theme validation**: Bundle size checks, file permissions, and configuration validation
-- **Asset optimization**: CSS/JS compression, image optimization, and bundle optimization
-- **Backup & recovery**: Automatic current theme backup with rollback capabilities
+- **Package manager support**: Full support for npm, yarn, and pnpm
+- **Node.js version management**: Automatic .nvmrc file detection with fallback support
 - **Version management**: Theme versioning and deployment tracking
 - **Environment templating**: Configuration management across environments
 - **Security validation**: Theme structure validation and dependency auditing
@@ -90,10 +90,8 @@ A comprehensive BigCommerce Stencil theme deployment workflow supporting theme b
 | theme-name | ✅ | string | | Theme name for identification |
 | **Deployment Control** |
 | activate-theme | ❌ | boolean | true | Activate theme after successful deployment |
-| bundle-optimization | ❌ | boolean | true | Enable theme asset optimization and compression |
-| backup-current | ❌ | boolean | true | Backup current theme before deployment |
 | **Technical Configuration** |
-| node-version | ❌ | string | 18 | Node.js version for Stencil CLI environment |
+| node-version | ❌ | string | 22 | Node.js version fallback (uses .nvmrc if available) |
 | stencil-version | ❌ | string | | Pin specific Stencil CLI version (optional) |
 | theme-config | ❌ | string | | Theme configuration as JSON object (optional) |
 | **Theme Management** |
@@ -117,7 +115,6 @@ A comprehensive BigCommerce Stencil theme deployment workflow supporting theme b
 | theme-uuid | Deployed theme UUID from BigCommerce |
 | theme-version | Deployed theme version identifier |
 | deployment-url | BigCommerce store URL for theme verification |
-| backup-created | Whether current theme backup was created |
 
 #### **Example Usage**
 
@@ -146,11 +143,9 @@ jobs:
       environment: production
       theme-name: "my-production-theme"
       activate-theme: true
-      bundle-optimization: true
-      backup-current: true
       variation-name: "Desktop"
       stencil-version: "6.15.0"
-      node-version: "18"
+      node-version: "22"
     secrets:
       bigcommerce-access-token: ${{ secrets.BIGCOMMERCE_ACCESS_TOKEN }}
       bigcommerce-client-id: ${{ secrets.BIGCOMMERCE_CLIENT_ID }}
@@ -187,8 +182,6 @@ jobs:
       theme-name: "channel-specific-theme"
       channel-ids: "1,2,5"
       variation-name: "Mobile"
-      bundle-optimization: false
-      backup-current: false
     secrets:
       bigcommerce-access-token: ${{ secrets.BIGCOMMERCE_ACCESS_TOKEN }}
       bigcommerce-client-id: ${{ secrets.BIGCOMMERCE_CLIENT_ID }}

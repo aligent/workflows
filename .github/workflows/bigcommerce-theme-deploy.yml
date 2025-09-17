@@ -20,30 +20,20 @@ on:
         description: "Theme name for identification (required)"
         type: string
         required: true
-      
+
       # Deployment Control
       activate-theme:
         description: "Activate theme after deployment"
         type: boolean
         required: false
         default: true
-      bundle-optimization:
-        description: "Enable theme bundle optimization"
-        type: boolean
-        required: false
-        default: true
-      backup-current:
-        description: "Backup current theme before deployment"
-        type: boolean
-        required: false
-        default: true
-      
-      # Technical Configuration  
+
+      # Technical Configuration
       node-version:
         description: "Node.js version for Stencil CLI"
         type: string
         required: false
-        default: "18"
+        default: "22"
       stencil-version:
         description: "Stencil CLI version (optional, for pinning)"
         type: string
@@ -52,7 +42,7 @@ on:
         description: "Theme configuration as JSON (optional)"
         type: string
         required: false
-      
+
       # Advanced Options
       variation-name:
         description: "Theme variation to activate (optional)"
@@ -99,9 +89,6 @@ on:
       deployment-url:
         description: "Theme preview URL"
         value: ${{ jobs.deploy.outputs.deployment-url }}
-      backup-created:
-        description: "Whether backup was created"
-        value: ${{ jobs.deploy.outputs.backup-created }}
 
 jobs:
   validate-environment:
@@ -119,18 +106,18 @@ jobs:
             echo "❌ Invalid store hash format. Expected 10 character alphanumeric string."
             exit 1
           fi
-          
+
           # Validate environment
           if [[ ! "${{ inputs.environment }}" =~ ^(staging|production)$ ]]; then
             echo "❌ Invalid environment. Must be 'staging' or 'production'."
             exit 1
           fi
-          
+
           # Set store URL
           store_url="https://${{ inputs.store-hash }}.mybigcommerce.com"
           echo "store-url=$store_url" >> $GITHUB_OUTPUT
           echo "environment-validated=true" >> $GITHUB_OUTPUT
-          
+
           echo "✅ Environment validation passed"
           echo "🏪 Store URL: $store_url"
           echo "🎯 Environment: ${{ inputs.environment }}"
@@ -151,21 +138,25 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ inputs.node-version }}
+          node-version-file: '.nvmrc'
           cache: 'npm'
+          fallback: ${{ inputs.node-version }}
 
       - name: Setup Stencil CLI
         id: setup
         run: |
           # Determine package manager
-          if [ -f "yarn.lock" ]; then
+          if [ -f "pnpm-lock.yaml" ]; then
+            package_manager="pnpm"
+            echo "📦 Using pnpm package manager"
+          elif [ -f "yarn.lock" ]; then
             package_manager="yarn"
             echo "📦 Using Yarn package manager"
           else
             package_manager="npm"
             echo "📦 Using NPM package manager"
           fi
-          
+
           # Install Stencil CLI
           if [ -n "${{ inputs.stencil-version }}" ]; then
             stencil_version="${{ inputs.stencil-version }}"
@@ -176,22 +167,24 @@ jobs:
             stencil_version=$(stencil --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
             echo "🔧 Installed latest Stencil CLI version: $stencil_version"
           fi
-          
+
           # Verify installation
           stencil --version
-          
+
           # Output variables
           echo "stencil-version=$stencil_version" >> $GITHUB_OUTPUT
           echo "package-manager=$package_manager" >> $GITHUB_OUTPUT
 
       - name: Install theme dependencies
         run: |
-          if [ "${{ steps.setup.outputs.package-manager }}" = "yarn" ]; then
+          if [ "${{ steps.setup.outputs.package-manager }}" = "pnpm" ]; then
+            pnpm install --frozen-lockfile
+          elif [ "${{ steps.setup.outputs.package-manager }}" = "yarn" ]; then
             yarn install --frozen-lockfile
           else
             npm ci
           fi
-          
+
           echo "✅ Theme dependencies installed"
 
       - name: Cache theme setup
@@ -200,67 +193,12 @@ jobs:
           path: |
             ~/.npm
             ~/.cache/yarn
+            ~/.local/share/pnpm
             node_modules
-          key: theme-${{ runner.os }}-node${{ inputs.node-version }}-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}
+          key: theme-${{ runner.os }}-node${{ inputs.node-version }}-${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/pnpm-lock.yaml') }}
           restore-keys: |
             theme-${{ runner.os }}-node${{ inputs.node-version }}-
 
-  backup-current-theme:
-    name: 💾 Backup Current Theme
-    runs-on: ubuntu-latest
-    needs: [validate-environment, setup-theme]
-    if: inputs.backup-current == true
-    outputs:
-      backup-created: ${{ steps.backup.outputs.backup-created }}
-      backup-theme-uuid: ${{ steps.backup.outputs.backup-theme-uuid }}
-    steps:
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-
-      - name: Install Stencil CLI
-        run: |
-          if [ -n "${{ inputs.stencil-version }}" ]; then
-            npm install -g @bigcommerce/stencil-cli@${{ inputs.stencil-version }}
-          else
-            npm install -g @bigcommerce/stencil-cli
-          fi
-
-      - name: Configure Stencil
-        run: |
-          # Create Stencil configuration
-          cat > .stencil << EOF
-          {
-            "normalStoreUrl": "${{ needs.validate-environment.outputs.store-url }}",
-            "accessToken": "${{ secrets.bigcommerce-access-token }}",
-            "port": 3000
-          }
-          EOF
-          
-          echo "🔧 Stencil configuration created"
-
-      - name: Backup current theme
-        id: backup
-        run: |
-          timestamp=$(date +%Y%m%d_%H%M%S)
-          backup_name="backup_${{ inputs.theme-name }}_${timestamp}"
-          
-          echo "💾 Creating backup: $backup_name"
-          
-          # Pull current theme configuration
-          if stencil pull; then
-            echo "✅ Current theme configuration pulled successfully"
-            
-            # Store backup information
-            echo "backup-created=true" >> $GITHUB_OUTPUT
-            echo "backup-theme-uuid=$backup_name" >> $GITHUB_OUTPUT
-            
-            echo "💾 Backup created successfully: $backup_name"
-          else
-            echo "⚠️ Could not pull current theme configuration - continuing without backup"
-            echo "backup-created=false" >> $GITHUB_OUTPUT
-          fi
 
   validate-theme:
     name: ✅ Validate Theme
@@ -273,7 +211,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ inputs.node-version }}
+          node-version-file: '.nvmrc'
+          fallback: ${{ inputs.node-version }}
 
       - name: Restore theme cache
         uses: actions/cache@v3
@@ -281,12 +220,15 @@ jobs:
           path: |
             ~/.npm
             ~/.cache/yarn
+            ~/.local/share/pnpm
             node_modules
-          key: theme-${{ runner.os }}-node${{ inputs.node-version }}-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}
+          key: theme-${{ runner.os }}-node${{ inputs.node-version }}-${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/pnpm-lock.yaml') }}
 
       - name: Install dependencies
         run: |
-          if [ "${{ needs.setup-theme.outputs.package-manager }}" = "yarn" ]; then
+          if [ "${{ needs.setup-theme.outputs.package-manager }}" = "pnpm" ]; then
+            pnpm install --frozen-lockfile
+          elif [ "${{ needs.setup-theme.outputs.package-manager }}" = "yarn" ]; then
             yarn install
           else
             npm ci
@@ -295,7 +237,7 @@ jobs:
       - name: Validate theme structure
         run: |
           echo "🔍 Validating theme structure..."
-          
+
           # Check required files
           required_files=("config.json" "schema.json")
           for file in "${required_files[@]}"; do
@@ -305,7 +247,7 @@ jobs:
             fi
             echo "✅ Found required file: $file"
           done
-          
+
           # Check required directories
           required_dirs=("templates" "assets")
           for dir in "${required_dirs[@]}"; do
@@ -319,21 +261,21 @@ jobs:
       - name: Check file permissions
         run: |
           echo "🔍 Checking file permissions..."
-          
+
           # Find files with incorrect permissions
           incorrect_files=$(find . -type f ! -perm 644 -not -path "./.git/*" -not -path "./node_modules/*" 2>/dev/null || true)
           incorrect_dirs=$(find . -type d ! -perm 755 -not -path "./.git" -not -path "./.git/*" -not -path "./node_modules" -not -path "./node_modules/*" 2>/dev/null || true)
-          
+
           if [ -n "$incorrect_files" ] || [ -n "$incorrect_dirs" ]; then
             echo "⚠️ Found files/directories with incorrect permissions:"
             echo "$incorrect_files"
             echo "$incorrect_dirs"
             echo "🔧 Fixing permissions..."
-            
+
             # Fix permissions
             find . -type f -not -path "./.git/*" -not -path "./node_modules/*" -exec chmod 644 {} \; 2>/dev/null || true
             find . -type d -not -path "./.git" -not -path "./.git/*" -not -path "./node_modules" -not -path "./node_modules/*" -exec chmod 755 {} \; 2>/dev/null || true
-            
+
             echo "✅ File permissions fixed"
           else
             echo "✅ All file permissions are correct"
@@ -342,7 +284,7 @@ jobs:
       - name: Validate JSON files
         run: |
           echo "🔍 Validating JSON configuration files..."
-          
+
           json_files=("config.json" "schema.json")
           for file in "${json_files[@]}"; do
             if ! jq empty "$file" 2>/dev/null; then
@@ -352,99 +294,25 @@ jobs:
             echo "✅ Valid JSON: $file"
           done
 
-  optimize-theme:
-    name: ⚡ Optimize Theme
-    runs-on: ubuntu-latest
-    needs: [setup-theme, validate-theme]
-    if: inputs.bundle-optimization == true
-    steps:
-      - name: Checkout theme code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-
-      - name: Restore theme cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.npm
-            ~/.cache/yarn
-            node_modules
-          key: theme-${{ runner.os }}-node${{ inputs.node-version }}-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}
-
-      - name: Install dependencies
-        run: |
-          if [ "${{ needs.setup-theme.outputs.package-manager }}" = "yarn" ]; then
-            yarn install
-          else
-            npm ci
-          fi
-
-      - name: Optimize assets
-        run: |
-          echo "⚡ Optimizing theme assets..."
-          
-          # Run build process if available
-          if [ "${{ needs.setup-theme.outputs.package-manager }}" = "yarn" ]; then
-            if yarn run --list 2>/dev/null | grep -q "build"; then
-              echo "🏗️ Running theme build process..."
-              yarn run build
-            fi
-            if yarn run --list 2>/dev/null | grep -q "optimize"; then
-              echo "⚡ Running theme optimization..."
-              yarn run optimize
-            fi
-          else
-            if npm run build 2>/dev/null; then
-              echo "🏗️ Theme build completed"
-            fi
-            if npm run optimize 2>/dev/null; then
-              echo "⚡ Theme optimization completed"
-            fi
-          fi
-          
-          echo "✅ Asset optimization completed"
-
-      - name: Upload optimized theme
-        uses: actions/upload-artifact@v4
-        with:
-          name: optimized-theme
-          path: |
-            .
-            !node_modules
-            !.git
-            !*.log
-          retention-days: 1
 
   deploy:
     name: 🚀 Deploy Theme
     runs-on: ubuntu-latest
-    needs: [validate-environment, setup-theme, backup-current-theme, validate-theme, optimize-theme]
+    needs: [validate-environment, setup-theme, validate-theme]
     if: always() && (needs.validate-environment.result == 'success' && needs.setup-theme.result == 'success' && needs.validate-theme.result == 'success')
     outputs:
       theme-uuid: ${{ steps.deploy.outputs.theme-uuid }}
       theme-version: ${{ steps.deploy.outputs.theme-version }}
       deployment-url: ${{ steps.deploy.outputs.deployment-url }}
-      backup-created: ${{ needs.backup-current-theme.outputs.backup-created || 'false' }}
     steps:
       - name: Checkout theme code
-        if: needs.optimize-theme.result != 'success'
         uses: actions/checkout@v4
-
-      - name: Download optimized theme
-        if: needs.optimize-theme.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: optimized-theme
-          path: .
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ inputs.node-version }}
+          node-version-file: '.nvmrc'
+          fallback: ${{ inputs.node-version }}
 
       - name: Install Stencil CLI
         run: |
@@ -453,7 +321,7 @@ jobs:
           else
             npm install -g @bigcommerce/stencil-cli
           fi
-          
+
           echo "🔧 Stencil CLI installed: $(stencil --version)"
 
       - name: Configure Stencil
@@ -466,43 +334,43 @@ jobs:
             "port": 3000
           }
           EOF
-          
+
           # Apply custom theme configuration if provided
           if [ -n "${{ inputs.theme-config }}" ]; then
             echo "🔧 Applying custom theme configuration..."
             echo '${{ inputs.theme-config }}' | jq . > custom-config.json
-            
+
             # Merge with existing config.json
             if [ -f "config.json" ]; then
               jq -s '.[0] * .[1]' config.json custom-config.json > merged-config.json
               mv merged-config.json config.json
               echo "✅ Custom configuration applied"
             fi
-            
+
             rm -f custom-config.json
           fi
-          
+
           echo "🔧 Stencil configuration completed"
 
       - name: Bundle theme
         run: |
           echo "📦 Creating theme bundle..."
-          
+
           if [ "${{ inputs.debug }}" = "true" ]; then
             stencil bundle --debug
           else
             stencil bundle
           fi
-          
+
           # Check bundle size
           bundle_file=$(find . -name "*.zip" -type f | head -1)
           if [ -n "$bundle_file" ]; then
             bundle_size=$(stat -c%s "$bundle_file")
             bundle_size_mb=$((bundle_size / 1024 / 1024))
-            
+
             echo "📦 Bundle created: $bundle_file"
             echo "📏 Bundle size: ${bundle_size_mb}MB"
-            
+
             if [ $bundle_size_mb -gt 50 ]; then
               echo "❌ Bundle size exceeds 50MB limit"
               exit 1
@@ -516,10 +384,10 @@ jobs:
         id: deploy
         run: |
           echo "🚀 Deploying theme to BigCommerce..."
-          
+
           # Build stencil push command
           push_cmd="stencil push"
-          
+
           # Add activation flag
           if [ "${{ inputs.activate-theme }}" = "true" ]; then
             if [ -n "${{ inputs.variation-name }}" ]; then
@@ -528,7 +396,7 @@ jobs:
               push_cmd="$push_cmd -a"
             fi
           fi
-          
+
           # Add channel configuration
           if [ "${{ inputs.apply-to-all-channels }}" = "true" ]; then
             push_cmd="$push_cmd -allc"
@@ -537,45 +405,45 @@ jobs:
             channel_list=$(echo "${{ inputs.channel-ids }}" | tr ',' ' ')
             push_cmd="$push_cmd -c $channel_list"
           fi
-          
+
           # Add delete oldest flag
           if [ "${{ inputs.delete-oldest }}" = "true" ]; then
             push_cmd="$push_cmd -d"
           fi
-          
+
           echo "📤 Executing: $push_cmd"
-          
+
           # Execute deployment with error handling
           if [ "${{ inputs.debug }}" = "true" ]; then
             set -x
           fi
-          
+
           # Capture output for parsing
           output_file=$(mktemp)
           if eval "$push_cmd" > "$output_file" 2>&1; then
             echo "✅ Theme deployment successful!"
-            
+
             # Parse deployment output for theme information
             theme_uuid=$(grep -o 'Theme ID: [a-f0-9-]*' "$output_file" | cut -d' ' -f3 || echo "unknown")
             theme_version=$(date +%Y%m%d_%H%M%S)
             deployment_url="${{ needs.validate-environment.outputs.store-url }}"
-            
+
             echo "🎯 Theme UUID: $theme_uuid"
             echo "📋 Theme Version: $theme_version"
             echo "🌐 Deployment URL: $deployment_url"
-            
+
             # Set outputs
             echo "theme-uuid=$theme_uuid" >> $GITHUB_OUTPUT
             echo "theme-version=$theme_version" >> $GITHUB_OUTPUT
             echo "deployment-url=$deployment_url" >> $GITHUB_OUTPUT
-            
+
             cat "$output_file"
           else
             echo "❌ Theme deployment failed!"
             cat "$output_file"
             exit 1
           fi
-          
+
           rm -f "$output_file"
 
   verify-deployment:
@@ -586,20 +454,20 @@ jobs:
       - name: Verify theme deployment
         run: |
           echo "🔍 Verifying theme deployment..."
-          
+
           deployment_url="${{ needs.deploy.outputs.deployment-url }}"
           theme_uuid="${{ needs.deploy.outputs.theme-uuid }}"
-          
+
           echo "🌐 Store URL: $deployment_url"
           echo "🎯 Theme UUID: $theme_uuid"
-          
+
           # Basic connectivity check
           if curl -sSf "$deployment_url" > /dev/null; then
             echo "✅ Store is accessible"
           else
             echo "⚠️ Store accessibility check failed - this may be normal for private stores"
           fi
-          
+
           echo "✅ Deployment verification completed"
 
   report-deployment:
@@ -620,15 +488,13 @@ jobs:
           echo "- **Theme Version**: ${{ needs.deploy.outputs.theme-version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Deployment URL**: ${{ needs.deploy.outputs.deployment-url }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           echo "## Configuration" >> $GITHUB_STEP_SUMMARY
           echo "- **Node Version**: ${{ inputs.node-version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Stencil Version**: ${{ needs.setup-theme.outputs.stencil-version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Theme Activated**: ${{ inputs.activate-theme }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bundle Optimized**: ${{ inputs.bundle-optimization }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Backup Created**: ${{ needs.deploy.outputs.backup-created }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           # Deployment status
           if [ "${{ needs.deploy.result }}" = "success" ]; then
             echo "## ✅ Deployment Status: SUCCESS" >> $GITHUB_STEP_SUMMARY
