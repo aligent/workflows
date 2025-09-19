@@ -335,6 +335,9 @@ jobs:
       - name: Extract node_modules with tar
         run: tar -xvzf node_modules.tar.gz -C .
 
+      - name: Install Playwright
+        run: npx playwright install
+
       - name: Test Storybook
         run: ${{ inputs.package-manager }} run ${{ inputs.test-storybook-command }} ${{ inputs.debug && '--verbose' || '' }}
 
