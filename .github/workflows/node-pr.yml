@@ -82,6 +82,13 @@ jobs:
       - name: Install dependencies
         run: |
           debug=${{ inputs.debug && '--verbose' || '' }}
+
+          # Enable corepack if packageManager is specified in package.json
+          if [ -f package.json ] && jq -e '.packageManager' package.json > /dev/null 2>&1; then
+            echo "packageManager field detected in package.json, enabling corepack"
+            corepack enable
+          fi
+
           if [ "${{ inputs.package-manager }}" = "yarn" ]; then
             lock_dependencies=${{ inputs.is-yarn-classic && '--frozen-lockfile' || '--immutable' }}
             skip_cache=${{ inputs.skip-cache && '--force' || '' }}
