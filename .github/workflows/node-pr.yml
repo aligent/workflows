@@ -77,6 +77,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v5
         with:
+          package-manager-cache: false
           node-version-file: .nvmrc
       - name: Enable Corepack
         run: |
@@ -89,6 +90,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           cache: ${{ inputs.package-manager }}
+          node-version-file: .nvmrc
       - name: Install dependencies
         run: |
           debug=${{ inputs.debug && '--verbose' || '' }}
