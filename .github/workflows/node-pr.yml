@@ -2,6 +2,10 @@ name: 🕵️ Node Pull Request Checks
 
 on:
   workflow_call:
+    secrets:
+      NPM_TOKEN:
+        description: "NPM authentication token for private registries"
+        required: false
     inputs:
       package-manager:
         description: "Node package manager to use"
@@ -63,6 +67,10 @@ on:
         description: "If the cache should be skipped when installing dependencies"
         default: false
         type: boolean
+      pre-install-commands:
+        description: "Commands to run before dependency installation (e.g., configure registries, auth tokens)"
+        default: ""
+        type: string
       debug:
         description: "If debug flags should be set"
         default: false
@@ -91,6 +99,18 @@ jobs:
         with:
           cache: ${{ inputs.package-manager }}
           node-version-file: .nvmrc
+      - name: Run pre-install commands
+        if: inputs.pre-install-commands != ''
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # Execute pre-install commands line by line
+          echo "${{ inputs.pre-install-commands }}" | while IFS= read -r cmd; do
+            if [ -n "$cmd" ]; then
+              echo "Running: $cmd"
+              eval "$cmd"
+            fi
+          done
       - name: Install dependencies
         run: |
           debug=${{ inputs.debug && '--verbose' || '' }}
