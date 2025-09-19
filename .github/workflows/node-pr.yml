@@ -6,6 +6,9 @@ on:
       NPM_TOKEN:
         description: "NPM authentication token for private registries"
         required: false
+      ENV_VARS:
+        description: "Additional environment variables as key=value pairs (one per line)"
+        required: false
     inputs:
       package-manager:
         description: "Node package manager to use"
@@ -111,6 +114,16 @@ jobs:
               eval "$cmd"
             fi
           done
+      - name: Setup additional environment variables
+        if: secrets.ENV_VARS != ''
+        run: |
+          # Parse and set additional environment variables
+          echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
+            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
+              echo "Setting environment variable: ${line%%=*}"
+              echo "$line" >> $GITHUB_ENV
+            fi
+          done
       - name: Install dependencies
         run: |
           debug=${{ inputs.debug && '--verbose' || '' }}
@@ -198,6 +211,16 @@ jobs:
           name: node_modules
       - name: Extract node_modules with tar
         run: tar -xvzf node_modules.tar.gz -C .
+      - name: Setup additional environment variables
+        if: secrets.ENV_VARS != ''
+        run: |
+          # Parse and set additional environment variables
+          echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
+            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
+              echo "Setting environment variable: ${line%%=*}"
+              echo "$line" >> $GITHUB_ENV
+            fi
+          done
 
       - name: Build
         run: ${{ inputs.package-manager }} run ${{ inputs.build-command }} ${{ inputs.debug && '--verbose' || '' }}
@@ -232,6 +255,16 @@ jobs:
           name: node_modules
       - name: Extract node_modules with tar
         run: tar -xvzf node_modules.tar.gz -C .
+      - name: Setup additional environment variables
+        if: secrets.ENV_VARS != ''
+        run: |
+          # Parse and set additional environment variables
+          echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
+            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
+              echo "Setting environment variable: ${line%%=*}"
+              echo "$line" >> $GITHUB_ENV
+            fi
+          done
 
       - name: Test
         run: ${{ inputs.package-manager }} run ${{ inputs.test-command }} ${{ inputs.debug && '--verbose' || '' }}
@@ -266,6 +299,16 @@ jobs:
           name: node_modules
       - name: Extract node_modules with tar
         run: tar -xvzf node_modules.tar.gz -C .
+      - name: Setup additional environment variables
+        if: secrets.ENV_VARS != ''
+        run: |
+          # Parse and set additional environment variables
+          echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
+            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
+              echo "Setting environment variable: ${line%%=*}"
+              echo "$line" >> $GITHUB_ENV
+            fi
+          done
 
       - name: Lint
         run: ${{ inputs.package-manager }} run ${{ inputs.lint-command }} ${{ inputs.debug && '--verbose' || '' }}
@@ -300,6 +343,16 @@ jobs:
           name: node_modules
       - name: Extract node_modules with tar
         run: tar -xvzf node_modules.tar.gz -C .
+      - name: Setup additional environment variables
+        if: secrets.ENV_VARS != ''
+        run: |
+          # Parse and set additional environment variables
+          echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
+            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
+              echo "Setting environment variable: ${line%%=*}"
+              echo "$line" >> $GITHUB_ENV
+            fi
+          done
 
       - name: Format
         run: ${{ inputs.package-manager }} run ${{ inputs.format-command }} ${{ inputs.debug && '--verbose' || '' }}
@@ -337,6 +390,16 @@ jobs:
 
       - name: Install Playwright
         run: npx playwright install
+      - name: Setup additional environment variables
+        if: secrets.ENV_VARS != ''
+        run: |
+          # Parse and set additional environment variables
+          echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
+            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
+              echo "Setting environment variable: ${line%%=*}"
+              echo "$line" >> $GITHUB_ENV
+            fi
+          done
 
       - name: Test Storybook
         run: ${{ inputs.package-manager }} run ${{ inputs.test-storybook-command }} ${{ inputs.debug && '--verbose' || '' }}
@@ -371,6 +434,16 @@ jobs:
           name: node_modules
       - name: Extract node_modules with tar
         run: tar -xvzf node_modules.tar.gz -C .
+      - name: Setup additional environment variables
+        if: secrets.ENV_VARS != ''
+        run: |
+          # Parse and set additional environment variables
+          echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
+            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
+              echo "Setting environment variable: ${line%%=*}"
+              echo "$line" >> $GITHUB_ENV
+            fi
+          done
 
       - name: Check Types
         run: ${{ inputs.package-manager }} run ${{ inputs.check-types-command }} ${{ inputs.debug && '--verbose' || '' }}

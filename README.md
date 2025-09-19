@@ -132,6 +132,7 @@ jobs:
 | Name          | Required | Description                        |
 |---------------|----------|-------------------------------------|
 | NPM_TOKEN     | ❌      | NPM authentication token for private registries |
+| ENV_VARS      | ❌      | Additional environment variables as key=value pairs (one per line) |
 
 #### Example Usage
 
@@ -172,6 +173,21 @@ jobs:
         yarn config set npmScopes.internal.npmAuthToken "$NPM_TOKEN"
     secrets:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+```
+
+**With additional environment variables:**
+```yaml
+jobs:
+  pr-checks:
+    uses: aligent/workflows/.github/workflows/node-pr.yml@main
+    with:
+      package-manager: yarn
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      ENV_VARS: |
+        BACKEND_URL=${{ secrets.BACKEND_URL }}
+        API_KEY=${{ secrets.API_KEY }}
+        NODE_ENV=test
 ```
 
 ### S3 Deployment
