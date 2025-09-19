@@ -117,10 +117,14 @@ jobs:
 | test-command    | ❌      | string   | test             | Command to override the test command |
 | lint-command    | ❌      | string   | lint             | Command to override the lint command |
 | format-command  | ❌      | string   | format           | Command to override the format command |
+| test-storybook-command | ❌ | string | test-storybook | Command to override the test-storybook command |
+| check-types-command | ❌ | string | check-types | Command to override the check-types command |
 | skip-build      | ❌      | boolean  | false            | If the build step should be skipped |
 | skip-test       | ❌      | boolean  | false            | If the test step should be skipped |
 | skip-lint       | ❌      | boolean  | false            | If the lint step should be skipped |
 | skip-format     | ❌      | boolean  | false            | If the format step should be skipped |
+| skip-test-storybook | ❌ | boolean | false | If the test-storybook step should be skipped |
+| skip-check-types | ❌ | boolean | false | If the check-types step should be skipped |
 | debug           | ❌      | boolean  | false            | If debug flags should be set |
 
 #### Example Usage

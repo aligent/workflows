@@ -27,6 +27,14 @@ on:
         description: "Command to override the format command"
         default: format
         type: string
+      test-storybook-command:
+        description: "Command to override the test-storybook command"
+        default: test-storybook
+        type: string
+      check-types-command:
+        description: "Command to override the check-types command"
+        default: check-types
+        type: string
       skip-build:
         description: "If the build step should skipped"
         default: false
@@ -41,6 +49,14 @@ on:
         type: boolean
       skip-format:
         description: "If the format step should skipped"
+        default: false
+        type: boolean
+      skip-test-storybook:
+        description: "If the test-storybook step should skipped"
+        default: false
+        type: boolean
+      skip-check-types:
+        description: "If the check-types step should skipped"
         default: false
         type: boolean
       skip-cache:
@@ -92,6 +108,8 @@ jobs:
       has-test: ${{ steps.check.outputs.has-test }}
       has-lint: ${{ steps.check.outputs.has-lint }}
       has-format: ${{ steps.check.outputs.has-format }}
+      has-test-storybook: ${{ steps.check.outputs.has-test-storybook }}
+      has-check-types: ${{ steps.check.outputs.has-check-types }}
     steps:
       - uses: actions/checkout@v4
       - id: check
@@ -112,6 +130,8 @@ jobs:
           check_command "${{ inputs.test-command }}"
           check_command "${{ inputs.lint-command }}"
           check_command "${{ inputs.format-command }}"
+          check_command "${{ inputs.test-storybook-command }}"
+          check_command "${{ inputs.check-types-command }}"
 
   build:
     name: 🏗️ Build
@@ -201,10 +221,54 @@ jobs:
       - name: Format
         run: ${{ inputs.package-manager }} run ${{ inputs.format-command }} ${{ inputs.debug && '--verbose' || '' }}
 
+  test-storybook:
+    name: 📖 Test Storybook
+    needs: [install, check-commands]
+    if: inputs.skip-test-storybook == false && needs.check-commands.outputs.has-test-storybook == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch Origin
+        run: git fetch origin
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: ${{ inputs.package-manager }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: node_modules
+      - name: Extract node_modules with tar
+        run: tar -xvzf node_modules.tar.gz -C .
+
+      - name: Test Storybook
+        run: ${{ inputs.package-manager }} run ${{ inputs.test-storybook-command }} ${{ inputs.debug && '--verbose' || '' }}
+
+  check-types:
+    name: 🔍 Check Types
+    needs: [install, check-commands]
+    if: inputs.skip-check-types == false && needs.check-commands.outputs.has-check-types == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch Origin
+        run: git fetch origin
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: ${{ inputs.package-manager }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: node_modules
+      - name: Extract node_modules with tar
+        run: tar -xvzf node_modules.tar.gz -C .
+
+      - name: Check Types
+        run: ${{ inputs.package-manager }} run ${{ inputs.check-types-command }} ${{ inputs.debug && '--verbose' || '' }}
+
   cleanup:
     name: 🧹 Cleanup
     runs-on: ubuntu-latest
-    needs: [install, build, test, lint, format]
+    needs: [install, build, test, lint, format, test-storybook, check-types]
     if: always() # Run this step regardless of success of other steps
     permissions: 
       actions: write
