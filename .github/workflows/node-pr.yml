@@ -14,6 +14,10 @@ on:
         description: "Node package manager to use"
         default: yarn
         type: string
+      has-env-vars:
+        description: "Whether environment variables are provided"
+        default: false
+        type: boolean
       is-yarn-classic:
         description: "If Yarn (pre-Berry) should be used"
         default: false
@@ -115,7 +119,7 @@ jobs:
             fi
           done
       - name: Setup additional environment variables
-        if: secrets.ENV_VARS != ''
+        if: inputs.has-env-vars
         run: |
           # Parse and set additional environment variables
           echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
@@ -212,7 +216,7 @@ jobs:
       - name: Extract node_modules with tar
         run: tar -xvzf node_modules.tar.gz -C .
       - name: Setup additional environment variables
-        if: secrets.ENV_VARS != ''
+        if: inputs.has-env-vars
         run: |
           # Parse and set additional environment variables
           echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
@@ -256,7 +260,7 @@ jobs:
       - name: Extract node_modules with tar
         run: tar -xvzf node_modules.tar.gz -C .
       - name: Setup additional environment variables
-        if: secrets.ENV_VARS != ''
+        if: inputs.has-env-vars
         run: |
           # Parse and set additional environment variables
           echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
@@ -300,7 +304,7 @@ jobs:
       - name: Extract node_modules with tar
         run: tar -xvzf node_modules.tar.gz -C .
       - name: Setup additional environment variables
-        if: secrets.ENV_VARS != ''
+        if: inputs.has-env-vars
         run: |
           # Parse and set additional environment variables
           echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
@@ -344,7 +348,7 @@ jobs:
       - name: Extract node_modules with tar
         run: tar -xvzf node_modules.tar.gz -C .
       - name: Setup additional environment variables
-        if: secrets.ENV_VARS != ''
+        if: inputs.has-env-vars
         run: |
           # Parse and set additional environment variables
           echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
@@ -391,7 +395,7 @@ jobs:
       - name: Install Playwright
         run: npx playwright install
       - name: Setup additional environment variables
-        if: secrets.ENV_VARS != ''
+        if: inputs.has-env-vars
         run: |
           # Parse and set additional environment variables
           echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
@@ -435,7 +439,7 @@ jobs:
       - name: Extract node_modules with tar
         run: tar -xvzf node_modules.tar.gz -C .
       - name: Setup additional environment variables
-        if: secrets.ENV_VARS != ''
+        if: inputs.has-env-vars
         run: |
           # Parse and set additional environment variables
           echo "${{ secrets.ENV_VARS }}" | while IFS= read -r line; do
