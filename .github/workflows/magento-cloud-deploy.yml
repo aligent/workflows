@@ -4,42 +4,42 @@ on:
   workflow_call:
     inputs:
       # Magento Cloud Configuration
-      magento-cloud-project-id:
+      MAGENTO_CLOUD_PROJECT_ID:
         description: "Magento Cloud project ID (required)"
         type: string
         required: true
-      environment:
+      ENVIRONMENT:
         description: "Target environment (integration/staging/production)"
         type: string
         required: false
         default: "integration"
       
       # Monitoring and Reporting
-      newrelic-app-id:
+      NEWRELIC_APP_ID:
         description: "NewRelic application ID for deployment markers (optional)"
         type: string
         required: false
         default: ""
       
       # CST Reporting Configuration
-      cst-endpoint:
+      CST_ENDPOINT:
         description: "CST endpoint base URL (optional, overrides workspace variable)"
         type: string
         required: false
         default: ""
-      cst-project-key:
+      CST_PROJECT_KEY:
         description: "CST project key (optional, overrides workspace variable)"
         type: string
         required: false
         default: ""
-      cst-reporting-key:
+      CST_REPORTING_KEY:
         description: "CST reporting key (optional, overrides workspace secret)"
         type: string
         required: false
         default: ""
       
       # Advanced Configuration
-      debug:
+      DEBUG:
         description: "Enable verbose logging and debug output"
         type: boolean
         required: false
@@ -57,10 +57,10 @@ on:
         required: false
 
     outputs:
-      deployment-url:
+      DEPLOYMENT_URL:
         description: "URL of the deployed Magento application"
         value: ${{ jobs.deploy.outputs.deployment-url }}
-      deployment-id:
+      DEPLOYMENT_ID:
         description: "Magento Cloud deployment ID"
         value: ${{ jobs.deploy.outputs.deployment-id }}
 
@@ -72,13 +72,13 @@ jobs:
     steps:
       - name: Validate required inputs
         run: |
-          if [ -z "${{ inputs.magento-cloud-project-id }}" ]; then
-            echo "❌ Error: magento-cloud-project-id is required"
+          if [ -z "${{ inputs.MAGENTO_CLOUD_PROJECT_ID }}" ]; then
+            echo "❌ Error: MAGENTO_CLOUD_PROJECT_ID is required"
             exit 1
           fi
           
-          if [ "${{ inputs.environment }}" != "integration" ] && [ "${{ inputs.environment }}" != "staging" ] && [ "${{ inputs.environment }}" != "production" ]; then
-            echo "❌ Error: environment must be one of: integration, staging, production"
+          if [ "${{ inputs.ENVIRONMENT }}" != "integration" ] && [ "${{ inputs.ENVIRONMENT }}" != "staging" ] && [ "${{ inputs.ENVIRONMENT }}" != "production" ]; then
+            echo "❌ Error: ENVIRONMENT must be one of: integration, staging, production"
             exit 1
           fi
 
@@ -90,7 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate, newrelic-start]
     if: always() && needs.validate.result == 'success'
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.ENVIRONMENT }}
     outputs:
       deployment-url: ${{ steps.deploy-info.outputs.url }}
       deployment-id: ${{ steps.deploy-info.outputs.id }}
@@ -121,18 +121,18 @@ jobs:
       - name: Deploy to Magento Cloud
         id: deployment
         run: |
-          echo "🚀 Starting deployment to ${{ inputs.environment }}..."
+          echo "🚀 Starting deployment to ${{ inputs.ENVIRONMENT }}..."
           
           debug=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "${{ inputs.DEBUG }}" = "true" ]; then
             debug="--verbose"
           fi
           
           # Set project context
-          magento-cloud project:set-remote "${{ inputs.magento-cloud-project-id }}"
+          magento-cloud project:set-remote "${{ inputs.MAGENTO_CLOUD_PROJECT_ID }}"
           
           # Deploy based on environment type
-          case "${{ inputs.environment }}" in
+          case "${{ inputs.ENVIRONMENT }}" in
             "integration")
               # Push to integration environment
               echo "Deploying to integration environment..."
@@ -140,8 +140,8 @@ jobs:
               ;;
             "staging"|"production")
               # Push to staging/production branch
-              echo "Deploying to ${{ inputs.environment }} environment..."
-              magento-cloud push --environment "${{ inputs.environment }}" --force --wait $debug
+              echo "Deploying to ${{ inputs.ENVIRONMENT }} environment..."
+              magento-cloud push --environment "${{ inputs.ENVIRONMENT }}" --force --wait $debug
               ;;
           esac
           
@@ -153,14 +153,14 @@ jobs:
           echo "📋 Retrieving deployment information..."
           
           # Get environment URL
-          URL=$(magento-cloud url --environment "${{ inputs.environment }}" --project "${{ inputs.magento-cloud-project-id }}" --pipe)
+          URL=$(magento-cloud url --environment "${{ inputs.ENVIRONMENT }}" --project "${{ inputs.MAGENTO_CLOUD_PROJECT_ID }}" --pipe)
           echo "url=${URL}" >> $GITHUB_OUTPUT
           
           # Get deployment ID
-          DEPLOYMENT_ID=$(magento-cloud activity:list --environment "${{ inputs.environment }}" --type push --limit 1 --format csv --columns id --no-header | head -1)
+          DEPLOYMENT_ID=$(magento-cloud activity:list --environment "${{ inputs.ENVIRONMENT }}" --type push --limit 1 --format csv --columns id --no-header | head -1)
           echo "id=${DEPLOYMENT_ID}" >> $GITHUB_OUTPUT
           
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "${{ inputs.DEBUG }}" = "true" ]; then
             echo "🔍 Deployment information:"
             echo "  URL: ${URL}"
             echo "  Deployment ID: ${DEPLOYMENT_ID}"
@@ -172,15 +172,15 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Project ID** | ${{ inputs.magento-cloud-project-id }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Environment** | ${{ inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Project ID** | ${{ inputs.MAGENTO_CLOUD_PROJECT_ID }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | ${{ inputs.ENVIRONMENT }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Deployment ID** | ${{ steps.deploy-info.outputs.id }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Site URL** | [${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }}) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Git Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Deployed By** | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          case "${{ inputs.environment }}" in
+          case "${{ inputs.ENVIRONMENT }}" in
             "production")
               echo "### 🌍 Production Deployment" >> $GITHUB_STEP_SUMMARY
               echo "Your Magento store is now live at:" >> $GITHUB_STEP_SUMMARY
@@ -203,7 +203,7 @@ jobs:
     name: 📊 NewRelic Start
     runs-on: ubuntu-latest
     needs: [validate]
-    if: inputs.newrelic-app-id != ''
+    if: inputs.NEWRELIC_APP_ID != ''
     steps:
       - name: Create NewRelic deployment marker (start)
         run: |
@@ -214,14 +214,14 @@ jobs:
           
           echo "📊 Creating NewRelic deployment marker (start)..."
           
-          curl -X POST "https://api.newrelic.com/v2/applications/${{ inputs.newrelic-app-id }}/deployments.json" \
+          curl -X POST "https://api.newrelic.com/v2/applications/${{ inputs.NEWRELIC_APP_ID }}/deployments.json" \
             -H "X-Api-Key: ${{ secrets.newrelic-api-key }}" \
             -H "Content-Type: application/json" \
             -d '{
               "deployment": {
                 "revision": "${{ github.sha }}",
                 "changelog": "Magento Cloud deployment started",
-                "description": "Deployment to ${{ inputs.environment }} environment",
+                "description": "Deployment to ${{ inputs.ENVIRONMENT }} environment",
                 "user": "${{ github.actor }}"
               }
             }'
@@ -233,7 +233,7 @@ jobs:
     name: 📊 NewRelic Complete
     runs-on: ubuntu-latest
     needs: [deploy]
-    if: always() && inputs.newrelic-app-id != ''
+    if: always() && inputs.NEWRELIC_APP_ID != ''
     steps:
       - name: Create NewRelic deployment marker (complete)
         run: |
@@ -247,23 +247,23 @@ jobs:
           # Determine deployment status and set appropriate message
           if [ "${{ needs.deploy.result }}" == "success" ]; then
             CHANGELOG="Magento Cloud deployment completed successfully"
-            DESCRIPTION="Deployment to ${{ inputs.environment }} completed at ${{ needs.deploy.outputs.deployment-url }}"
+            DESCRIPTION="Deployment to ${{ inputs.ENVIRONMENT }} completed at ${{ needs.deploy.outputs.DEPLOYMENT_URL }}"
             echo "✅ Deployment was successful"
           elif [ "${{ needs.deploy.result }}" == "failure" ]; then
             CHANGELOG="Magento Cloud deployment failed"
-            DESCRIPTION="Deployment to ${{ inputs.environment }} failed - check workflow logs for details"
+            DESCRIPTION="Deployment to ${{ inputs.ENVIRONMENT }} failed - check workflow logs for details"
             echo "❌ Deployment failed"
           elif [ "${{ needs.deploy.result }}" == "cancelled" ]; then
             CHANGELOG="Magento Cloud deployment cancelled"
-            DESCRIPTION="Deployment to ${{ inputs.environment }} was cancelled by user"
+            DESCRIPTION="Deployment to ${{ inputs.ENVIRONMENT }} was cancelled by user"
             echo "⚠️ Deployment was cancelled"
           else
             CHANGELOG="Magento Cloud deployment status: ${{ needs.deploy.result }}"
-            DESCRIPTION="Deployment to ${{ inputs.environment }} ended with status: ${{ needs.deploy.result }}"
+            DESCRIPTION="Deployment to ${{ inputs.ENVIRONMENT }} ended with status: ${{ needs.deploy.result }}"
             echo "ℹ️ Deployment status: ${{ needs.deploy.result }}"
           fi
           
-          curl -X POST "https://api.newrelic.com/v2/applications/${{ inputs.newrelic-app-id }}/deployments.json" \
+          curl -X POST "https://api.newrelic.com/v2/applications/${{ inputs.NEWRELIC_APP_ID }}/deployments.json" \
             -H "X-Api-Key: ${{ secrets.newrelic-api-key }}" \
             -H "Content-Type: application/json" \
             -d "{
@@ -290,19 +290,19 @@ jobs:
       - name: Report deployment to CST (Confidentiality and Security Team)
         run: |
           # Determine CST endpoint - input overrides workspace variable
-          CST_ENDPOINT="${{ inputs.cst-endpoint }}"
+          CST_ENDPOINT="${{ inputs.CST_ENDPOINT }}"
           if [ -z "$CST_ENDPOINT" ]; then
             CST_ENDPOINT="${{ vars.CST_ENDPOINT }}"
           fi
           
           # Determine CST project key - input overrides workspace variable
-          CST_PROJECT_KEY="${{ inputs.cst-project-key }}"
+          CST_PROJECT_KEY="${{ inputs.CST_PROJECT_KEY }}"
           if [ -z "$CST_PROJECT_KEY" ]; then
             CST_PROJECT_KEY="${{ vars.CST_PROJECT_KEY }}"
           fi
           
           # Determine CST reporting key - input overrides workspace secret
-          CST_KEY="${{ inputs.cst-reporting-key }}"
+          CST_KEY="${{ inputs.CST_REPORTING_KEY }}"
           if [ -z "$CST_KEY" ]; then
             CST_KEY="${{ secrets.cst-reporting-token }}"
           fi

@@ -30,7 +30,7 @@ A streamlined AWS CDK deployment workflow supporting multi-environment infrastru
 | bootstrap-stack | ❌ | boolean | false | Bootstrap CDK environment before deployment |
 | **Advanced Configuration** |
 | context-values | ❌ | string | {} | CDK context values as JSON object |
-| debug | ❌ | boolean | false | Enable verbose logging and debug output |
+| DEBUG | ❌ | boolean | false | Enable verbose logging and debug output |
 
 #### **Secrets**
 | Name | Required | Description |
@@ -68,7 +68,7 @@ jobs:
     with:
       cdk-stack-name: my-app-prod
       environment-target: production
-      debug: true
+      DEBUG: true
     secrets:
       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -127,7 +127,7 @@ jobs:
 | skip-format     | ❌      | boolean  | false            | If the format step should be skipped |
 | skip-test-storybook | ❌ | boolean | false | If the test-storybook step should be skipped |
 | skip-check-types | ❌ | boolean | false | If the check-types step should be skipped |
-| debug           | ❌      | boolean  | false            | If debug flags should be set |
+| DEBUG           | ❌      | boolean  | false            | If debug flags should be set |
 
 #### **Secrets**
 | Name          | Required | Description                        |
@@ -244,16 +244,16 @@ A simple Magento Cloud deployment workflow that pushes code to your Magento Clou
 | Name | Required | Type | Default | Description |
 |------|----------|------|---------|-------------|
 | **Magento Cloud Configuration** |
-| magento-cloud-project-id | ✅ | string | | Magento Cloud project ID (required) |
-| environment | ❌ | string | integration | Target environment (integration/staging/production) |
+| MAGENTO_CLOUD_PROJECT_ID | ✅ | string | | Magento Cloud project ID (required) |
+| ENVIRONMENT | ❌ | string | integration | Target environment (integration/staging/production) |
 | **Monitoring and Reporting** |
-| newrelic-app-id | ❌ | string | | NewRelic application ID for deployment markers (optional) |
+| NEWRELIC_APP_ID | ❌ | string | | NewRelic application ID for deployment markers (optional) |
 | **CST Reporting Configuration** |
-| cst-endpoint | ❌ | string | | CST endpoint base URL (optional, overrides workspace variable) |
-| cst-project-key | ❌ | string | | CST project key (optional, overrides workspace variable) |
-| cst-reporting-key | ❌ | string | | CST reporting key (optional, overrides workspace secret) |
+| CST_ENDPOINT | ❌ | string | | CST endpoint base URL (optional, overrides workspace variable) |
+| CST_PROJECT_KEY | ❌ | string | | CST project key (optional, overrides workspace variable) |
+| CST_REPORTING_KEY | ❌ | string | | CST reporting key (optional, overrides workspace secret) |
 | **Advanced Configuration** |
-| debug | ❌ | boolean | false | Enable verbose logging and debug output |
+| DEBUG | ❌ | boolean | false | Enable verbose logging and debug output |
 
 #### **Secrets**
 | Name | Required | Description |
@@ -271,8 +271,8 @@ A simple Magento Cloud deployment workflow that pushes code to your Magento Clou
 #### **Outputs**
 | Name | Description |
 |------|-------------|
-| deployment-url | URL of the deployed Magento application |
-| deployment-id | Magento Cloud deployment ID |
+| DEPLOYMENT_URL | URL of the deployed Magento application |
+| DEPLOYMENT_ID | Magento Cloud deployment ID |
 
 #### **Example Usage**
 
@@ -282,8 +282,8 @@ jobs:
   deploy-integration:
     uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
     with:
-      magento-cloud-project-id: abc123def456
-      environment: integration
+      MAGENTO_CLOUD_PROJECT_ID: abc123def456
+      ENVIRONMENT: integration
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
 ```
@@ -294,9 +294,9 @@ jobs:
   deploy-production:
     uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
     with:
-      magento-cloud-project-id: abc123def456
-      environment: production
-      newrelic-app-id: "123456789"
+      MAGENTO_CLOUD_PROJECT_ID: abc123def456
+      ENVIRONMENT: production
+      NEWRELIC_APP_ID: "123456789"
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
       newrelic-api-key: ${{ secrets.NEWRELIC_API_KEY }}
@@ -308,9 +308,9 @@ jobs:
   deploy-staging:
     uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
     with:
-      magento-cloud-project-id: abc123def456
-      environment: staging
-      debug: true
+      MAGENTO_CLOUD_PROJECT_ID: abc123def456
+      ENVIRONMENT: staging
+      DEBUG: true
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
 ```
@@ -321,11 +321,11 @@ jobs:
   deploy-with-cst:
     uses: aligent/workflows/.github/workflows/magento-cloud-deploy.yml@main
     with:
-      magento-cloud-project-id: abc123def456
-      environment: staging
-      cst-endpoint: "https://package.report.aligent.consulting"
-      cst-project-key: "your-project-key"
-      cst-reporting-key: "custom-key-123"
+      MAGENTO_CLOUD_PROJECT_ID: abc123def456
+      ENVIRONMENT: staging
+      CST_ENDPOINT: "https://package.report.aligent.consulting"
+      CST_PROJECT_KEY: "your-project-key"
+      CST_REPORTING_KEY: "custom-key-123"
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
 ```
@@ -341,9 +341,9 @@ The CST (Confidentiality and Security Team) reporting feature can be configured 
    - The workflow will automatically use these when available
 
 2. **Input overrides (optional):**
-   - Use `cst-endpoint` input to override the workspace variable (base URL)
-   - Use `cst-project-key` input to override the workspace variable (project identifier)
-   - Use `cst-reporting-key` input to override the workspace secret
+   - Use `CST_ENDPOINT` input to override the workspace variable (base URL)
+   - Use `CST_PROJECT_KEY` input to override the workspace variable (project identifier)
+   - Use `CST_REPORTING_KEY` input to override the workspace secret
    - Useful for testing or special deployments
 
 The workflow constructs the full CST URL as: `{endpoint}/{project-key}/adobe-commerce`
@@ -360,11 +360,11 @@ CST reporting only runs when endpoint, project key, and auth key are all configu
 | aws-profile          | ✅       | string  |                 | AWS Profile                                |
 | aws-region           | ❌       | string  | ap-southeast-2  | AWS Region to deploy to                    |
 | stage                | ✅       | string  |                 | Stage to deploy to                         |
-| environment          | ✅       | string  |                 | The GitHub environment to run in           |
+| ENVIRONMENT          | ✅       | string  |                 | The GitHub environment to run in           |
 | command              | ❌       | string  | build           | Command to run during the deploy step      |
 | package-manager      | ❌       | string  | yarn            | Node package manager to use                |
 | build-command        | ❌       | string  | build           | Command to override the build command      |
-| debug                | ❌       | boolean | false           | If verbose logging should be enabled       |
+| DEBUG                | ❌       | boolean | false           | If verbose logging should be enabled       |
 
 #### Example Usage
 
@@ -375,8 +375,8 @@ jobs:
     with:
       aws-profile: my-profile
       stage: dev
-      environment: development
-      debug: true
+      ENVIRONMENT: development
+      DEBUG: true
     secrets:
       aws-access-key-id: '123'
       aws-secret-access-key: '456'
@@ -415,7 +415,7 @@ A comprehensive PHP quality assurance workflow supporting static analysis, codin
 | **Composer Configuration** |
 | composer-args | ❌ | string |  | Additional composer install arguments |
 | **Advanced Configuration** |
-| debug | ❌ | boolean | false | Enable verbose logging and debug output |
+| DEBUG | ❌ | boolean | false | Enable verbose logging and debug output |
 
 #### **Example Usage**
 
@@ -440,7 +440,7 @@ jobs:
       phpstan-level: "6"
       coverage-threshold: "75"
       memory-limit: "1G"
-      debug: true
+      DEBUG: true
 ```
 
 **Skip Specific Checks:**
