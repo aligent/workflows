@@ -2,6 +2,10 @@ name: 🐘 PHP Quality Checks
 
 on:
   workflow_call:
+    secrets:
+      composer-auth:
+        description: "JSON string for Composer authentication (e.g., for private repositories)"
+        required: false
     inputs:
       # PHP Configuration
       php-version:
@@ -140,6 +144,8 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.prepare.outputs.php-container }}
+    env:
+      COMPOSER_AUTH: ${{ secrets.composer-auth }}
     steps:
       - uses: actions/checkout@v4
 
