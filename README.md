@@ -251,7 +251,6 @@ A simple Magento Cloud deployment workflow that pushes code to your Magento Clou
 | **CST Reporting Configuration** |
 | cst-endpoint | ❌ | string | | CST endpoint base URL (optional, overrides workspace variable) |
 | cst-project-key | ❌ | string | | CST project key (optional, overrides workspace variable) |
-| cst-reporting-key | ❌ | string | | CST reporting key (optional, overrides workspace secret) |
 | **Advanced Configuration** |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 
@@ -325,9 +324,9 @@ jobs:
       environment: staging
       cst-endpoint: "https://package.report.aligent.consulting"
       cst-project-key: "your-project-key"
-      cst-reporting-key: "custom-key-123"
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
+      cst-reporting-token: ${{ secrets.CST_REPORTING_TOKEN }}
 ```
 
 #### **CST Reporting Configuration**
@@ -337,7 +336,7 @@ The CST (Confidentiality and Security Team) reporting feature can be configured 
 1. **Workspace-level configuration (recommended):**
    - Set `CST_ENDPOINT` as a repository/organization variable (base URL, e.g., `https://package.report.aligent.consulting`)
    - Set `CST_PROJECT_KEY` as a repository/organization variable (your project identifier)
-   - Set `cst-reporting-token` as a repository/organization secret
+   - Set `CST_REPORTING_TOKEN` as a repository/organization secret
    - The workflow will automatically use these when available
 
 2. **Input overrides (optional):**
