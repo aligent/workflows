@@ -32,11 +32,6 @@ on:
         type: string
         required: false
         default: ""
-      cst-reporting-key:
-        description: "CST reporting key (optional, overrides workspace secret)"
-        type: string
-        required: false
-        default: ""
       
       # Advanced Configuration
       debug:
@@ -302,9 +297,9 @@ jobs:
           fi
           
           # Determine CST reporting key - input overrides workspace secret
-          CST_KEY="${{ inputs.cst-reporting-key }}"
+          CST_KEY="${{ secrets.cst-reporting-token }}"
           if [ -z "$CST_KEY" ]; then
-            CST_KEY="${{ secrets.cst-reporting-token }}"
+            CST_KEY="${{ secrets.CST_REPORTING_TOKEN }}"
           fi
           
           # Check if we have all required CST configuration
