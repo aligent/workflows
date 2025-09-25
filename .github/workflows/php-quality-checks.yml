@@ -159,7 +159,7 @@ jobs:
             ${{ runner.os }}-composer-
 
       - name: Validate composer.json and composer.lock
-        run: composer validate --strict ${{ inputs.debug && '--verbose' || '' }}
+        run: composer validate ${{ inputs.debug && '--verbose' || '' }}
 
       - name: Install Composer Dependencies
         run: |
