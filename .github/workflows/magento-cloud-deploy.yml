@@ -109,7 +109,7 @@ jobs:
       - name: Configure Magento Cloud CLI authentication
         run: |
           echo "🔐 Configuring Magento Cloud authentication..."
-          magento-cloud auth:login --token "${{ secrets.magento-cloud-cli-token }}"
+          export MAGENTO_CLOUD_CLI_TOKEN="${{ secrets.magento-cloud-cli-token }}"
           echo "✅ Authentication configured"
 
 
