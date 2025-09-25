@@ -143,12 +143,20 @@ jobs:
           echo "📋 Retrieving deployment information..."
           
           # Get environment URL
-          URL=$(magento-cloud url --environment "${{ inputs.environment }}" --project "${{ inputs.magento-cloud-project-id }}" --pipe)
-          echo "url=${URL}" >> $GITHUB_OUTPUT
+          URL=$(magento-cloud url --environment "${{ inputs.environment }}" --project "${{ inputs.magento-cloud-project-id }}" --pipe | tr -d '[:space:]')
+          {
+          echo "url<<EOF"
+          echo "url=$URL"
+          echo "EOF"
+          } >> "$GITHUB_OUTPUT"
           
           # Get deployment ID
           DEPLOYMENT_ID=$(magento-cloud activity:list --environment "${{ inputs.environment }}" --type push --limit 1 --format csv --columns id --no-header | head -1)
-          echo "id=${DEPLOYMENT_ID}" >> $GITHUB_OUTPUT
+          {
+          echo "url<<EOF"
+          echo "id=$DEPLOYMENT_ID"
+          echo "EOF"
+          } >> "$GITHUB_OUTPUT"
           
           if [ "${{ inputs.debug }}" = "true" ]; then
             echo "🔍 Deployment information:"
