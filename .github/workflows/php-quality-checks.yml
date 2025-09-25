@@ -86,7 +86,6 @@ jobs:
       has-phpunit: ${{ steps.check-tools.outputs.has-phpunit }}
       has-phpstan-config: ${{ steps.check-tools.outputs.has-phpstan-config }}
       has-phpcs-config: ${{ steps.check-tools.outputs.has-phpcs-config }}
-      php-container: ${{ steps.php-config.outputs.container }}
     steps:
       - uses: actions/checkout@v4
 
@@ -100,16 +99,6 @@ jobs:
             echo "❌ composer.json not found"
             echo "has-composer=false" >> $GITHUB_OUTPUT
           fi
-
-
-      - name: Set PHP container configuration
-        id: php-config
-        run: |
-          container="php:${{ inputs.php-version }}-cli-alpine"
-          echo "🐘 Verifying PHP container exists: $container"
-          docker manifest inspect "$container" > /dev/null
-          echo "container=$container" >> $GITHUB_OUTPUT
-          echo "✅ PHP container verified: $container"
 
       - name: Check for analysis tool configurations
         id: check-tools
@@ -148,40 +137,33 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.has-composer == 'true'
     runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.prepare.outputs.php-container }}
     env:
       COMPOSER_AUTH: ${{ secrets.composer-auth }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
+
       - name: Cache Composer dependencies
         uses: actions/cache@v3
         with:
-          path: /tmp/composer-cache
-          key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
-
-      - name:  Validate composer.json and composer.lock
-        uses: php-actions/composer@v6
-        with:
-          php_version: ${{ inputs.php-version }}
-          php_extensions: ${{ inputs.php-extensions }}
-          command:  validate --strict ${{ inputs.debug && '--verbose' || '' }}
-        env:
-          COMPOSER_AUTH: ${{ secrets.composer-auth }}
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
 
       - name: Validate composer.json and composer.lock
-        run: |
-          composer validate --strict ${{ inputs.debug && '--verbose' || '' }}
+        run: composer validate --strict ${{ inputs.debug && '--verbose' || '' }}
 
-      - name:  Validate composer.json and composer.lock
-        uses: php-actions/composer@v6
-        env:
-          COMPOSER_AUTH: ${{ secrets.composer-auth }}
-        with:
-          php_version: ${{ inputs.php-version }}
-          php_extensions: ${{ inputs.php-extensions }}
-          args: |
+      - name: Install Composer Dependencies
+        run: |
+          composer install \
             --no-progress \
             --no-suggest \
             --no-interaction \
@@ -208,13 +190,16 @@ jobs:
       inputs.skip-phpstan == false &&
       needs.prepare.outputs.has-composer == 'true'
     runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.prepare.outputs.php-container }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: apk add --no-cache git
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
 
       - uses: actions/download-artifact@v4
         with:
@@ -292,13 +277,16 @@ jobs:
       inputs.skip-phpcs == false &&
       needs.prepare.outputs.has-composer == 'true'
     runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.prepare.outputs.php-container }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: apk add --no-cache git
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
 
       - uses: actions/download-artifact@v4
         with:
@@ -375,19 +363,16 @@ jobs:
       needs.prepare.outputs.has-composer == 'true' &&
       needs.prepare.outputs.has-phpunit == 'true'
     runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.prepare.outputs.php-container }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: |
-          apk add --no-cache git
-
-          # Install Xdebug for coverage
-          apk add --no-cache $PHPIZE_DEPS
-          pecl install xdebug
-          docker-php-ext-enable xdebug
+      - name: Setup PHP with Xdebug
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}, xdebug
+          coverage: xdebug
+          tools: composer:v2
 
       - uses: actions/download-artifact@v4
         with:
