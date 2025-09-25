@@ -172,14 +172,34 @@ jobs:
             ${{ inputs.composer-args }} \
             ${{ inputs.debug && '--verbose' || '' }}
 
-      # Archive vendor directory for other jobs
-      - name: Archive vendor directory
-        run: tar -czf vendor.tar.gz vendor/
+      # Archive directories for other jobs (matching Bitbucket artifacts)
+      - name: Archive dependencies and generated files
+        run: |
+          # Create archive of all necessary directories
+          # Only include directories that exist to avoid tar errors
+          dirs=""
+          [ -d "vendor" ] && dirs="$dirs vendor/"
+          [ -d "bin" ] && dirs="$dirs bin/"
+          [ -d "app/etc" ] && dirs="$dirs app/etc/"
+          [ -d "app" ] && dirs="$dirs app/"
+          [ -d "generated" ] && dirs="$dirs generated/"
+          [ -d "dev" ] && dirs="$dirs dev/"
+          [ -d "setup" ] && dirs="$dirs setup/"
+          [ -d "pub" ] && dirs="$dirs pub/"
+          [ -d "phpserver" ] && dirs="$dirs phpserver/"
+
+          if [ -n "$dirs" ]; then
+            echo "Archiving: $dirs"
+            tar -czf dependencies.tar.gz $dirs
+          else
+            echo "No directories to archive"
+            tar -czf dependencies.tar.gz --files-from /dev/null
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: vendor-php${{ inputs.php-version }}
-          path: vendor.tar.gz
+          path: dependencies.tar.gz
           retention-days: 1
 
   # PHPStan static analysis
@@ -205,8 +225,8 @@ jobs:
         with:
           name: vendor-php${{ inputs.php-version }}
 
-      - name: Extract vendor directory
-        run: tar -xzf vendor.tar.gz
+      - name: Extract dependencies and generated files
+        run: tar -xzf dependencies.tar.gz
 
       - name: Cache PHPStan results
         uses: actions/cache@v4
@@ -292,8 +312,8 @@ jobs:
         with:
           name: vendor-php${{ inputs.php-version }}
 
-      - name: Extract vendor directory
-        run: tar -xzf vendor.tar.gz
+      - name: Extract dependencies and generated files
+        run: tar -xzf dependencies.tar.gz
 
       - name: Run PHP CodeSniffer
         run: |
@@ -378,8 +398,8 @@ jobs:
         with:
           name: vendor-php${{ inputs.php-version }}
 
-      - name: Extract vendor directory
-        run: tar -xzf vendor.tar.gz
+      - name: Extract dependencies and generated files
+        run: tar -xzf dependencies.tar.gz
 
       - name: Run PHPUnit tests
         run: |
