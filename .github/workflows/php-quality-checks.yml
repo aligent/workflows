@@ -166,10 +166,9 @@ jobs:
         with:
           php_version: ${{ inputs.php-version }}
           php_extensions: ${{ inputs.php-extensions }}
+          command:  validate --strict ${{ inputs.debug && '--verbose' || '' }}
         env:
           COMPOSER_AUTH: ${{ secrets.composer-auth }}
-        with:
-          command:  validate --strict ${{ inputs.debug && '--verbose' || '' }}
 
       - name: Validate composer.json and composer.lock
         run: |
@@ -177,12 +176,11 @@ jobs:
 
       - name:  Validate composer.json and composer.lock
         uses: php-actions/composer@v6
-        with:
-          php_version: ${{ inputs.php-version }}
-          php_extensions: ${{ inputs.php-extensions }}
         env:
           COMPOSER_AUTH: ${{ secrets.composer-auth }}
         with:
+          php_version: ${{ inputs.php-version }}
+          php_extensions: ${{ inputs.php-extensions }}
           args: |
             --no-progress \
             --no-suggest \
