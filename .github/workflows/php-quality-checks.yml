@@ -13,6 +13,12 @@ on:
         type: string
         required: true
 
+      php-extensions:
+        description: "PHP Extensions to use redis, exif, etc"
+        type: string
+        required: false
+        default: "bcmath bz2 calendar exif gd gettext intl mysqli opcache pdo_mysql redis soap sockets sodium sysvmsg sysvsem sysvshm xsl zip pcntl"
+
       # PHPStan Configuration
       phpstan-level:
         description: "PHPStan analysis level (1-9)"
@@ -149,58 +155,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: |
-          apk add --no-cache git unzip
-
-      - name: Cache Composer binary
-        id: composer-binary-cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/composer.phar
-          key: composer-binary-${{ runner.os }}
-
-      - name: Install Composer
-        if: steps.composer-binary-cache.outputs.cache-hit != 'true'
-        run: |
-          curl -sS https://getcomposer.org/installer | php -- --install-dir=/tmp --filename=composer.phar
-
-      - name: Setup Composer
-        run: |
-          cp /tmp/composer.phar /usr/local/bin/composer
-          chmod +x /usr/local/bin/composer
-          composer --version
-
-      # Archive Composer binary for other jobs
-      - name: Upload Composer binary artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: composer-binary
-          path: /tmp/composer.phar
-          retention-days: 1
-
-      - name: Get Composer cache directory
-        id: composer-cache
-        run: |
-          echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
-
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-php${{ inputs.php-version }}-${{ hashFiles('**/composer.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-composer-php${{ inputs.php-version }}-
-            ${{ runner.os }}-composer-
+          path: /tmp/composer-cache
+          key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
+
+      - name:  Validate composer.json and composer.lock
+        uses: php-actions/composer@v6
+        with:
+          php_version: ${{ inputs.php-version }}
+          php_extensions: ${{ inputs.php-extensions }}
+        env:
+          COMPOSER_AUTH: ${{ secrets.composer-auth }}
+        with:
+          command:  validate --strict ${{ inputs.debug && '--verbose' || '' }}
 
       - name: Validate composer.json and composer.lock
         run: |
           composer validate --strict ${{ inputs.debug && '--verbose' || '' }}
 
-      - name: Install dependencies
-        run: |
-          php -ini | grep memory_limit
-          php -d memory_limit=${{ inputs.memory-limit }} /usr/local/bin/composer install \
+      - name:  Validate composer.json and composer.lock
+        uses: php-actions/composer@v6
+        with:
+          php_version: ${{ inputs.php-version }}
+          php_extensions: ${{ inputs.php-extensions }}
+        env:
+          COMPOSER_AUTH: ${{ secrets.composer-auth }}
+        with:
+          args: |
             --no-progress \
             --no-suggest \
             --no-interaction \
