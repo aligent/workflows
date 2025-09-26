@@ -54,6 +54,21 @@ on:
         type: boolean
         required: false
         default: false
+      skip-integration-tests:
+        description: "Skip integration tests"
+        type: boolean
+        required: false
+        default: false
+      skip-rest-api-tests:
+        description: "Skip REST API functional tests"
+        type: boolean
+        required: false
+        default: false
+      skip-graphql-tests:
+        description: "Skip GraphQL API functional tests"
+        type: boolean
+        required: false
+        default: false
 
       # Composer Configuration
       composer-args:
@@ -86,6 +101,9 @@ jobs:
       has-phpunit: ${{ steps.check-tools.outputs.has-phpunit }}
       has-phpstan-config: ${{ steps.check-tools.outputs.has-phpstan-config }}
       has-phpcs-config: ${{ steps.check-tools.outputs.has-phpcs-config }}
+      has-integration-tests: ${{ steps.check-tests.outputs.has-integration-tests }}
+      has-rest-api-tests: ${{ steps.check-tests.outputs.has-rest-api-tests }}
+      has-graphql-tests: ${{ steps.check-tests.outputs.has-graphql-tests }}
     steps:
       - uses: actions/checkout@v4
 
@@ -128,6 +146,36 @@ jobs:
           else
             echo "ℹ️ No PHPCS configuration found, will use standard"
             echo "has-phpcs-config=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for test configurations
+        id: check-tests
+        run: |
+          # Check for Integration tests
+          if [ -f "dev/tests/integration/phpunit.xml" ]; then
+            echo "✅ Integration test configuration found"
+            echo "has-integration-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No integration test configuration found"
+            echo "has-integration-tests=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Check for REST API tests
+          if [ -f "dev/tests/api-functional/phpunit_rest.xml" ]; then
+            echo "✅ REST API test configuration found"
+            echo "has-rest-api-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No REST API test configuration found"
+            echo "has-rest-api-tests=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Check for GraphQL tests
+          if [ -f "dev/tests/api-functional/phpunit_graphql.xml" ]; then
+            echo "✅ GraphQL test configuration found"
+            echo "has-graphql-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No GraphQL test configuration found"
+            echo "has-graphql-tests=false" >> $GITHUB_OUTPUT
           fi
 
 
@@ -418,7 +466,7 @@ jobs:
           fi
 
           # Build PHPUnit command with coverage
-          cmd="php -d memory_limit=${{ inputs.memory-limit }} -d xdebug.mode=coverage $phpunit_cmd"
+          cmd='php -d memory_limit=${{ inputs.memory-limit }} -d xdebug.mode=coverage $phpunit_cmd c $(pwd)/dev/tests/unit/phpunit.xml --testsuite="Unit Tests" --log-junit ./test-results/report.xml'
           cmd="$cmd --coverage-text --coverage-clover=coverage.xml"
 
           # Add debug flags if enabled
@@ -466,12 +514,326 @@ jobs:
           path: coverage.xml
           retention-days: 7
 
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results-php${{ inputs.php-version }}
+          path: test-results/
+          retention-days: 7
+
+  # Integration Tests
+  integration-tests:
+    name: 🔗 Integration Tests
+    needs: [prepare, install]
+    if: |
+      inputs.skip-integration-tests == false &&
+      needs.prepare.outputs.has-composer == 'true' &&
+      needs.prepare.outputs.has-integration-tests == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MYSQL_DATABASE: magento_integration_tests
+          MYSQL_USER: magento2
+          MYSQL_PASSWORD: magento2
+          MYSQL_ROOT_PASSWORD: magento2
+        ports:
+          - 3306:3306
+        options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      search:
+        image: opensearchproject/opensearch:2
+        env:
+          discovery.type: single-node
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+          DISABLE_SECURITY_PLUGIN: true
+        ports:
+          - 9200:9200
+        options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      rabbitmq:
+        image: rabbitmq:4.1-management
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: --health-cmd="rabbitmq-diagnostics -q ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract dependencies and generated files
+        run: tar -xzf dependencies.tar.gz
+
+      - name: Run Integration Tests
+        run: |
+          echo "🔗 Running integration tests..."
+
+          # Create database if script exists
+          if [ -f "dev/tests/createDatabase.sh" ]; then
+            ./dev/tests/createDatabase.sh magento_integration_tests
+          fi
+
+          # Run integration tests
+          if [ -f "vendor/bin/phpunit" ]; then
+            php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit \
+              -c $(pwd)/dev/tests/integration/phpunit.xml \
+              --log-junit ./test-results/integration-report.xml \
+              --testsuite="Integration Tests" \
+              ${{ inputs.debug && '--verbose' || '' }}
+          else
+            echo "❌ PHPUnit not found in vendor/bin/"
+            exit 1
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results-php${{ inputs.php-version }}
+          path: test-results/
+          retention-days: 7
+
+  # REST API Functional Tests
+  rest-api-tests:
+    name: 🔌 REST API Tests
+    needs: [prepare, install]
+    if: |
+      inputs.skip-rest-api-tests == false &&
+      needs.prepare.outputs.has-composer == 'true' &&
+      needs.prepare.outputs.has-rest-api-tests == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MYSQL_DATABASE: magento_functional_tests
+          MYSQL_USER: magento2
+          MYSQL_PASSWORD: magento2
+          MYSQL_ROOT_PASSWORD: magento2
+        ports:
+          - 3306:3306
+        options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      search:
+        image: opensearchproject/opensearch:2
+        env:
+          discovery.type: single-node
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+          DISABLE_SECURITY_PLUGIN: true
+        ports:
+          - 9200:9200
+        options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      rabbitmq:
+        image: rabbitmq:4.1-management
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: --health-cmd="rabbitmq-diagnostics -q ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract dependencies and generated files
+        run: tar -xzf dependencies.tar.gz
+
+      - name: Run REST API Tests
+        run: |
+          echo "🔌 Running REST API functional tests..."
+
+          # Create database if script exists
+          if [ -f "dev/tests/createDatabase.sh" ]; then
+            ./dev/tests/createDatabase.sh magento_functional_tests
+          fi
+
+          # Start PHP built-in web server for API tests
+          if [ -d "pub" ] && [ -f "phpserver/router.php" ]; then
+            echo "Starting PHP built-in server on port 8082..."
+            php -S 127.0.0.1:8082 -t ./pub/ ./phpserver/router.php &
+            SERVER_PID=$!
+            sleep 5
+
+            # Check if server is running
+            if curl -f http://127.0.0.1:8082 > /dev/null 2>&1; then
+              echo "✅ PHP server is running"
+            else
+              echo "❌ Failed to start PHP server"
+              exit 1
+            fi
+          fi
+
+          # Run REST API tests
+          if [ -f "vendor/bin/phpunit" ]; then
+            php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit \
+              -c $(pwd)/dev/tests/api-functional/phpunit_rest.xml \
+              --log-junit ./test-results/rest-api-report.xml \
+              --testsuite="REST API Tests" \
+              ${{ inputs.debug && '--verbose' || '' }}
+          else
+            echo "❌ PHPUnit not found in vendor/bin/"
+            exit 1
+          fi
+
+          # Kill the PHP server if it was started
+          if [ ! -z "$SERVER_PID" ]; then
+            kill $SERVER_PID || true
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rest-api-test-results-php${{ inputs.php-version }}
+          path: test-results/
+          retention-days: 7
+
+  # GraphQL API Functional Tests
+  graphql-tests:
+    name: 📊 GraphQL API Tests
+    needs: [prepare, install]
+    if: |
+      inputs.skip-graphql-tests == false &&
+      needs.prepare.outputs.has-composer == 'true' &&
+      needs.prepare.outputs.has-graphql-tests == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MYSQL_DATABASE: magento_graphql_tests
+          MYSQL_USER: magento2
+          MYSQL_PASSWORD: magento2
+          MYSQL_ROOT_PASSWORD: magento2
+        ports:
+          - 3306:3306
+        options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      search:
+        image: opensearchproject/opensearch:2
+        env:
+          discovery.type: single-node
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+          DISABLE_SECURITY_PLUGIN: true
+        ports:
+          - 9200:9200
+        options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      rabbitmq:
+        image: rabbitmq:11.4-management
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: --health-cmd="rabbitmq-diagnostics -q ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract dependencies and generated files
+        run: tar -xzf dependencies.tar.gz
+
+      - name: Run GraphQL API Tests
+        run: |
+          echo "📊 Running GraphQL API functional tests..."
+
+          # Create database if script exists
+          if [ -f "dev/tests/createDatabase.sh" ]; then
+            ./dev/tests/createDatabase.sh magento_graphql_tests
+          fi
+
+          # Start PHP built-in web server for API tests
+          if [ -d "pub" ] && [ -f "phpserver/router.php" ]; then
+            echo "Starting PHP built-in server on port 8083..."
+            php -S 127.0.0.1:8083 -t ./pub/ ./phpserver/router.php &
+            SERVER_PID=$!
+            sleep 5
+
+            # Check if server is running
+            if curl -f http://127.0.0.1:8083 > /dev/null 2>&1; then
+              echo "✅ PHP server is running"
+            else
+              echo "❌ Failed to start PHP server"
+              exit 1
+            fi
+          fi
+
+          # Run GraphQL tests
+          if [ -f "vendor/bin/phpunit" ]; then
+            php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit \
+              -c $(pwd)/dev/tests/api-functional/phpunit_graphql.xml \
+              --log-junit ./test-results/graphql-report.xml \
+              --testsuite="GraphQL API Tests" \
+              ${{ inputs.debug && '--verbose' || '' }}
+          else
+            echo "❌ PHPUnit not found in vendor/bin/"
+            exit 1
+          fi
+
+          # Kill the PHP server if it was started
+          if [ ! -z "$SERVER_PID" ]; then
+            kill $SERVER_PID || true
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: graphql-test-results-php${{ inputs.php-version }}
+          path: test-results/
+          retention-days: 7
+
 
   # Cleanup artifacts
   cleanup:
     name: 🧹 Cleanup
     runs-on: ubuntu-latest
-    needs: [install, phpstan, phpcs, test]
+    needs: [install, phpstan, phpcs, test, integration-tests, rest-api-tests, graphql-tests]
     if: always()
     permissions:
       actions: write
