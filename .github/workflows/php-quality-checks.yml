@@ -216,11 +216,9 @@ jobs:
       - name: Install Composer Dependencies
         run: |
           composer install \
+            --dev \
             --no-progress \
-            --no-suggest \
             --no-interaction \
-            --optimize-autoloader \
-            --classmap-authoritative \
             ${{ inputs.composer-args }} \
             ${{ inputs.debug && '--verbose' || '' }}
 
