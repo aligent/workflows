@@ -224,27 +224,51 @@ jobs:
             ${{ inputs.composer-args }} \
             ${{ inputs.debug && '--verbose' || '' }}
 
+      - name: Run Magento setup if needed
+        run: |
+          # Apply patches if ece-patches is available
+          if [ -f "vendor/bin/ece-patches" ]; then
+            echo "Applying Magento patches..."
+            vendor/bin/ece-patches apply || true
+          fi
+
+          # Run DI compilation if Magento is detected
+          if [ -f "bin/magento" ]; then
+            echo "Running Magento DI compilation..."
+            php -d memory_limit=-1 bin/magento setup:di:compile || true
+          fi
+
       # Archive directories for other jobs (matching Bitbucket artifacts)
       - name: Archive dependencies and generated files
         run: |
-          # Create archive of all necessary directories
-          # Only include directories that exist to avoid tar errors
+          echo "📦 Preparing archive of dependencies and generated files..."
+
+          # List of directories to archive (based on Bitbucket pipeline)
           dirs=""
-          [ -d "vendor" ] && dirs="$dirs vendor/"
-          [ -d "bin" ] && dirs="$dirs bin/"
-          [ -d "app/etc" ] && dirs="$dirs app/etc/"
-          [ -d "app" ] && dirs="$dirs app/"
-          [ -d "generated" ] && dirs="$dirs generated/"
-          [ -d "dev" ] && dirs="$dirs dev/"
-          [ -d "setup" ] && dirs="$dirs setup/"
-          [ -d "pub" ] && dirs="$dirs pub/"
-          [ -d "phpserver" ] && dirs="$dirs phpserver/"
+
+          # Check and add each directory
+          for dir in vendor bin app generated dev setup pub phpserver; do
+            if [ -d "$dir" ]; then
+              dirs="$dirs $dir"
+              echo "  ✅ Including: $dir"
+            else
+              echo "  ⏭️  Skipping: $dir (not found)"
+            fi
+          done
 
           if [ -n "$dirs" ]; then
-            echo "Archiving: $dirs"
-            tar -czf dependencies.tar.gz $dirs
+            echo "Creating archive with: $dirs"
+            # Use --warning=no-file-changed to suppress warnings about files changing during archive
+            tar --warning=no-file-changed -czf dependencies.tar.gz $dirs
+
+            # Show archive size for debugging
+            echo "Archive size: $(du -h dependencies.tar.gz | cut -f1)"
+
+            # List first few files in archive for verification
+            echo "Sample of archived files:"
+            tar -tzf dependencies.tar.gz | head -20
           else
-            echo "No directories to archive"
+            echo "⚠️ No directories found to archive"
             tar -czf dependencies.tar.gz --files-from /dev/null
           fi
 
@@ -278,7 +302,29 @@ jobs:
           name: vendor-php${{ inputs.php-version }}
 
       - name: Extract dependencies and generated files
-        run: tar -xzf dependencies.tar.gz
+        run: |
+          echo "📦 Extracting dependencies archive..."
+          tar -xzf dependencies.tar.gz
+          echo "✅ Extraction complete"
+
+          # Verify critical directories exist
+          for dir in vendor bin; do
+            if [ -d "$dir" ]; then
+              echo "  ✅ $dir directory exists"
+            else
+              echo "  ❌ WARNING: $dir directory missing after extraction"
+            fi
+          done
+
+          # Check for Magento-specific directories if this is a Magento project
+          if [ -d "app" ] || [ -d "generated" ]; then
+            echo "Magento directories:"
+            [ -d "app" ] && echo "  ✅ app/"
+            [ -d "generated" ] && echo "  ✅ generated/"
+            [ -d "dev" ] && echo "  ✅ dev/"
+            [ -d "setup" ] && echo "  ✅ setup/"
+            [ -d "pub" ] && echo "  ✅ pub/"
+          fi
 
       - name: Cache PHPStan results
         uses: actions/cache@v4
@@ -365,7 +411,29 @@ jobs:
           name: vendor-php${{ inputs.php-version }}
 
       - name: Extract dependencies and generated files
-        run: tar -xzf dependencies.tar.gz
+        run: |
+          echo "📦 Extracting dependencies archive..."
+          tar -xzf dependencies.tar.gz
+          echo "✅ Extraction complete"
+
+          # Verify critical directories exist
+          for dir in vendor bin; do
+            if [ -d "$dir" ]; then
+              echo "  ✅ $dir directory exists"
+            else
+              echo "  ❌ WARNING: $dir directory missing after extraction"
+            fi
+          done
+
+          # Check for Magento-specific directories if this is a Magento project
+          if [ -d "app" ] || [ -d "generated" ]; then
+            echo "Magento directories:"
+            [ -d "app" ] && echo "  ✅ app/"
+            [ -d "generated" ] && echo "  ✅ generated/"
+            [ -d "dev" ] && echo "  ✅ dev/"
+            [ -d "setup" ] && echo "  ✅ setup/"
+            [ -d "pub" ] && echo "  ✅ pub/"
+          fi
 
       - name: Run PHP CodeSniffer
         run: |
@@ -451,7 +519,29 @@ jobs:
           name: vendor-php${{ inputs.php-version }}
 
       - name: Extract dependencies and generated files
-        run: tar -xzf dependencies.tar.gz
+        run: |
+          echo "📦 Extracting dependencies archive..."
+          tar -xzf dependencies.tar.gz
+          echo "✅ Extraction complete"
+
+          # Verify critical directories exist
+          for dir in vendor bin; do
+            if [ -d "$dir" ]; then
+              echo "  ✅ $dir directory exists"
+            else
+              echo "  ❌ WARNING: $dir directory missing after extraction"
+            fi
+          done
+
+          # Check for Magento-specific directories if this is a Magento project
+          if [ -d "app" ] || [ -d "generated" ]; then
+            echo "Magento directories:"
+            [ -d "app" ] && echo "  ✅ app/"
+            [ -d "generated" ] && echo "  ✅ generated/"
+            [ -d "dev" ] && echo "  ✅ dev/"
+            [ -d "setup" ] && echo "  ✅ setup/"
+            [ -d "pub" ] && echo "  ✅ pub/"
+          fi
 
       - name: Run PHPUnit tests
         run: |
@@ -579,7 +669,29 @@ jobs:
           name: vendor-php${{ inputs.php-version }}
 
       - name: Extract dependencies and generated files
-        run: tar -xzf dependencies.tar.gz
+        run: |
+          echo "📦 Extracting dependencies archive..."
+          tar -xzf dependencies.tar.gz
+          echo "✅ Extraction complete"
+
+          # Verify critical directories exist
+          for dir in vendor bin; do
+            if [ -d "$dir" ]; then
+              echo "  ✅ $dir directory exists"
+            else
+              echo "  ❌ WARNING: $dir directory missing after extraction"
+            fi
+          done
+
+          # Check for Magento-specific directories if this is a Magento project
+          if [ -d "app" ] || [ -d "generated" ]; then
+            echo "Magento directories:"
+            [ -d "app" ] && echo "  ✅ app/"
+            [ -d "generated" ] && echo "  ✅ generated/"
+            [ -d "dev" ] && echo "  ✅ dev/"
+            [ -d "setup" ] && echo "  ✅ setup/"
+            [ -d "pub" ] && echo "  ✅ pub/"
+          fi
 
       - name: Run Integration Tests
         run: |
@@ -667,7 +779,29 @@ jobs:
           name: vendor-php${{ inputs.php-version }}
 
       - name: Extract dependencies and generated files
-        run: tar -xzf dependencies.tar.gz
+        run: |
+          echo "📦 Extracting dependencies archive..."
+          tar -xzf dependencies.tar.gz
+          echo "✅ Extraction complete"
+
+          # Verify critical directories exist
+          for dir in vendor bin; do
+            if [ -d "$dir" ]; then
+              echo "  ✅ $dir directory exists"
+            else
+              echo "  ❌ WARNING: $dir directory missing after extraction"
+            fi
+          done
+
+          # Check for Magento-specific directories if this is a Magento project
+          if [ -d "app" ] || [ -d "generated" ]; then
+            echo "Magento directories:"
+            [ -d "app" ] && echo "  ✅ app/"
+            [ -d "generated" ] && echo "  ✅ generated/"
+            [ -d "dev" ] && echo "  ✅ dev/"
+            [ -d "setup" ] && echo "  ✅ setup/"
+            [ -d "pub" ] && echo "  ✅ pub/"
+          fi
 
       - name: Run REST API Tests
         run: |
@@ -776,7 +910,29 @@ jobs:
           name: vendor-php${{ inputs.php-version }}
 
       - name: Extract dependencies and generated files
-        run: tar -xzf dependencies.tar.gz
+        run: |
+          echo "📦 Extracting dependencies archive..."
+          tar -xzf dependencies.tar.gz
+          echo "✅ Extraction complete"
+
+          # Verify critical directories exist
+          for dir in vendor bin; do
+            if [ -d "$dir" ]; then
+              echo "  ✅ $dir directory exists"
+            else
+              echo "  ❌ WARNING: $dir directory missing after extraction"
+            fi
+          done
+
+          # Check for Magento-specific directories if this is a Magento project
+          if [ -d "app" ] || [ -d "generated" ]; then
+            echo "Magento directories:"
+            [ -d "app" ] && echo "  ✅ app/"
+            [ -d "generated" ] && echo "  ✅ generated/"
+            [ -d "dev" ] && echo "  ✅ dev/"
+            [ -d "setup" ] && echo "  ✅ setup/"
+            [ -d "pub" ] && echo "  ✅ pub/"
+          fi
 
       - name: Run GraphQL API Tests
         run: |
