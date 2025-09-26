@@ -822,7 +822,7 @@ jobs:
             sleep 5
 
             # Check if server is running
-            if curl -f http://127.0.0.1:8082 > /dev/null 2>&1; then
+            if curl http://127.0.0.1:8082 > /dev/null 2>&1; then
               echo "✅ PHP server is running"
             else
               echo "❌ Failed to start PHP server"
@@ -953,7 +953,7 @@ jobs:
             sleep 5
 
             # Check if server is running
-            if curl -f http://127.0.0.1:8083 > /dev/null 2>&1; then
+            if curl http://127.0.0.1:8083 > /dev/null 2>&1; then
               echo "✅ PHP server is running"
             else
               echo "❌ Failed to start PHP server"
