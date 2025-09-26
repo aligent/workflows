@@ -553,6 +553,10 @@ jobs:
             exit 1
           fi
 
+          # Unit tests need to be excuted from inside this directory
+          # or we have pathing issues
+          pushd dev/tests/unit
+
           # Build PHPUnit command with coverage
           cmd='php -d memory_limit=${{ inputs.memory-limit }} -d xdebug.mode=coverage $phpunit_cmd -c ./phpunit.xml --testsuite="Unit Tests" --log-junit ./test-results/report.xml'
           cmd="$cmd --coverage-text --coverage-clover=coverage.xml"
