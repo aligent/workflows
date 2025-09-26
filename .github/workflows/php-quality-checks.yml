@@ -466,7 +466,7 @@ jobs:
           fi
 
           # Build PHPUnit command with coverage
-          cmd='php -d memory_limit=${{ inputs.memory-limit }} -d xdebug.mode=coverage $phpunit_cmd c $(pwd)/dev/tests/unit/phpunit.xml --testsuite="Unit Tests" --log-junit ./test-results/report.xml'
+          cmd='php -d memory_limit=${{ inputs.memory-limit }} -d xdebug.mode=coverage $phpunit_cmd -c $(pwd)/dev/tests/unit/phpunit.xml --testsuite="Unit Tests" --log-junit ./test-results/report.xml'
           cmd="$cmd --coverage-text --coverage-clover=coverage.xml"
 
           # Add debug flags if enabled
