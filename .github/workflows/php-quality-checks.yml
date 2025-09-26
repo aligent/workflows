@@ -98,9 +98,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       has-composer: ${{ steps.check-files.outputs.has-composer }}
-      has-phpunit: ${{ steps.check-tools.outputs.has-phpunit }}
       has-phpstan-config: ${{ steps.check-tools.outputs.has-phpstan-config }}
       has-phpcs-config: ${{ steps.check-tools.outputs.has-phpcs-config }}
+      has-unit-tests: ${{ steps.check-tests.outputs.has-unit-tests }}
       has-integration-tests: ${{ steps.check-tests.outputs.has-integration-tests }}
       has-rest-api-tests: ${{ steps.check-tests.outputs.has-rest-api-tests }}
       has-graphql-tests: ${{ steps.check-tests.outputs.has-graphql-tests }}
@@ -121,15 +121,6 @@ jobs:
       - name: Check for analysis tool configurations
         id: check-tools
         run: |
-          # Check for PHPUnit
-          if [ -f "phpunit.xml" ] || [ -f "phpunit.xml.dist" ] || [ -f "phpunit.dist.xml" ]; then
-            echo "✅ PHPUnit configuration found"
-            echo "has-phpunit=true" >> $GITHUB_OUTPUT
-          else
-            echo "ℹ️ No PHPUnit configuration found"
-            echo "has-phpunit=false" >> $GITHUB_OUTPUT
-          fi
-
           # Check for PHPStan
           if [ -f "phpstan.neon" ] || [ -f "phpstan.neon.dist" ] || [ -f "phpstan.dist.neon" ]; then
             echo "✅ PHPStan configuration found"
@@ -151,6 +142,15 @@ jobs:
       - name: Check for test configurations
         id: check-tests
         run: |
+          # Check for Unit tests
+          if [ -f "dev/tests/unit/phpunit.xml" ] ]; then
+            echo "✅ PHPUnit configuration found"
+            echo "has-unit-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No PHPUnit configuration found"
+            echo "has-unit-tests=false" >> $GITHUB_OUTPUT
+          fi
+
           # Check for Integration tests
           if [ -f "dev/tests/integration/phpunit.xml" ]; then
             echo "✅ Integration test configuration found"
@@ -433,7 +433,7 @@ jobs:
     if: |
       inputs.skip-tests == false &&
       needs.prepare.outputs.has-composer == 'true' &&
-      needs.prepare.outputs.has-phpunit == 'true'
+      needs.prepare.outputs.has-unit-tests == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
