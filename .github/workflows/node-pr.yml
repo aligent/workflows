@@ -190,6 +190,8 @@ jobs:
     needs: [install, check-commands]
     if: inputs.skip-build == false && needs.check-commands.outputs.has-build == 'true'
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Fetch Origin
@@ -234,6 +236,8 @@ jobs:
     needs: [install, check-commands]
     if: inputs.skip-test == false && needs.check-commands.outputs.has-test == 'true'
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Fetch Origin
@@ -278,6 +282,8 @@ jobs:
     needs: [install, check-commands]
     if: inputs.skip-lint == false && needs.check-commands.outputs.has-lint == 'true'
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Fetch Origin
@@ -322,6 +328,8 @@ jobs:
     needs: [install, check-commands]
     if: inputs.skip-format == false && needs.check-commands.outputs.has-format == 'true'
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Fetch Origin
@@ -366,6 +374,8 @@ jobs:
     needs: [install, check-commands]
     if: inputs.skip-test-storybook == false && needs.check-commands.outputs.has-test-storybook == 'true'
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Fetch Origin
@@ -413,6 +423,8 @@ jobs:
     needs: [install, check-commands]
     if: inputs.skip-check-types == false && needs.check-commands.outputs.has-check-types == 'true'
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Fetch Origin
