@@ -87,6 +87,8 @@ jobs:
   install:
     name: 🧶 Install
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Install Node.js
@@ -108,8 +110,6 @@ jobs:
           node-version-file: .nvmrc
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           # Execute pre-install commands line by line
           echo "${{ inputs.pre-install-commands }}" | while IFS= read -r cmd; do
