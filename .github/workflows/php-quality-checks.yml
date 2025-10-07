@@ -236,7 +236,7 @@ jobs:
             ${{ runner.os }}-composer-
 
       - name: Validate composer.json and composer.lock
-        if: ${{ inputs.skip-composer-validate }}
+        if: ${{ inputs.skip-composer-validate != true }}
         run: composer validate ${{ inputs.debug && '--verbose' || '' }}
 
       - name: Install Composer Dependencies
