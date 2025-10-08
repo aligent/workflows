@@ -19,6 +19,12 @@ on:
         required: false
         default: "bcmath bz2 calendar exif gd gettext intl mysqli opcache pdo_mysql redis soap sockets sodium sysvmsg sysvsem sysvshm xsl zip pcntl"
 
+      skip-composer-validate:
+        description: "Skip Validation of the composer.json"
+        type: boolean
+        required: false
+        default: false
+
       # PHPStan Configuration
       phpstan-level:
         description: "PHPStan analysis level (1-9)"
@@ -230,6 +236,7 @@ jobs:
             ${{ runner.os }}-composer-
 
       - name: Validate composer.json and composer.lock
+        if: ${{ inputs.skip-composer-validate != true }}
         run: composer validate ${{ inputs.debug && '--verbose' || '' }}
 
       - name: Install Composer Dependencies
