@@ -314,11 +314,16 @@ jobs:
             $verbose
           
           echo "✅ CDK synthesis completed successfully"
+      - name: Sanitise stack name
+        id: sanitise
+        run: |
+          safe_name=$(echo "${{ inputs.cdk-stack-name }}" | tr -cd '[:alnum:]-_')
+          echo "safe_name=$safe_name" >> $GITHUB_OUTPUT
 
       - name: Upload synthesis artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cdk-synthesis-${{ inputs.cdk-stack-name }}
+          name: cdk-synthesis-${{ steps.sanitise.outputs.safe_name }}
           path: cdk.out/
           retention-days: 30
 
