@@ -337,7 +337,7 @@ jobs:
 
   # Generate deployment diff
   diff:
-    name: 📊 CDK Diff Analysis
+    name: 📊 CDK Diff
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, synth]
     if: always() && needs.synth.result == 'success'
@@ -428,7 +428,7 @@ jobs:
 
   # Deploy CDK stack
   deploy:
-    name: '🚀 Deploy Stack'
+    name: '🚀 CDK Deploy'
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, synth, diff]
     if: needs.prepare.result == 'success' && needs.synth.result == 'success' && (needs.diff.result == 'success' || needs.diff.result == 'skipped') && needs.prepare.outputs.deploy-cdk == 'true'
