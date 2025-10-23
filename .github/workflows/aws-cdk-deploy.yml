@@ -30,7 +30,7 @@ on:
       context-values:
         description: "CDK context values as JSON object"
         type: string
-        required: false
+        required: true
         default: "{}"
       debug:
         description: "Enable verbose logging and debug output"
@@ -118,8 +118,7 @@ jobs:
     name: 🔍 Prepare CDK Deployment
     runs-on: ubuntu-latest
     outputs:
-      deployment-strategy: ${{ steps.deployment-config.outputs.strategy }}
-      cdk-command: ${{ steps.deployment-config.outputs.cdk-command }}
+      deploy-cdk: ${{ steps.deployment-config.outputs.strategy }}
       context-args: ${{ steps.context-config.outputs.args }}
     steps:
       - name: Validate required inputs
@@ -157,11 +156,17 @@ jobs:
         id: deployment-config
         run: |
           echo "📋 Configuring deployment strategy..."
-          
-          # Determine deployment strategy
-          echo "strategy=deploy" >> $GITHUB_OUTPUT
-          echo "cdk-command=deploy" >> $GITHUB_OUTPUT
-          echo "🏗️ Strategy: Deploy stack"
+
+          # Check if deploy is true in context-values
+          deploy_enabled=$(echo '${{ inputs.context-values }}' | jq -r '.deploy // false')
+
+          if [ "$deploy_enabled" = "true" ]; then
+            echo "strategy=true" >> $GITHUB_OUTPUT
+            echo "Strategy: Deploy stack"
+          else
+            echo "strategy=false" >> $GITHUB_OUTPUT
+            echo "Strategy: Deploy disabled (deploy not set to true in context-values)"
+          fi
 
       - name: Configure CDK context
         id: context-config
@@ -426,7 +431,7 @@ jobs:
     name: '🚀 Deploy Stack'
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, synth, diff]
-    if: always() && needs.prepare.result == 'success' && needs.synth.result == 'success' && (needs.diff.result == 'success' || needs.diff.result == 'skipped')
+    if: needs.prepare.result == 'success' && needs.synth.result == 'success' && (needs.diff.result == 'success' || needs.diff.result == 'skipped') && needs.prepare.outputs.deploy-cdk == 'true'
     environment: ${{ inputs.environment-target }}
     outputs:
       stack-outputs: ${{ steps.deployment.outputs.stack-outputs }}
@@ -514,7 +519,7 @@ jobs:
     name: 🔍 Post-Deployment Validation
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, deploy]
-    if: needs.deploy.result == 'success'
+    if: always() && needs.deploy.result == 'success'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
