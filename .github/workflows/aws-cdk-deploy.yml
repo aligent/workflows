@@ -258,6 +258,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, bootstrap]
     if: always() && (needs.prepare.result == 'success' && (needs.bootstrap.result == 'success' || needs.bootstrap.result == 'skipped'))
+    outputs:
+      sanitised-cdk-stack-name: ${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -314,16 +316,17 @@ jobs:
             $verbose
           
           echo "✅ CDK synthesis completed successfully"
+
       - name: Sanitise stack name
         id: sanitise
         run: |
-          safe_name=$(echo "${{ inputs.cdk-stack-name }}" | tr -cd '[:alnum:]-_')
-          echo "safe_name=$safe_name" >> $GITHUB_OUTPUT
+          sanitised_cdk_stack_name=$(echo "${{ inputs.cdk-stack-name }}" | tr -cd '[:alnum:]-_')
+          echo "sanitised-cdk-stack-name=$sanitised_cdk_stack_name" >> $GITHUB_OUTPUT
 
       - name: Upload synthesis artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cdk-synthesis-${{ steps.sanitise.outputs.safe_name }}
+          name: cdk-synthesis-${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
           path: cdk.out/
           retention-days: 30
 
@@ -357,7 +360,7 @@ jobs:
       - name: Download synthesis artifacts
         uses: actions/download-artifact@v4
         with:
-          name: cdk-synthesis-${{ inputs.cdk-stack-name }}
+          name: cdk-synthesis-${{ needs.synth.outputs.sanitised-cdk-stack-name }}
           path: cdk.out/
 
       - name: Install dependencies
@@ -414,7 +417,7 @@ jobs:
       - name: Upload diff analysis
         uses: actions/upload-artifact@v4
         with:
-          name: deployment-diff-${{ inputs.cdk-stack-name }}
+          name: deployment-diff-${{ needs.synth.outputs.sanitised-cdk-stack-name }}
           path: deployment-diff.txt
           retention-days: 30
 
@@ -449,7 +452,7 @@ jobs:
       - name: Download synthesis artifacts
         uses: actions/download-artifact@v4
         with:
-          name: cdk-synthesis-${{ inputs.cdk-stack-name }}
+          name: cdk-synthesis-${{ needs.synth.outputs.sanitised-cdk-stack-name }}
           path: cdk.out/
 
       - name: Install dependencies
@@ -502,7 +505,7 @@ jobs:
         if: steps.deployment.outputs.status == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: deployment-outputs-${{ inputs.cdk-stack-name }}
+          name: deployment-outputs-${{ needs.synth.outputs.sanitised-cdk-stack-name }}
           path: stack-outputs.json
           retention-days: 30
 
