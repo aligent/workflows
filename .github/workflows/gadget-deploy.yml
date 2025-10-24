@@ -3,23 +3,29 @@ name: 🤖 Gadget Deployment
 on:
   workflow_call:
     inputs:
-        app-name:
-            description: "Gadget App name to deploy too (required)"
-            type: string
-            required: true
-        staging-environment-name: 
-            description: "Main development environment of Gadget Appp to push code to (required)"
-            type: string
-            required: false
-            default: "staging"
-        push-arguments:
-            description: "Arguments (flags) to pass to ggt push CLI command"
-            type: string
-            required: false
-        deploy arguments:
-            description: "Arguments (flags) to pass to ggt deploy CLI command"
-            type: string
-            required: false
+      app-name:
+        description: "Gadget App name to deploy too (required)"
+        type: string
+        required: true
+      staging-environment-name: 
+        description: "Main development environment of Gadget Appp to push code to (required)"
+        type: string
+        required: false
+        default: "staging"
+      push-arguments:
+        description: "Arguments (flags) to pass to ggt push CLI command"
+        type: string
+        required: false
+      deploy arguments:
+        description: "Arguments (flags) to pass to ggt deploy CLI command"
+        type: string
+        required: false
+    
+    secrets:
+      gadget-api-token:
+        description: "Gadget API token"
+        required: true
+
 
 jobs:
   push: # Push changes from git to a "staging" environment
@@ -38,7 +44,7 @@ jobs:
           ggt push --app=${{ inputs.app-name }} --env=${{ inputs.staging-environment-name }} --force --allow-unknown-directory 
         shell: bash
         env:
-          GGT_TOKEN: ${{ secrets.GGT_TOKEN }}
+          GGT_TOKEN: ${{ secrets.gadget-api-token }}
 
   deploy: # Deploy Gadget Staging Environment to Production
     runs-on: ubuntu-latest
@@ -58,4 +64,4 @@ jobs:
           ggt deploy --app=${{ inputs.app-name }} --env=${{ inputs.staging-environment-name }} --force --allow-unknown-directory --allow-problems
         shell: bash
         env:
-          GGT_TOKEN: ${{ secrets.GGT_TOKEN }}
+          GGT_TOKEN: ${{ secrets.gadget-api-token }}
