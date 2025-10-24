@@ -30,7 +30,7 @@ on:
       context-values:
         description: "CDK context values as JSON object"
         type: string
-        required: true
+        required: false
         default: "{}"
       debug:
         description: "Enable verbose logging and debug output"
@@ -519,7 +519,7 @@ jobs:
     name: 🔍 Post-Deployment Validation
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, deploy]
-    if: always() && needs.deploy.result == 'success'
+    if: needs.deploy.result == 'success'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
