@@ -40,12 +40,10 @@ jobs:
         run: |
           npm install -g ggt
           ggt version
-        shell: bash
 
       - name: Push code to Gadget's Staging Environment
         run: |
           ggt push --app=${{ inputs.app-name }} --env=${{ inputs.staging-environment-name }} --force --allow-unknown-directory 
-        shell: bash
         env:
           GGT_TOKEN: ${{ secrets.gadget-api-token }}
 
@@ -59,12 +57,10 @@ jobs:
         run: |
           npm install -g ggt
           ggt version
-        shell: bash
 
       - name: Push code to Gadget's Staging Environment
         run: |
           ggt push --app=${{ inputs.app-name }} --env=${{ inputs.test-environment-name }} --force --allow-unknown-directory 
-        shell: bash
         env:
           GGT_TOKEN: ${{ secrets.gadget-api-token }}
 
@@ -89,6 +85,8 @@ jobs:
       - name: Pull client files into env # pull .gadget folder into test runner
         run: |
           ggt pull --app=${{ inputs.app-name }} --env=${{ inputs.test-environment-name }} --force --allow-unknown-directory
+        env:
+          GGT_TOKEN: ${{ secrets.gadget-api-token }}
 
       - name: Install dependencies
         run: yarn --frozen-lockfile
@@ -107,11 +105,9 @@ jobs:
         run: |
           npm install -g ggt
           ggt version
-        shell: bash
 
       - name: Deploy to Gadget's Production Environment from Staging # Run ggt deploy to deploy changes from Gadget's Staging environment to Production
         run: |
           ggt deploy --app=${{ inputs.app-name }} --env=${{ inputs.staging-environment-name }} --force --allow-unknown-directory --allow-problems
-        shell: bash
         env:
           GGT_TOKEN: ${{ secrets.gadget-api-token }}
