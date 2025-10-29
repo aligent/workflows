@@ -1,5 +1,5 @@
-name: 🤖 Gadget Deployment
 
+name: 🤖 Gadget Push
 on:
   workflow_call:
     inputs:
@@ -7,19 +7,16 @@ on:
         description: "Gadget App name to deploy too (required)"
         type: string
         required: true
+      deploy:
+        description: "Boolean to check if deploy to production"
+        type: boolean
+        required: true
       staging-environment-name: 
         description: "Main development environment of Gadget App to push code"
         type: string
+        default: "staging"
       test-environment-name:
         description: "Main test environement of Gadget App to test code in"
-        type: string
-        required: false
-      push-arguments:
-        description: "Arguments (flags) to pass to ggt push CLI command"
-        type: string
-        required: false
-      deploy-arguments:
-        description: "Arguments (flags) to pass to ggt deploy CLI command"
         type: string
         required: false
     
@@ -30,9 +27,13 @@ on:
 
 
 jobs:
-  push-staging: # Push changes from git to a "staging" environment
+  push:
+    name: 🫸 Push to Gadget
     runs-on: ubuntu-latest
-    if: inputs.staging-environment-name != ''
+    env:
+      GGT_TOKEN: ${{ secrets.gadget-api-token }}
+    outputs:
+        push-test-status: ${{ steps.push-test.outcome }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,41 +42,27 @@ jobs:
           npm install -g ggt
           ggt version
 
-      - name: Push code to Gadget's Staging Environment
+      - name: Push code to Staging environment in Gadget
+        id: push-staging
         run: |
           ggt push --app=${{ inputs.app-name }} --env=${{ inputs.staging-environment-name }} --force --allow-unknown-directory 
-        env:
-          GGT_TOKEN: ${{ secrets.gadget-api-token }}
 
-  push-test: # Push changes from git to a "pipeline" environment for testing
-    runs-on: ubuntu-latest
-    if: inputs.test-environment-name != ''
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install ggt
+      - name: Push code to Testing environment in Gadget
+        id: push-test
         run: |
-          npm install -g ggt
-          ggt version
-
-      - name: Push code to Gadget's Staging Environment
-        run: |
-          ggt push --app=${{ inputs.app-name }} --env=${{ inputs.test-environment-name }} --force --allow-unknown-directory 
-        env:
-          GGT_TOKEN: ${{ secrets.gadget-api-token }}
+          if [ ${{ inputs.test-environment-name }} ]; then
+            ggt push --app=${{ inputs.app-name }} --env=${{ inputs.test-environment-name }} --force --allow-unknown-directory 
+          fi
 
   test:
+    name: 🧪 Test from Gadget
     runs-on: ubuntu-latest
-    needs: push-test
-    if: needs.push-test.result == 'success'
+    env:
+      GGT_TOKEN: ${{ secrets.gadget-api-token }}
+    needs: push
+    if: needs.push.outputs.push-test-status == 'success'
     steps:
       - uses: actions/checkout@v4
-
-      - name: Create env file # a .env file is required for an API key (stored as a secret)
-        run: |
-          touch .env
-          echo GADGET_TOKEN="${{ secrets.gadget-api-token }}" >> .env
-          echo GADGET_ENV="${{ inputs.test-environment-name }}" >> .env
 
       - name: Install ggt
         run: |
@@ -85,8 +72,6 @@ jobs:
       - name: Pull client files into env # pull .gadget folder into test runner
         run: |
           ggt pull --app=${{ inputs.app-name }} --env=${{ inputs.test-environment-name }} --force --allow-unknown-directory
-        env:
-          GGT_TOKEN: ${{ secrets.gadget-api-token }}
 
       - name: Install dependencies
         run: yarn --frozen-lockfile
@@ -94,20 +79,15 @@ jobs:
       - name: Run tests
         run: yarn test
 
-  deploy: # Deploy Gadget Staging Environment to Production
+  deploy:
+    name: 🚀 Deploying Gadget
     runs-on: ubuntu-latest
-    needs: [push-staging, push-test, test]
-    if: needs.push-staging.result == 'success' && needs.test.result == 'success' && github.ref_name == 'production'
+    env:
+      GGT_TOKEN: ${{ secrets.gadget-api-token }}
+    if: inputs.deploy == true
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install ggt
-        run: |
-          npm install -g ggt
-          ggt version
-
-      - name: Deploy to Gadget's Production Environment from Staging # Run ggt deploy to deploy changes from Gadget's Staging environment to Production
+      - name: Deploy (promote) to Production environment in Gadget
         run: |
           ggt deploy --app=${{ inputs.app-name }} --env=${{ inputs.staging-environment-name }} --force --allow-unknown-directory --allow-problems
-        env:
-          GGT_TOKEN: ${{ secrets.gadget-api-token }}
