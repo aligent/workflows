@@ -16,7 +16,7 @@ on:
         description: 'Working directory for the app'
         required: false
         type: string
-        default: './checkout-giftcard-app'
+        default: '.'
       development-toml-name:
         description: 'Name of development.toml'
         required: false
