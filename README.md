@@ -31,11 +31,11 @@ A streamlined AWS CDK deployment workflow supporting multi-environment infrastru
 | **Advanced Configuration** |
 | context-values | ❌ | string | {} | CDK context values as JSON object |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
+| aws-access-key-id | ✅ | AWS access key ID |
 
 #### **Secrets**
 | Name | Required | Description |
 |------|----------|-------------|
-| aws-access-key-id | ✅ | AWS access key ID |
 | aws-secret-access-key | ✅ | AWS secret access key |
 | cfn-execution-role | ❌ | CloudFormation execution role ARN (optional, for cross-account deployments) |
 
@@ -56,7 +56,7 @@ jobs:
       cdk-stack-name: my-app-dev
       environment-target: development
     secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
@@ -70,7 +70,7 @@ jobs:
       environment-target: production
       debug: true
     secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       cfn-execution-role: ${{ secrets.CFN_EXECUTION_ROLE }}
 ```
@@ -86,7 +86,7 @@ jobs:
       bootstrap-stack: true
       aws-region: us-east-1
     secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
@@ -100,7 +100,7 @@ jobs:
       environment-target: staging
       context-values: '{"vpc-id": "vpc-12345", "environment": "staging"}'
     secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
