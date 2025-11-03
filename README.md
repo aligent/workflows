@@ -465,13 +465,13 @@ jobs:
       composer-args: "--no-dev"
 ```
 
-### Gadget App Deployment
+### Gadget App Deployment489
 
 A comprehensive Gadget app deployment workflow supporting push, test, and production deployment stages with multi-environment management.
 
 #### **Features**
-- **Multi-environment support**: staging, testing, and production environments
-- **Automated testing**: Optional test environment with automatic test execution
+- **Custom-environment support**: Support for custom development environment name
+- **Conditional automated testing**: Automatic test execution controlled by boolean flag
 - **Conditional deployment**: Production deployment controlled by boolean flag
 - **Force push capabilities**: Ensures code synchronization with `--force` flag
 - **Gadget CLI integration**: Uses `ggt` CLI tool for all operations
@@ -482,10 +482,10 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 |------|----------|------|---------|-------------|
 | **Core Configuration** |
 | app-name | ✅ | string | | Gadget App name to deploy to (required) |
-| deploy | ✅ | boolean | | Enable production deployment (true/false) |
+| test | ❌ | boolean | false | Enable testing on development environment (true/false) |
+| deploy | ❌ | boolean | false | Enable production deployment (true/false) |
 | **Environment Configuration** |
-| staging-environment-name | ❌ | string | staging | Main development environment name |
-| test-environment-name | ❌ | string | | Test environment name (optional, enables testing) |
+| environment-name | ❌ | string | staging | Main development environment name |
 
 #### **Secrets**
 | Name | Required | Description |
@@ -495,7 +495,7 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 #### **Outputs**
 | Name | Description |
 |------|-------------|
-| push-test-status | Status of test environment push (success/failure) |
+| push-environment-status | Status of test environment push (success/failure) |
 
 #### **Example Usage**
 
@@ -506,7 +506,6 @@ jobs:
     uses: aligent/workflows/.github/workflows/gadget-deploy.yml@main
     with:
       app-name: my-gadget-app
-      deploy: false
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
 ```
@@ -518,8 +517,7 @@ jobs:
     uses: aligent/workflows/.github/workflows/gadget-deploy.yml@main
     with:
       app-name: my-gadget-app
-      deploy: false
-      test-environment-name: test
+      test: true
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
 ```
@@ -531,23 +529,20 @@ jobs:
     uses: aligent/workflows/.github/workflows/gadget-deploy.yml@main
     with:
       app-name: my-gadget-app
+      test: true
       deploy: true
-      staging-environment-name: development
-      test-environment-name: test
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
 ```
 
-**Custom Environment Names:**
+**Push to custom Environment Name:**
 ```yaml
 jobs:
   deploy-custom:
     uses: aligent/workflows/.github/workflows/gadget-deploy.yml@main
     with:
       app-name: my-gadget-app
-      deploy: true
-      staging-environment-name: dev
-      test-environment-name: qa
+      environment-name: development
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
 ```
