@@ -31,7 +31,7 @@ A streamlined AWS CDK deployment workflow supporting multi-environment infrastru
 | **Advanced Configuration** |
 | context-values | ❌ | string | {} | CDK context values as JSON object |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
-| aws-access-key-id | ✅ | AWS access key ID |
+| aws-access-key-id | ✅ | | | AWS access key ID |
 
 #### **Secrets**
 | Name | Required | Description |
