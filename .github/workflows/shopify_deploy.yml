@@ -56,7 +56,7 @@ jobs:
       - name: Configure Shopify CLI
         working-directory: ${{ inputs.working-directory }}
         run: |
-          if [ "${{ inputs.deploy-production }}" == "true" ]; then
+          if [ "${{ inputs.deploy-production }}" = "true" ]; then
             yarn shopify app config use ${{ inputs.production-toml-name }}
           else
             yarn shopify app config use ${{ inputs.development-toml-name }}
