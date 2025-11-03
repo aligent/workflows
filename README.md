@@ -483,7 +483,7 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 | **Core Configuration** |
 | app-name | ✅ | string | | Gadget App name to deploy to (required) |
 | test | ❌ | boolean | false | Enable testing on development environment (true/false) |
-| deploy | ❌ | boolean | false | Enable production deployment (true/false) |
+| deploy-production | ❌ | boolean | false | Enable production deployment (true/false) |
 | **Environment Configuration** |
 | environment-name | ❌ | string | staging | Main development environment name |
 
@@ -530,7 +530,7 @@ jobs:
     with:
       app-name: my-gadget-app
       test: true
-      deploy: true
+      deploy-production: true
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
 ```

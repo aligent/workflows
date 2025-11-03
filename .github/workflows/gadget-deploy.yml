@@ -7,7 +7,7 @@ on:
         description: "Gadget App name to deploy too (required)"
         type: string
         required: true
-      deploy:
+      deploy-production:
         description: "Boolean to check if deploy to production"
         type: boolean
         default: false
@@ -77,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
-    if: inputs.deploy == true
+    if: inputs.deploy-production == true
     steps:
       - uses: actions/checkout@v5
 
