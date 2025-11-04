@@ -1,0 +1,86 @@
+
+name: 🤖 Gadget Deploy
+on:
+  workflow_call:
+    inputs:
+      app-name:
+        description: "Gadget App name to deploy too (required)"
+        type: string
+        required: true
+      deploy-production:
+        description: "Boolean to check if deploy to production"
+        type: boolean
+        default: false
+      test:
+        description: "Boolean to check if run tests"
+        type: boolean
+        default: false
+      environment-name: 
+        description: "Environment of Gadget App to push code"
+        type: string
+        default: "staging"
+
+    secrets:
+      gadget-api-token:
+        description: "Gadget API token"
+        required: true
+
+
+jobs:
+  push:
+    name: 🫸 Push to Gadget
+    runs-on: ubuntu-latest
+    env:
+      GGT_TOKEN: ${{ secrets.gadget-api-token }}
+    outputs:
+        push-environment-status: ${{ steps.push-environment.outcome }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install ggt
+        run: |
+          npm install -g ggt
+          ggt version
+
+      - name: Push code to environment in Gadget
+        id: push-environment
+        run: |
+          ggt push --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory 
+
+  test:
+    name: 🧪 Test from Gadget
+    runs-on: ubuntu-latest
+    env:
+      GGT_TOKEN: ${{ secrets.gadget-api-token }}
+    needs: push
+    if: inputs.test == true && needs.push.outputs.push-environment-status == 'success'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install ggt
+        run: |
+          npm install -g ggt
+          ggt version
+
+      - name: Pull client files into env # pull .gadget folder into test runner
+        run: |
+          ggt pull --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory
+
+      - name: Install dependencies
+        run: yarn --frozen-lockfile
+
+      - name: Run tests
+        run: yarn test
+
+  deploy:
+    name: 🚀 Deploying Gadget
+    runs-on: ubuntu-latest
+    env:
+      GGT_TOKEN: ${{ secrets.gadget-api-token }}
+    if: inputs.deploy-production == true
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Deploy (promote) to Production environment in Gadget
+        run: |
+          ggt deploy --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory --allow-problems
