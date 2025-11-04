@@ -1,0 +1,373 @@
+name: 🐳 Docker ECR Deployment
+
+on:
+  workflow_call:
+    inputs:
+      # Core Configuration
+      aws-region:
+        description: "AWS region for ECR registry"
+        type: string
+        required: false
+        default: "ap-southeast-2"
+      ecr-repository:
+        description: "ECR repository name (required)"
+        type: string
+        required: true
+      dockerfile-path:
+        description: "Path to Dockerfile"
+        type: string
+        required: false
+        default: "Dockerfile"
+      build-context:
+        description: "Docker build context path"
+        type: string
+        required: false
+        default: "."
+      
+      # Platform and Build Configuration
+      platforms:
+        description: "Target platforms for multi-platform builds"
+        type: string
+        required: false
+        default: "linux/amd64,linux/arm64"
+      push-to-registry:
+        description: "Push built images to ECR registry"
+        type: boolean
+        required: false
+        default: true
+      
+      # Tagging Strategy
+      tag-strategy:
+        description: "Image tagging strategy (latest/semantic/branch/custom)"
+        type: string
+        required: false
+        default: "latest"
+      custom-tags:
+        description: "Custom tags (comma-separated) when using custom strategy"
+        type: string
+        required: false
+        default: ""
+      
+      # Build Optimization
+      cache-from:
+        description: "Cache sources for build optimization (comma-separated)"
+        type: string
+        required: false
+        default: ""
+      build-args:
+        description: "Docker build arguments as JSON object"
+        type: string
+        required: false
+        default: "{}"
+      target-stage:
+        description: "Target build stage for multi-stage Dockerfiles"
+        type: string
+        required: false
+        default: ""
+      
+      # Container Signing
+      enable-signing:
+        description: "Enable container image signing with cosign"
+        type: boolean
+        required: false
+        default: false
+      
+      # Advanced Configuration
+      debug:
+        description: "Enable verbose logging and debug output"
+        type: boolean
+        required: false
+        default: false
+
+    secrets:
+      aws-access-key-id:
+        description: "AWS access key ID"
+        required: true
+      aws-secret-access-key:
+        description: "AWS secret access key"
+        required: true
+      container-signing-key:
+        description: "Private key for container signing (optional)"
+        required: false
+
+    outputs:
+      image-uri:
+        description: "Full URI of the built container image"
+        value: ${{ jobs.build.outputs.image-uri }}
+      image-digest:
+        description: "SHA256 digest of the built image"
+        value: ${{ jobs.build.outputs.image-digest }}
+      image-tags:
+        description: "Applied image tags as JSON array"
+        value: ${{ jobs.build.outputs.image-tags }}
+
+jobs:
+  # Validate inputs and prepare build configuration
+  prepare:
+    name: 🔍 Prepare Docker Build
+    runs-on: ubuntu-latest
+    outputs:
+      image-tags: ${{ steps.tag-config.outputs.tags }}
+      build-args: ${{ steps.build-config.outputs.args }}
+      cache-config: ${{ steps.cache-config.outputs.setup }}
+      platforms: ${{ steps.platform-config.outputs.platforms }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Validate required inputs and ECR repository
+        run: |
+          echo "🔍 Validating Docker build configuration..."
+          
+          if [ -z "${{ inputs.ecr-repository }}" ]; then
+            echo "❌ Error: ecr-repository is required"
+            exit 1
+          fi
+          
+          # Verify ECR repository exists
+          echo "🔍 Verifying ECR repository exists..."
+          if ! aws ecr describe-repositories --repository-names ${{ inputs.ecr-repository }} --region ${{ inputs.aws-region }} 2>/dev/null; then
+            echo "❌ Error: ECR repository '${{ inputs.ecr-repository }}' does not exist in region ${{ inputs.aws-region }}"
+            echo "Please create the ECR repository before running this workflow"
+            exit 1
+          fi
+          echo "✅ ECR repository verified"
+          
+          # Validate tag strategy
+          case "${{ inputs.tag-strategy }}" in
+            latest|semantic|branch|custom)
+              echo "✅ Tag strategy: ${{ inputs.tag-strategy }}"
+              ;;
+            *)
+              echo "❌ Error: tag-strategy must be one of: latest, semantic, branch, custom"
+              exit 1
+              ;;
+          esac
+          
+          # Validate build args JSON if provided
+          if [ "${{ inputs.build-args }}" != "{}" ]; then
+            echo '${{ inputs.build-args }}' | jq . > /dev/null
+            if [ $? -ne 0 ]; then
+              echo "❌ Error: build-args must be valid JSON"
+              exit 1
+            fi
+          fi
+          
+          echo "✅ All inputs validated successfully"
+
+      - name: Configure image tags
+        id: tag-config
+        run: |
+          echo "🏷️ Configuring image tags..."
+          
+          tags=""
+          case "${{ inputs.tag-strategy }}" in
+            latest)
+              tags="latest"
+              if [ "${{ github.ref_type }}" = "tag" ]; then
+                tags="$tags,${{ github.ref_name }}"
+              fi
+              ;;
+            semantic)
+              if [ "${{ github.ref_type }}" = "tag" ]; then
+                tag_name="${{ github.ref_name }}"
+                tags="$tag_name"
+                # Extract semantic version components
+                if [[ $tag_name =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+                  major="${BASH_REMATCH[1]}"
+                  minor="${BASH_REMATCH[2]}"
+                  patch="${BASH_REMATCH[3]}"
+                  tags="$tags,$major,$major.$minor,$major.$minor.$patch"
+                fi
+              else
+                tags="latest"
+              fi
+              ;;
+            branch)
+              branch_name=$(echo "${{ github.ref_name }}" | sed 's/[^a-zA-Z0-9.-]/-/g')
+              tags="$branch_name"
+              if [ "${{ github.ref_name }}" = "main" ] || [ "${{ github.ref_name }}" = "master" ]; then
+                tags="$tags,latest"
+              fi
+              ;;
+            custom)
+              if [ -n "${{ inputs.custom-tags }}" ]; then
+                tags="${{ inputs.custom-tags }}"
+              else
+                echo "❌ Error: custom-tags must be provided when using custom strategy"
+                exit 1
+              fi
+              ;;
+          esac
+          
+          # Add commit SHA tag
+          short_sha=$(echo "${{ github.sha }}" | cut -c1-7)
+          tags="$tags,sha-$short_sha"
+          
+          echo "tags=$tags" >> $GITHUB_OUTPUT
+          echo "✅ Tags configured: $tags"
+
+      - name: Configure build arguments
+        id: build-config
+        run: |
+          echo "⚙️ Configuring build arguments..."
+          
+          build_args=""
+          
+          # Add default build args
+          build_args="$build_args --build-arg BUILDKIT_INLINE_CACHE=1"
+          build_args="$build_args --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          build_args="$build_args --build-arg VCS_REF=${{ github.sha }}"
+          build_args="$build_args --build-arg VERSION=${{ github.ref_name }}"
+          
+          # Add custom build args
+          if [ "${{ inputs.build-args }}" != "{}" ]; then
+            echo '${{ inputs.build-args }}' | jq -r 'to_entries[] | "--build-arg \(.key)=\(.value)"' | while read -r arg; do
+              build_args="$build_args $arg"
+            done
+          fi
+          
+          echo "args=$build_args" >> $GITHUB_OUTPUT
+          echo "✅ Build arguments configured"
+
+      - name: Configure cache settings
+        id: cache-config
+        run: |
+          echo "💾 Configuring build cache..."
+          
+          cache_from=""
+          if [ -n "${{ inputs.cache-from }}" ]; then
+            # Convert comma-separated cache sources to buildx format
+            IFS=',' read -ra CACHE_SOURCES <<< "${{ inputs.cache-from }}"
+            for source in "${CACHE_SOURCES[@]}"; do
+              cache_from="$cache_from --cache-from type=registry,ref=$source"
+            done
+          fi
+          
+          # Add ECR cache source
+          ecr_uri="${{ inputs.ecr-repository }}:buildcache"
+          cache_from="$cache_from --cache-from type=registry,ref=$ecr_uri"
+          cache_to="--cache-to type=registry,ref=$ecr_uri,mode=max"
+          
+          echo "setup=$cache_from $cache_to" >> $GITHUB_OUTPUT
+          echo "✅ Cache configuration prepared"
+
+      - name: Configure platforms
+        id: platform-config
+        run: |
+          echo "🏗️ Configuring build platforms..."
+          
+          platforms="${{ inputs.platforms }}"
+          
+          # Validate platforms
+          IFS=',' read -ra PLATFORM_LIST <<< "$platforms"
+          for platform in "${PLATFORM_LIST[@]}"; do
+            case "$platform" in
+              linux/amd64|linux/arm64|linux/arm/v7|linux/arm/v8)
+                echo "✅ Platform supported: $platform"
+                ;;
+              *)
+                echo "⚠️ Warning: Unusual platform: $platform"
+                ;;
+            esac
+          done
+          
+          echo "platforms=$platforms" >> $GITHUB_OUTPUT
+          echo "✅ Platforms configured: $platforms"
+
+
+  # Build and push Docker image
+  build:
+    name: 🏗️ Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: prepare
+    outputs:
+      image-uri: ${{ steps.build.outputs.image-uri }}
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tags: ${{ steps.build.outputs.tags }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: ${{ needs.prepare.outputs.platforms }}
+          driver-opts: |
+            network=host
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          mask-password: 'true'
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.build-context }}
+          file: ${{ inputs.dockerfile-path }}
+          platforms: ${{ needs.prepare.outputs.platforms }}
+          push: ${{ inputs.push-to-registry }}
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository }}:${{ needs.prepare.outputs.image-tags }}
+          target: ${{ inputs.target-stage }}
+          cache-from: ${{ needs.prepare.outputs.cache-config }}
+          cache-to: type=inline
+          provenance: true
+          sbom: true
+          outputs: type=image,name=${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository }},push=${{ inputs.push-to-registry }}
+
+      - name: Extract build metadata
+        id: metadata
+        run: |
+          echo "📋 Extracting build metadata..."
+          
+          registry="${{ steps.login-ecr.outputs.registry }}"
+          repository="${{ inputs.ecr-repository }}"
+          
+          # Get image digest from build output
+          digest="${{ steps.build.outputs.digest }}"
+          
+          # Construct image URI
+          image_uri="$registry/$repository@$digest"
+          
+          # Format tags as JSON array
+          tags_array=$(echo "${{ needs.prepare.outputs.image-tags }}" | sed 's/,/","/g' | sed 's/^/["/' | sed 's/$/"]/')
+          
+          echo "image-uri=$image_uri" >> $GITHUB_OUTPUT
+          echo "digest=$digest" >> $GITHUB_OUTPUT
+          echo "tags=$tags_array" >> $GITHUB_OUTPUT
+          
+          echo "✅ Image built: $image_uri"
+          echo "🏷️ Tags applied: ${{ needs.prepare.outputs.image-tags }}"
+
+      - name: Sign container image
+        if: inputs.enable-signing == true && secrets.container-signing-key != ''
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      - name: Sign the container image
+        if: inputs.enable-signing == true && secrets.container-signing-key != ''
+        run: |
+          echo "✍️ Signing container image..."
+          
+          echo "${{ secrets.container-signing-key }}" > cosign.key
+          
+          cosign sign --key cosign.key \
+            ${{ steps.metadata.outputs.image-uri }}
+          
+          rm cosign.key
+          echo "✅ Image signed successfully"
+
