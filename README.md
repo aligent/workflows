@@ -30,8 +30,8 @@ A streamlined AWS CDK deployment workflow supporting multi-environment infrastru
 | bootstrap-stack | ❌ | boolean | false | Bootstrap CDK environment before deployment |
 | **Advanced Configuration** |
 | context-values | ❌ | string | {} | CDK context values as JSON object |
+| aws-access-key-id | ✅ vars | | AWS access key ID |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
-| aws-access-key-id | ✅ | | | AWS access key ID |
 
 #### **Secrets**
 | Name | Required | Description |
@@ -55,8 +55,8 @@ jobs:
     with:
       cdk-stack-name: my-app-dev
       environment-target: development
-    secrets:
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+    secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
@@ -69,8 +69,8 @@ jobs:
       cdk-stack-name: my-app-prod
       environment-target: production
       debug: true
-    secrets:
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+    secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       cfn-execution-role: ${{ secrets.CFN_EXECUTION_ROLE }}
 ```
@@ -85,8 +85,8 @@ jobs:
       environment-target: staging
       bootstrap-stack: true
       aws-region: us-east-1
-    secrets:
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+    secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
@@ -99,8 +99,8 @@ jobs:
       cdk-stack-name: my-app-custom
       environment-target: staging
       context-values: '{"vpc-id": "vpc-12345", "environment": "staging"}'
-    secrets:
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+    secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
@@ -112,9 +112,9 @@ jobs:
     with:
       cdk-stack-name: my-app-staging
       environment-target: staging
-      context-values: '{""deploy": "false"}'
-    secrets:
+      context-values: '{"deploy": "false"}'
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+    secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
@@ -217,11 +217,11 @@ jobs:
 | delete-flag          | ❌       | boolean | true            | Enable --delete flag                       |
 | cache-control        | ❌       | string  |                 | Cache control headers                      |
 | extra-args           | ❌       | string  |                 | Additional AWS CLI args                    |
+| aws-access-key-id    | ✅       | string  |                 | vars AWS Access Key ID                      |
 
 #### **Secrets**
 | Name                  | Required | Description                               |
 |--------------------- |----------|--------------------------------------------|
-| aws-access-key-id    | ✅       | AWS Access Key ID                          |
 | aws-secret-access-key| ✅       | AWS Secret Access Key                      |
 
 #### Example Usage
@@ -235,8 +235,8 @@ jobs:
       local-path: ./dist
       s3-path: /public
       cache-control: "max-age=3600"
+      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
     secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
@@ -365,8 +365,8 @@ CST reporting only runs when endpoint, project key, and auth key are all configu
 
 #### **Inputs**
 | Name                  | Required | Type    | Default         | Description                               |
+| aws-access-key-id    | ✅       vars string  |                 | AWS Access Key                             |
 |--------------------- |----------|---------|-----------------|--------------------------------------------|
-| aws-access-key-id    | ✅       | string  |                 | AWS Access Key                             |
 | aws-secret-access-key| ✅       | string  |                 | AWS Secret Access Key                      |
 | cfn-role             | ✅       | string  |                 | AWS CFN Role to assume                     |
 | aws-profile          | ✅       | string  |                 | AWS Profile                                |
@@ -389,8 +389,8 @@ jobs:
       stage: dev
       environment: development
       debug: true
+      aws-access-key-id: '123vars
     secrets:
-      aws-access-key-id: '123'
       aws-secret-access-key: '456'
 ```
 
