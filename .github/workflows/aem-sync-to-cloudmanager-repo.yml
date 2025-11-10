@@ -1,0 +1,228 @@
+name: 📦 AEM Sync to Cloud Manager Repo
+
+on:
+  workflow_call:
+    inputs:
+      # Build Configuration
+      skip-tests:
+        description: "Skip Maven test execution"
+        type: boolean
+        required: false
+        default: false
+      skip-build:
+        description: "Skip Maven build execution"
+        type: boolean
+        required: false
+        default: false
+
+      # Deployment Configuration
+      deploy-to-cloudmanager:
+        description: "Deploy to AEM Cloud Manager repository"
+        type: boolean
+        required: false
+        default: true
+      remote-branch:
+        description: "Target branch name in Cloud Manager (optional, defaults to source branch name)"
+        type: string
+        required: false
+        default: ""
+
+      # Advanced Configuration
+      maven-version:
+        description: "Maven Docker image version (e.g., 3.8.6-openjdk-11)"
+        type: string
+        required: false
+        default: "3.8.6-openjdk-11"
+      debug:
+        description: "Enable verbose logging and debug output"
+        type: boolean
+        required: false
+        default: false
+
+    secrets:
+      cm-git-user:
+        description: "Cloud Manager Git username"
+        required: true
+      cm-git-password:
+        description: "Cloud Manager Git password or access token"
+        required: true
+      cm-git-remote:
+        description: "Cloud Manager Git remote URL (without https://)"
+        required: true
+
+    outputs:
+      sync-status:
+        description: "Status of the Cloud Manager sync (success/skipped/failed)"
+        value: ${{ jobs.sync-to-cloudmanager.outputs.status }}
+
+jobs:
+  run-tests:
+    name: 🧪 Run Tests
+    runs-on: ubuntu-latest
+    if: inputs.skip-tests == false
+
+    container:
+      image: maven:${{ inputs.maven-version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Maven packages
+        if: ${{ !env.ACT }}  # Skip when running with act locally
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Run Maven tests
+        run: |
+          echo "🧪 Running Maven tests..."
+
+          verbose=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            verbose="-X"
+          fi
+
+          mvn -B verify $verbose
+          echo "✅ Tests completed successfully"
+
+  build:
+    name: 🔨 Build
+    runs-on: ubuntu-latest
+    needs: [run-tests]
+    if: |
+      always() &&
+      inputs.skip-build == false &&
+      (needs.run-tests.result == 'success' || needs.run-tests.result == 'skipped')
+
+    container:
+      image: maven:${{ inputs.maven-version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Maven packages
+        if: ${{ !env.ACT }}  # Skip when running with act locally
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Build with Maven
+        run: |
+          echo "🔨 Building AEM project with Maven..."
+
+          verbose=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            verbose="-X"
+          fi
+
+          mvn -B clean install $verbose
+          echo "✅ Build completed successfully"
+
+  sync-to-cloudmanager:
+    name: 📤 Sync to Cloud Manager
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: |
+      always() &&
+      inputs.deploy-to-cloudmanager == true &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped')
+    outputs:
+      status: ${{ steps.sync.outputs.status }}
+
+    steps:
+      - name: Checkout code with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          echo "⚙️ Configuring Git for Cloud Manager sync..."
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git config --global --add safe.directory $GITHUB_WORKSPACE
+          echo "✅ Git configuration complete"
+
+      - name: Validate required secrets
+        env:
+          CM_GIT_USER: ${{ secrets.cm-git-user }}
+          CM_GIT_PASSWORD: ${{ secrets.cm-git-password }}
+          CM_GIT_REMOTE: ${{ secrets.cm-git-remote }}
+        run: |
+          echo "🔍 Validating Cloud Manager credentials..."
+
+          if [ -z "$CM_GIT_USER" ]; then
+            echo "❌ Error: cm-git-user secret is not set"
+            exit 1
+          fi
+
+          if [ -z "$CM_GIT_PASSWORD" ]; then
+            echo "❌ Error: cm-git-password secret is not set"
+            exit 1
+          fi
+
+          if [ -z "$CM_GIT_REMOTE" ]; then
+            echo "❌ Error: cm-git-remote secret is not set"
+            exit 1
+          fi
+
+          echo "✅ All required secrets are configured"
+
+      - name: Sync to Cloud Manager
+        id: sync
+        env:
+          CM_GIT_USER: ${{ secrets.cm-git-user }}
+          CM_GIT_PASSWORD: ${{ secrets.cm-git-password }}
+          CM_GIT_REMOTE: ${{ secrets.cm-git-remote }}
+          REMOTE_BRANCH: ${{ inputs.remote-branch }}
+        run: |
+          echo "📤 Starting sync to AEM Cloud Manager..."
+
+          # Add Cloud Manager as remote
+          echo "🔗 Adding Cloud Manager remote repository..."
+          git remote add secondary-remote https://${CM_GIT_USER}:${CM_GIT_PASSWORD}@${CM_GIT_REMOTE}
+
+          # Determine branch name
+          if [ -n "$REMOTE_BRANCH" ]; then
+            BRANCH="${{ github.ref_name }}:${REMOTE_BRANCH}"
+            echo "📋 Pushing '${{ github.ref_name }}' to Cloud Manager branch '${REMOTE_BRANCH}'"
+          else
+            BRANCH="${{ github.ref_name }}"
+            echo "📋 Pushing '${{ github.ref_name }}' to Cloud Manager"
+          fi
+
+          # Push to Cloud Manager
+          echo "🚀 Pushing changes to Cloud Manager..."
+          git push secondary-remote ${BRANCH}
+
+          echo "✅ Successfully synced to AEM Cloud Manager"
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Generate deployment summary
+        env:
+          REMOTE_BRANCH: ${{ inputs.remote-branch }}
+        run: |
+          echo "## 📦 AEM Cloud Manager Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Source Branch** | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "$REMOTE_BRANCH" ]; then
+            echo "| **Target Branch** | ${REMOTE_BRANCH} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Target Branch** | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "| **Git Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Triggered By** | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Sync Complete" >> $GITHUB_STEP_SUMMARY
+          echo "Your AEM project has been successfully synced to Cloud Manager." >> $GITHUB_STEP_SUMMARY
+          echo "Cloud Manager will now trigger its deployment pipeline." >> $GITHUB_STEP_SUMMARY
