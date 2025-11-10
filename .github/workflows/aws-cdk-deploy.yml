@@ -18,6 +18,10 @@ on:
         type: string
         required: false
         default: "development"
+      aws-access-key-id:
+        description: "AWS access key ID"
+        type: string
+        required: true
       
       # Deployment Control
       bootstrap-stack:
@@ -39,9 +43,6 @@ on:
         default: false
 
     secrets:
-      aws-access-key-id:
-        description: "AWS access key ID"
-        required: true
       aws-secret-access-key:
         description: "AWS secret access key"
         required: true
