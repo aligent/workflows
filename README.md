@@ -104,6 +104,19 @@ jobs:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
+**PR Diff and Deploy:**
+```yaml
+jobs:
+  deploy-custom:
+    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    with:
+      cdk-stack-name: my-app-staging
+      environment-target: staging
+      context-values: '{""deploy": "false"}'
+    secrets:
+      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
 
 ### Node Pull Request Checks
 
