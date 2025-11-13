@@ -30,7 +30,7 @@ A streamlined AWS CDK deployment workflow supporting multi-environment infrastru
 | bootstrap-stack | ❌ | boolean | false | Bootstrap CDK environment before deployment |
 | **Advanced Configuration** |
 | context-values | ❌ | string | {} | CDK context values as JSON object |
-| aws-access-key-id | ✅ vars | | AWS access key ID |
+| aws-access-key-id | ✅ | string | AWS access key ID |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 
 #### **Secrets**
@@ -217,7 +217,7 @@ jobs:
 | delete-flag          | ❌       | boolean | true            | Enable --delete flag                       |
 | cache-control        | ❌       | string  |                 | Cache control headers                      |
 | extra-args           | ❌       | string  |                 | Additional AWS CLI args                    |
-| aws-access-key-id    | ✅       | string  |                 | vars AWS Access Key ID                      |
+| aws-access-key-id    | ✅       | string  |                 | AWS Access Key ID                          |
 
 #### **Secrets**
 | Name                  | Required | Description                               |
@@ -478,7 +478,7 @@ jobs:
       composer-args: "--no-dev"
 ```
 
-### Gadget App Deployment489
+### Gadget App Deployment
 
 A comprehensive Gadget app deployment workflow supporting push, test, and production deployment stages with multi-environment management.
 
