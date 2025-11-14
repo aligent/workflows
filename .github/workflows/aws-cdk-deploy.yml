@@ -29,6 +29,11 @@ on:
         type: boolean
         required: false
         default: false
+      deploy:
+        description: "Boolean for CDK deploy"
+        type: boolean
+        required: false
+        default: false
       
       # Advanced Configuration
       context-values:
@@ -36,6 +41,10 @@ on:
         type: string
         required: false
         default: "{}"
+      extra-arguments:
+        description: "Extra arguments"
+        type: string
+        required: false
       debug:
         description: "Enable verbose logging and debug output"
         type: boolean
@@ -158,15 +167,15 @@ jobs:
         run: |
           echo "📋 Configuring deployment strategy..."
 
-          # Check if deploy is true in context-values
-          deploy_enabled=$(echo '${{ inputs.context-values }}' | jq -r '.deploy // false')
+          # Check if deploy is true
+          deploy_enabled=$(echo '${{ inputs.deploy }}')
 
           if [ "$deploy_enabled" = "true" ]; then
             echo "strategy=true" >> $GITHUB_OUTPUT
             echo "Strategy: Deploy stack"
           else
             echo "strategy=false" >> $GITHUB_OUTPUT
-            echo "Strategy: Deploy disabled (deploy not set to true in context-values)"
+            echo "Strategy: Deploy disabled (deploy not set to true)"
           fi
 
       - name: Configure CDK context
@@ -319,6 +328,7 @@ jobs:
           
           npx cdk synth ${{ inputs.cdk-stack-name }} \
             ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }}  \
             $verbose
           
           echo "✅ CDK synthesis completed successfully"
@@ -396,6 +406,7 @@ jobs:
           # Generate diff output
           diff_output=$(npx cdk diff ${{ inputs.cdk-stack-name }} \
             ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }}  \
             --no-color 2>&1 || true)
           
           # Save diff to file for analysis
@@ -492,6 +503,7 @@ jobs:
           
           npx cdk deploy ${{ inputs.cdk-stack-name }} \
             ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }}  \
             --require-approval never \
             --outputs-file stack-outputs.json \
             $verbose
