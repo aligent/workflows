@@ -18,6 +18,7 @@ A streamlined AWS CDK deployment workflow supporting multi-environment infrastru
 - **Smart Node.js setup**: Automatic detection from .nvmrc file with dependency caching
 - **Package manager detection**: Automatic support for npm, yarn (classic/berry), and pnpm
 - **Debug support**: Verbose logging and debug output for troubleshooting
+- **Stack name**: Variable can be defined per Environment 
 
 #### **Inputs**
 | Name | Required | Type | Default | Description |
@@ -62,13 +63,13 @@ jobs:
   cdk-diff-synth:
     uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
     with:
-      cdk-stack-name: my-app-staging
+      cdk-stack-name: ${{ vars.STACK_NAME }}
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
     secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
-**Basic Staging Deployment:**
+**Staging Deployment:**
 ```yaml
 on:
   push:
@@ -81,7 +82,7 @@ jobs:
   cdk-deploy-staging:
     uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
     with:
-      cdk-stack-name: my-app-
+      cdk-stack-name: ${{ vars.STACK_NAME }}
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
       deploy: true
     secrets:
@@ -101,29 +102,29 @@ jobs:
   deploy-prod:
     uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
     with:
-      cdk-stack-name: my-app-prod
+      cdk-stack-name: ${{ vars.STACK_NAME }}
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
       deploy: true
     secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
-**Production Deployment (all stacks):**
+**Deploy Staging and Production:**
 ```yaml
 on:
   push:
     branches:
+      - staging
       - production
 
 ...
 
 jobs:
-  deploy-prod:
+  deploy:
     uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
     with:
-      cdk-stack-name: --all
+      cdk-stack-name: ${{ vars.STACK_NAME }}
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
-      deploy: true
     secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
@@ -134,30 +135,9 @@ jobs:
   bootstrap-staging:
     uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
     with:
-      cdk-stack-name: my-app-staging
+      cdk-stack-name: ${{ vars.STACK_NAME }}
       bootstrap-stack: true
       aws-region: us-east-1
-      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
-    secrets:
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-```
-
-**Custom CDK Context:**
-```yaml
-on:
-  push:
-    branches:
-      - staging
-
-...
-
-jobs:
-  deploy-custom:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
-    with:
-      cdk-stack-name: my-app-custom
-      environment-target: staging
-      context-values: '{"vpc-id": "vpc-12345", "environment": "staging"}'
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
     secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
