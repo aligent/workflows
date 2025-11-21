@@ -30,6 +30,8 @@ A streamlined AWS CDK deployment workflow supporting multi-environment infrastru
 | **Deployment Control** |
 | bootstrap-stack | ❌ | boolean | false | Bootstrap CDK environment before deployment |
 | deploy | ❌ | boolean | false | Deploy stack |
+| diff | ❌ | boolean | false | Diff stack |
+| synth | ❌ | boolean | false | Synth stack |
 | **Advanced Configuration** |
 | context-values | ❌ | string | {} | CDK context values as JSON object |
 | extra-arguments | ❌ | string |  | Extra arguments as string |
@@ -65,6 +67,8 @@ jobs:
     with:
       cdk-stack-name: ${{ vars.STACK_NAME }}
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+      diff: true
+      synth: true
     secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
@@ -125,6 +129,7 @@ jobs:
     with:
       cdk-stack-name: ${{ vars.STACK_NAME }}
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+      deploy: true
     secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
