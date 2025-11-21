@@ -4,9 +4,9 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 
 ## Workflows
 
-### AWS CDK Deployment
+### AWS CDK
 
-A streamlined AWS CDK deployment workflow supporting multi-environment infrastructure deployments with automatic package manager detection and Node.js version management.
+A streamlined AWS CDK workflow supporting multi-environment infrastructure synthesis, diffs and deployments with automatic package manager detection and Node.js version management.
 
 #### **Features**
 - **CDK synth → diff → deploy workflow**: Complete infrastructure deployment pipeline
@@ -63,7 +63,7 @@ on:
 
 jobs:
   cdk-diff-synth:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
       cdk-stack-name: ${{ vars.STACK_NAME }}
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
@@ -84,7 +84,7 @@ on:
 
 jobs:
   cdk-deploy-staging:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
       cdk-stack-name: ${{ vars.STACK_NAME }}
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
@@ -104,7 +104,7 @@ on:
 
 jobs:
   deploy-prod:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
       cdk-stack-name: ${{ vars.STACK_NAME }}
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
@@ -125,7 +125,7 @@ on:
 
 jobs:
   deploy:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
       cdk-stack-name: ${{ vars.STACK_NAME }}
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
@@ -138,7 +138,7 @@ jobs:
 ```yaml
 jobs:
   bootstrap-staging:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
       cdk-stack-name: ${{ vars.STACK_NAME }}
       bootstrap-stack: true
