@@ -29,6 +29,21 @@ on:
         type: boolean
         required: false
         default: false
+      deploy:
+        description: "Boolean for CDK deploy"
+        type: boolean
+        required: false
+        default: false
+      diff:
+        description: "Boolean for CDK diff"
+        type: boolean
+        required: false
+        default: false
+      synth:
+        description: "Boolean for CDK synth"
+        type: boolean
+        required: false
+        default: false
       
       # Advanced Configuration
       context-values:
@@ -36,6 +51,10 @@ on:
         type: string
         required: false
         default: "{}"
+      extra-arguments:
+        description: "Extra arguments"
+        type: string
+        required: false
       debug:
         description: "Enable verbose logging and debug output"
         type: boolean
@@ -119,7 +138,6 @@ jobs:
     name: 🔍 Prepare CDK Deployment
     runs-on: ubuntu-latest
     outputs:
-      deploy-cdk: ${{ steps.deployment-config.outputs.strategy }}
       context-args: ${{ steps.context-config.outputs.args }}
     steps:
       - name: Validate required inputs
@@ -150,24 +168,16 @@ jobs:
               exit 1
             fi
           fi
+
+          # Valide that one synth, diff or deploy boolean is true
+          if [ "${{ inputs.synth }}" ] || [ "${{ inputs.synth }}" ] || [ "${{ inputs.synth }}" ]; then
+            continue
+          else
+            echo "❌ Error: No CDK commands have been set"
+            exit 1
+          fi
           
           echo "✅ All inputs validated successfully"
-
-      - name: Configure deployment strategy
-        id: deployment-config
-        run: |
-          echo "📋 Configuring deployment strategy..."
-
-          # Check if deploy is true in context-values
-          deploy_enabled=$(echo '${{ inputs.context-values }}' | jq -r '.deploy // false')
-
-          if [ "$deploy_enabled" = "true" ]; then
-            echo "strategy=true" >> $GITHUB_OUTPUT
-            echo "Strategy: Deploy stack"
-          else
-            echo "strategy=false" >> $GITHUB_OUTPUT
-            echo "Strategy: Deploy disabled (deploy not set to true in context-values)"
-          fi
 
       - name: Configure CDK context
         id: context-config
@@ -263,7 +273,7 @@ jobs:
     name: 🔨 CDK Synthesis
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, bootstrap]
-    if: always() && (needs.prepare.result == 'success' && (needs.bootstrap.result == 'success' || needs.bootstrap.result == 'skipped'))
+    if: (needs.prepare.result == 'success' && (needs.bootstrap.result == 'success' || needs.bootstrap.result == 'skipped')) && inputs.synth == 'true'
     outputs:
       sanitised-cdk-stack-name: ${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
     steps:
@@ -319,6 +329,7 @@ jobs:
           
           npx cdk synth ${{ inputs.cdk-stack-name }} \
             ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }}  \
             $verbose
           
           echo "✅ CDK synthesis completed successfully"
@@ -341,7 +352,7 @@ jobs:
     name: 📊 CDK Diff
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, synth]
-    if: always() && needs.synth.result == 'success'
+    if: needs.synth.result == 'success' && inputs.diff == 'true'
     outputs:
       has-changes: ${{ steps.diff-analysis.outputs.has-changes }}
       diff-summary: ${{ steps.diff-analysis.outputs.summary }}
@@ -396,6 +407,7 @@ jobs:
           # Generate diff output
           diff_output=$(npx cdk diff ${{ inputs.cdk-stack-name }} \
             ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }}  \
             --no-color 2>&1 || true)
           
           # Save diff to file for analysis
@@ -432,7 +444,7 @@ jobs:
     name: '🚀 CDK Deploy'
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, synth, diff]
-    if: needs.prepare.result == 'success' && needs.synth.result == 'success' && (needs.diff.result == 'success' || needs.diff.result == 'skipped') && needs.prepare.outputs.deploy-cdk == 'true'
+    if: needs.prepare.result == 'success' && needs.synth.result == 'success' && (needs.diff.result == 'success' || needs.diff.result == 'skipped') && inputs.deploy == 'true'
     environment: ${{ inputs.environment-target }}
     outputs:
       stack-outputs: ${{ steps.deployment.outputs.stack-outputs }}
@@ -492,6 +504,7 @@ jobs:
           
           npx cdk deploy ${{ inputs.cdk-stack-name }} \
             ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }}  \
             --require-approval never \
             --outputs-file stack-outputs.json \
             $verbose

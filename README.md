@@ -4,9 +4,9 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 
 ## Workflows
 
-### AWS CDK Deployment
+### AWS CDK
 
-A streamlined AWS CDK deployment workflow supporting multi-environment infrastructure deployments with automatic package manager detection and Node.js version management.
+A streamlined AWS CDK workflow supporting multi-environment infrastructure synthesis, diffs and deployments with automatic package manager detection and Node.js version management.
 
 #### **Features**
 - **CDK synth → diff → deploy workflow**: Complete infrastructure deployment pipeline
@@ -18,6 +18,7 @@ A streamlined AWS CDK deployment workflow supporting multi-environment infrastru
 - **Smart Node.js setup**: Automatic detection from .nvmrc file with dependency caching
 - **Package manager detection**: Automatic support for npm, yarn (classic/berry), and pnpm
 - **Debug support**: Verbose logging and debug output for troubleshooting
+- **Stack name**: Variable can be defined per Environment 
 
 #### **Inputs**
 | Name | Required | Type | Default | Description |
@@ -28,10 +29,14 @@ A streamlined AWS CDK deployment workflow supporting multi-environment infrastru
 | environment-target | ❌ | string | development | Target environment (staging/production/development) |
 | **Deployment Control** |
 | bootstrap-stack | ❌ | boolean | false | Bootstrap CDK environment before deployment |
+| deploy | ❌ | boolean | false | Deploy stack |
+| diff | ❌ | boolean | false | Diff stack |
+| synth | ❌ | boolean | false | Synth stack |
 | **Advanced Configuration** |
 | context-values | ❌ | string | {} | CDK context values as JSON object |
+| extra-arguments | ❌ | string |  | Extra arguments as string |
+| aws-access-key-id | ✅ | string | AWS access key ID |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
-| aws-access-key-id | ✅ | | | AWS access key ID |
 
 #### **Secrets**
 | Name | Required | Description |
@@ -47,74 +52,99 @@ A streamlined AWS CDK deployment workflow supporting multi-environment infrastru
 
 #### **Example Usage**
 
-**Basic Development Deployment:**
+**PR synth and diff:**
 ```yaml
+on:
+  pull_request:
+    branches:
+      - '**'
+
+...
+
 jobs:
-  deploy-dev:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+  cdk-diff-synth:
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
-      cdk-stack-name: my-app-dev
-      environment-target: development
-    secrets:
+      cdk-stack-name: ${{ vars.STACK_NAME }}
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+      diff: true
+      synth: true
+    secrets:
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+**Staging Deployment:**
+```yaml
+on:
+  push:
+    branches:
+      - staging
+
+...
+
+jobs:
+  cdk-deploy-staging:
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
+    with:
+      cdk-stack-name: ${{ vars.STACK_NAME }}
+      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+      deploy: true
+    secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
 **Production Deployment:**
 ```yaml
+on:
+  push:
+    branches:
+      - production
+
+...
+
 jobs:
   deploy-prod:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
-      cdk-stack-name: my-app-prod
-      environment-target: production
-      debug: true
-    secrets:
+      cdk-stack-name: ${{ vars.STACK_NAME }}
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+      deploy: true
+    secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      cfn-execution-role: ${{ secrets.CFN_EXECUTION_ROLE }}
+```
+
+**Deploy Staging and Production:**
+```yaml
+on:
+  push:
+    branches:
+      - staging
+      - production
+
+...
+
+jobs:
+  deploy:
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
+    with:
+      cdk-stack-name: ${{ vars.STACK_NAME }}
+      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+      deploy: true
+    secrets:
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
 **Bootstrap New Environment:**
 ```yaml
 jobs:
   bootstrap-staging:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
-      cdk-stack-name: my-app-staging
-      environment-target: staging
+      cdk-stack-name: ${{ vars.STACK_NAME }}
       bootstrap-stack: true
       aws-region: us-east-1
-    secrets:
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-```
-
-**Custom CDK Context:**
-```yaml
-jobs:
-  deploy-custom:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
-    with:
-      cdk-stack-name: my-app-custom
-      environment-target: staging
-      context-values: '{"vpc-id": "vpc-12345", "environment": "staging"}'
     secrets:
-      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-```
-
-**PR Diff and Deploy:**
-```yaml
-jobs:
-  deploy-custom:
-    uses: aligent/workflows/.github/workflows/aws-cdk-deploy.yml@main
-    with:
-      cdk-stack-name: my-app-staging
-      environment-target: staging
-      context-values: '{""deploy": "false"}'
-    secrets:
-      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
@@ -217,11 +247,11 @@ jobs:
 | delete-flag          | ❌       | boolean | true            | Enable --delete flag                       |
 | cache-control        | ❌       | string  |                 | Cache control headers                      |
 | extra-args           | ❌       | string  |                 | Additional AWS CLI args                    |
+| aws-access-key-id    | ✅       | string  |                 | AWS Access Key ID                          |
 
 #### **Secrets**
 | Name                  | Required | Description                               |
 |--------------------- |----------|--------------------------------------------|
-| aws-access-key-id    | ✅       | AWS Access Key ID                          |
 | aws-secret-access-key| ✅       | AWS Secret Access Key                      |
 
 #### Example Usage
@@ -235,8 +265,8 @@ jobs:
       local-path: ./dist
       s3-path: /public
       cache-control: "max-age=3600"
+      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
     secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
@@ -364,10 +394,9 @@ CST reporting only runs when endpoint, project key, and auth key are all configu
 ### Nx Serverless Deployment
 
 #### **Inputs**
-| Name                  | Required | Type    | Default         | Description                               |
+| Name                 | Required | Type    | Default         | Description                                |
 |--------------------- |----------|---------|-----------------|--------------------------------------------|
 | aws-access-key-id    | ✅       | string  |                 | AWS Access Key                             |
-| aws-secret-access-key| ✅       | string  |                 | AWS Secret Access Key                      |
 | cfn-role             | ✅       | string  |                 | AWS CFN Role to assume                     |
 | aws-profile          | ✅       | string  |                 | AWS Profile                                |
 | aws-region           | ❌       | string  | ap-southeast-2  | AWS Region to deploy to                    |
@@ -377,6 +406,11 @@ CST reporting only runs when endpoint, project key, and auth key are all configu
 | package-manager      | ❌       | string  | yarn            | Node package manager to use                |
 | build-command        | ❌       | string  | build           | Command to override the build command      |
 | debug                | ❌       | boolean | false           | If verbose logging should be enabled       |
+
+#### **Secrets**
+| Name | Required | Description |
+|------|----------|-------------|
+| aws-secret-access-key | ✅ | AWS secret access key |
 
 #### Example Usage
 
@@ -389,9 +423,9 @@ jobs:
       stage: dev
       environment: development
       debug: true
+      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
     secrets:
-      aws-access-key-id: '123'
-      aws-secret-access-key: '456'
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
 ### PHP Quality Checks
@@ -478,7 +512,7 @@ jobs:
       composer-args: "--no-dev"
 ```
 
-### Gadget App Deployment489
+### Gadget App Deployment
 
 A comprehensive Gadget app deployment workflow supporting push, test, and production deployment stages with multi-environment management.
 
