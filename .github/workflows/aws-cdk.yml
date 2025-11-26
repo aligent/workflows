@@ -170,9 +170,7 @@ jobs:
           fi
 
           # Valide that one synth, diff or deploy boolean is true
-          if [ "${{ inputs.synth }}" ] || [ "${{ inputs.synth }}" ] || [ "${{ inputs.synth }}" ]; then
-            continue
-          else
+          if [ ! "${{ inputs.synth }}" ] && [ ! "${{ inputs.diff }}" ] && [ ! "${{ inputs.deploy }}" ]; then
             echo "❌ Error: No CDK commands have been set"
             exit 1
           fi
