@@ -350,7 +350,11 @@ jobs:
     name: 📊 CDK Diff
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, synth]
-    if: needs.synth.result == 'success' && inputs.diff == true
+    if: |
+      !cancelled() &&
+      needs.prepare.result == 'success' &&
+      (needs.synth.result == 'success' || needs.synth.result == 'skipped') &&
+      inputs.diff == true
     outputs:
       has-changes: ${{ steps.diff-analysis.outputs.has-changes }}
       diff-summary: ${{ steps.diff-analysis.outputs.summary }}
@@ -373,6 +377,7 @@ jobs:
           role-to-assume: ${{ secrets.cfn-execution-role }}
 
       - name: Download synthesis artifacts
+        if: needs.synth.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: cdk-synthesis-${{ needs.synth.outputs.sanitised-cdk-stack-name }}
@@ -381,7 +386,7 @@ jobs:
       - name: Install dependencies
         run: |
           echo "📦 Installing dependencies with ${{ needs.setup-node.outputs.package-manager }}..."
-          
+
           case "${{ needs.setup-node.outputs.package-manager }}" in
             "npm")
               npm ci
@@ -442,7 +447,12 @@ jobs:
     name: '🚀 CDK Deploy'
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, synth, diff]
-    if: needs.prepare.result == 'success' && needs.synth.result == 'success' && (needs.diff.result == 'success' || needs.diff.result == 'skipped') && inputs.deploy == true
+    if: |
+      !cancelled() &&
+      needs.prepare.result == 'success' &&
+      (needs.synth.result == 'success' || needs.synth.result == 'skipped') &&
+      (needs.diff.result == 'success' || needs.diff.result == 'skipped') &&
+      inputs.deploy == true
     environment: ${{ inputs.environment-target }}
     outputs:
       stack-outputs: ${{ steps.deployment.outputs.stack-outputs }}
@@ -466,6 +476,7 @@ jobs:
           role-to-assume: ${{ secrets.cfn-execution-role }}
 
       - name: Download synthesis artifacts
+        if: needs.synth.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: cdk-synthesis-${{ needs.synth.outputs.sanitised-cdk-stack-name }}
@@ -474,7 +485,7 @@ jobs:
       - name: Install dependencies
         run: |
           echo "📦 Installing dependencies with ${{ needs.setup-node.outputs.package-manager }}..."
-          
+
           case "${{ needs.setup-node.outputs.package-manager }}" in
             "npm")
               npm ci
