@@ -522,7 +522,8 @@ jobs:
           
           # Extract stack outputs
           if [ -f "stack-outputs.json" ]; then
-            outputs=$(cat stack-outputs.json)
+            # Compact JSON to single line to avoid multiline output issues
+            outputs=$(jq -c '.' stack-outputs.json)
             echo "stack-outputs=$outputs" >> $GITHUB_OUTPUT
           else
             echo "stack-outputs={}" >> $GITHUB_OUTPUT
