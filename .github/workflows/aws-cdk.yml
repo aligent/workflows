@@ -14,10 +14,10 @@ on:
         type: string
         required: true
       environment-target:
-        description: "Target environment (staging/production/development)"
+        description: "Target environment (stg/prd/dev)"
         type: string
         required: false
-        default: "development"
+        default: "dev"
       aws-access-key-id:
         description: "AWS access key ID"
         type: string
