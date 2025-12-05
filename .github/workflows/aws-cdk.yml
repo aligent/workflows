@@ -125,6 +125,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ steps.node-version.outputs.version }}
+
+      - name: Enable Corepack for Yarn Berry
+        if: steps.detect-package-manager.outputs.manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+          # Initialize yarn and ensure cache directory exists for post-job cache step
+          yarn --version
+          CACHE_DIR=$(yarn config get cacheFolder)
+          mkdir -p "$CACHE_DIR"
+          echo "✅ Corepack enabled and cache directory created: $CACHE_DIR"
+
+      - name: Configure dependency cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.node-version.outputs.version }}
           cache: ${{ steps.detect-package-manager.outputs.manager == 'yarn-berry' && 'yarn' || (steps.detect-package-manager.outputs.manager == 'yarn-classic' && 'yarn' || steps.detect-package-manager.outputs.manager) }}
 
       - name: Configure cache key
@@ -218,6 +234,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ needs.setup-node.outputs.node-version }}
+
+      - name: Enable Corepack
+        if: needs.setup-node.outputs.package-manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+          echo "✅ Corepack enabled"
+
+      - name: Configure dependency cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ needs.setup-node.outputs.node-version }}
           cache: ${{ needs.setup-node.outputs.package-manager == 'yarn-berry' && 'yarn' || (needs.setup-node.outputs.package-manager == 'yarn-classic' && 'yarn' || needs.setup-node.outputs.package-manager) }}
 
       - name: Configure AWS credentials
@@ -289,6 +317,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ needs.setup-node.outputs.node-version }}
+
+      - name: Enable Corepack
+        if: needs.setup-node.outputs.package-manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+          echo "✅ Corepack enabled"
+
+      - name: Configure dependency cache
         uses: actions/setup-node@v4
         with:
           node-version: ${{ needs.setup-node.outputs.node-version }}
@@ -368,6 +408,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ needs.setup-node.outputs.node-version }}
+
+      - name: Enable Corepack
+        if: needs.setup-node.outputs.package-manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+          echo "✅ Corepack enabled"
+
+      - name: Configure dependency cache
         uses: actions/setup-node@v4
         with:
           node-version: ${{ needs.setup-node.outputs.node-version }}
