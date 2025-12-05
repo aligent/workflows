@@ -126,19 +126,6 @@ jobs:
         with:
           node-version: ${{ steps.node-version.outputs.version }}
 
-      - name: Enable Corepack
-        if: steps.detect-package-manager.outputs.manager == 'yarn-berry'
-        run: |
-          echo "🔧 Enabling Corepack for Yarn Berry..."
-          corepack enable
-          echo "✅ Corepack enabled"
-
-      - name: Configure dependency cache
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ steps.node-version.outputs.version }}
-          cache: ${{ steps.detect-package-manager.outputs.manager == 'yarn-berry' && 'yarn' || (steps.detect-package-manager.outputs.manager == 'yarn-classic' && 'yarn' || steps.detect-package-manager.outputs.manager) }}
-
       - name: Configure cache key
         id: cache-config
         run: |
