@@ -168,7 +168,7 @@ jobs:
           
           # Validate environment target
           case "${{ inputs.environment-target }}" in
-            staging|production|development)
+            stg|prd|dev)
               echo "✅ Environment target: ${{ inputs.environment-target }}"
               ;;
             *)
