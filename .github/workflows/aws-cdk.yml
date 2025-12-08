@@ -131,6 +131,13 @@ jobs:
         run: |
           echo "🔧 Enabling Corepack for Yarn Berry..."
           corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
+
           # Initialize yarn and ensure cache directory exists for post-job cache step
           yarn --version
           CACHE_DIR=$(yarn config get cacheFolder)
@@ -240,6 +247,12 @@ jobs:
         run: |
           echo "🔧 Enabling Corepack for Yarn Berry..."
           corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
           echo "✅ Corepack enabled"
 
       - name: Configure dependency cache
@@ -259,12 +272,12 @@ jobs:
       - name: Install dependencies
         run: |
           echo "📦 Installing dependencies with ${{ needs.setup-node.outputs.package-manager }}..."
-          
+
           verbose=""
           if [ "${{ inputs.debug }}" = "true" ]; then
             verbose="--verbose"
           fi
-          
+
           case "${{ needs.setup-node.outputs.package-manager }}" in
             "npm")
               npm ci $verbose
@@ -326,6 +339,12 @@ jobs:
         run: |
           echo "🔧 Enabling Corepack for Yarn Berry..."
           corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
           echo "✅ Corepack enabled"
 
       - name: Configure dependency cache
@@ -345,12 +364,12 @@ jobs:
       - name: Install dependencies
         run: |
           echo "📦 Installing dependencies with ${{ needs.setup-node.outputs.package-manager }}..."
-          
+
           verbose=""
           if [ "${{ inputs.debug }}" = "true" ]; then
             verbose="--verbose"
           fi
-          
+
           case "${{ needs.setup-node.outputs.package-manager }}" in
             "npm")
               npm ci $verbose
@@ -417,6 +436,12 @@ jobs:
         run: |
           echo "🔧 Enabling Corepack for Yarn Berry..."
           corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
           echo "✅ Corepack enabled"
 
       - name: Configure dependency cache
@@ -523,6 +548,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ needs.setup-node.outputs.node-version }}
+
+      - name: Enable Corepack
+        if: needs.setup-node.outputs.package-manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
+          echo "✅ Corepack enabled"
+
+      - name: Configure dependency cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ needs.setup-node.outputs.node-version }}
           cache: ${{ needs.setup-node.outputs.package-manager == 'yarn-berry' && 'yarn' || (needs.setup-node.outputs.package-manager == 'yarn-classic' && 'yarn' || needs.setup-node.outputs.package-manager) }}
 
       - name: Configure AWS credentials
@@ -610,6 +653,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ needs.setup-node.outputs.node-version }}
+
+      - name: Enable Corepack
+        if: needs.setup-node.outputs.package-manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
+          echo "✅ Corepack enabled"
+
+      - name: Configure dependency cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ needs.setup-node.outputs.node-version }}
           cache: ${{ needs.setup-node.outputs.package-manager == 'yarn-berry' && 'yarn' || (needs.setup-node.outputs.package-manager == 'yarn-classic' && 'yarn' || needs.setup-node.outputs.package-manager) }}
 
       - name: Configure AWS credentials
@@ -623,7 +684,7 @@ jobs:
       - name: Install dependencies
         run: |
           echo "📦 Installing dependencies with ${{ needs.setup-node.outputs.package-manager }}..."
-          
+
           case "${{ needs.setup-node.outputs.package-manager }}" in
             "npm")
               npm ci
