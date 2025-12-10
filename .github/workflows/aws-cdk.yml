@@ -60,11 +60,28 @@ on:
         type: boolean
         required: false
         default: false
-      cdk-config-path:
-        description: "Path to cdk-config.yml file for custom CDK commands (optional)"
+        
+      # Custom CDK Commands
+      bootstrap-command:
+        description: "Custom bootstrap command"
         type: string
         required: false
-        default: ""
+        default: "npx cdk bootstrap"
+      synth-command:
+        description: "Custom synth command"
+        type: string
+        required: false
+        default: "npx cdk synth"
+      diff-command:
+        description: "Custom diff command"
+        type: string
+        required: false
+        default: "npx cdk diff"
+      deploy-command:
+        description: "Custom deploy command"
+        type: string
+        required: false
+        default: "npx cdk deploy"
 
     secrets:
       aws-secret-access-key:
@@ -176,62 +193,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Parse CDK config
+      - name: Set CDK commands
         id: parse-cdk-config
         run: |
-          echo "⚙️ Parsing CDK configuration..."
+          echo "✅ CDK commands:"
+          echo "  bootstrap: ${{ inputs.bootstrap-command }}"
+          echo "  synth: ${{ inputs.synth-command }}"
+          echo "  diff: ${{ inputs.diff-command }}"
+          echo "  deploy: ${{ inputs.deploy-command }}"
 
-          # Default commands
-          DEFAULT_BOOTSTRAP="npx cdk bootstrap"
-          DEFAULT_SYNTH="npx cdk synth"
-          DEFAULT_DIFF="npx cdk diff"
-          DEFAULT_DEPLOY="npx cdk deploy"
-
-          CONFIG_PATH="${{ inputs.cdk-config-path }}"
-
-          if [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ]; then
-            echo "📄 Found cdk-config.yml at: $CONFIG_PATH"
-
-            # Convert YAML to JSON using yq (pre-installed on GitHub runners) and parse with jq
-            CONFIG_JSON=$(yq -o=json '.' "$CONFIG_PATH")
-
-            # Extract commands from config, fallback to defaults if not present
-            BOOTSTRAP_CMD=$(echo "$CONFIG_JSON" | jq -r '."cdk-pipe".commands.cdk.bootstrap // empty')
-            SYNTH_CMD=$(echo "$CONFIG_JSON" | jq -r '."cdk-pipe".commands.cdk.synth // empty')
-            DIFF_CMD=$(echo "$CONFIG_JSON" | jq -r '."cdk-pipe".commands.cdk.diff // empty')
-            DEPLOY_CMD=$(echo "$CONFIG_JSON" | jq -r '."cdk-pipe".commands.cdk.deploy // empty')
-
-            # Use config values or fall back to defaults
-            [ -z "$BOOTSTRAP_CMD" ] && BOOTSTRAP_CMD="$DEFAULT_BOOTSTRAP"
-            [ -z "$SYNTH_CMD" ] && SYNTH_CMD="$DEFAULT_SYNTH"
-            [ -z "$DIFF_CMD" ] && DIFF_CMD="$DEFAULT_DIFF"
-            [ -z "$DEPLOY_CMD" ] && DEPLOY_CMD="$DEFAULT_DEPLOY"
-
-            echo "✅ Using commands from cdk-config.yml:"
-          else
-            if [ -n "$CONFIG_PATH" ]; then
-              echo "⚠️ Config file not found at: $CONFIG_PATH, using defaults"
-            else
-              echo "ℹ️ No cdk-config-path provided, using default commands"
-            fi
-
-            BOOTSTRAP_CMD="$DEFAULT_BOOTSTRAP"
-            SYNTH_CMD="$DEFAULT_SYNTH"
-            DIFF_CMD="$DEFAULT_DIFF"
-            DEPLOY_CMD="$DEFAULT_DEPLOY"
-
-            echo "✅ Using default CDK commands:"
-          fi
-
-          echo "  bootstrap: $BOOTSTRAP_CMD"
-          echo "  synth: $SYNTH_CMD"
-          echo "  diff: $DIFF_CMD"
-          echo "  deploy: $DEPLOY_CMD"
-
-          echo "bootstrap-cmd=$BOOTSTRAP_CMD" >> $GITHUB_OUTPUT
-          echo "synth-cmd=$SYNTH_CMD" >> $GITHUB_OUTPUT
-          echo "diff-cmd=$DIFF_CMD" >> $GITHUB_OUTPUT
-          echo "deploy-cmd=$DEPLOY_CMD" >> $GITHUB_OUTPUT
+          echo "bootstrap-cmd=${{ inputs.bootstrap-command }}" >> $GITHUB_OUTPUT
+          echo "synth-cmd=${{ inputs.synth-command }}" >> $GITHUB_OUTPUT
+          echo "diff-cmd=${{ inputs.diff-command }}" >> $GITHUB_OUTPUT
+          echo "deploy-cmd=${{ inputs.deploy-command }}" >> $GITHUB_OUTPUT
 
       - name: Validate required inputs
         run: |
