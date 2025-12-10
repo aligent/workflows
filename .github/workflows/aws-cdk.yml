@@ -17,7 +17,7 @@ on:
         description: "Target environment (stg/prd/dev)"
         type: string
         required: false
-        default: "dev"
+        default: ""
       aws-access-key-id:
         description: "AWS access key ID"
         type: string
@@ -172,14 +172,17 @@ jobs:
             echo "❌ Error: cdk-stack-name is required"
             exit 1
           fi
-          
+
           # Validate environment target
           case "${{ inputs.environment-target }}" in
             stg|prd|dev)
               echo "✅ Environment target: ${{ inputs.environment-target }}"
               ;;
+            "")
+              echo "ℹ️ Environment target is empty"
+              ;;
             *)
-              echo "❌ Error: environment-target must be one of: staging, production, development"
+              echo "❌ Error: environment-target must be one of: stg, prd, dev"
               exit 1
               ;;
           esac
