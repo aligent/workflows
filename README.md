@@ -593,3 +593,65 @@ jobs:
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
 ```
+
+### Shopify App Deployment
+
+A streamlined Shopify app deployment workflow supporting both development and production environments with automatic configuration management.
+
+#### **Features**
+- **Multi-environment support**: development and production deployments via `deploy-production` flag
+- **Configuration management**: Automatic selection of environment-specific TOML files
+- **Build artifact integration**: Downloads and deploys pre-built artifacts
+- **Node.js version control**: Automatic detection from .nvmrc file with Yarn caching
+- **Force deployment**: Ensures deployment proceeds without manual prompts
+
+#### **Inputs**
+| Name | Required | Type | Default | Description |
+|------|----------|------|---------|-------------|
+| **Deployment Configuration** |
+| deploy-production | ❌ | boolean | false | Boolean to check if deploying to production |
+| working-directory | ❌ | string | . | Working directory for the app |
+| **Shopify Configuration** |
+| development-toml-name | ❌ | string | shopify.app.development.toml | Development TOML configuration file name |
+| production-toml-name | ❌ | string | shopify.app.toml | Production TOML configuration file name |
+
+#### **Secrets**
+| Name | Required | Description |
+|------|----------|-------------|
+| shopify_cli_token | ✅ | Shopify CLI authentication token |
+
+#### **Example Usage**
+
+**Development Deployment:**
+```yaml
+jobs:
+  deploy-dev:
+    uses: aligent/workflows/.github/workflows/shopify_deploy.yml@main
+    secrets:
+      shopify_cli_token: ${{ secrets.SHOPIFY_CLI_TOKEN }}
+```
+
+**Production Deployment:**
+```yaml
+jobs:
+  deploy-prod:
+    uses: aligent/workflows/.github/workflows/shopify_deploy.yml@main
+    with:
+      deploy-production: true
+    secrets:
+      shopify_cli_token: ${{ secrets.SHOPIFY_CLI_TOKEN }}
+```
+
+**Custom Configuration:**
+```yaml
+jobs:
+  deploy-custom:
+    uses: aligent/workflows/.github/workflows/shopify_deploy.yml@main
+    with:
+      deploy-production: true
+      working-directory: ./my-shopify-app
+      development-toml-name: shopify.app.dev.toml
+      production-toml-name: shopify.app.prod.toml
+    secrets:
+      shopify_cli_token: ${{ secrets.SHOPIFY_CLI_TOKEN }}
+```
