@@ -60,6 +60,11 @@ on:
         type: boolean
         required: false
         default: false
+      cdk-config-path:
+        description: "Path to cdk-config.yml file for custom CDK commands (optional)"
+        type: string
+        required: false
+        default: ""
 
     secrets:
       aws-secret-access-key:
@@ -163,7 +168,71 @@ jobs:
     outputs:
       context-args: ${{ steps.context-config.outputs.args }}
       sanitised-cdk-stack-name: ${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
+      cdk-bootstrap-cmd: ${{ steps.parse-cdk-config.outputs.bootstrap-cmd }}
+      cdk-synth-cmd: ${{ steps.parse-cdk-config.outputs.synth-cmd }}
+      cdk-diff-cmd: ${{ steps.parse-cdk-config.outputs.diff-cmd }}
+      cdk-deploy-cmd: ${{ steps.parse-cdk-config.outputs.deploy-cmd }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse CDK config
+        id: parse-cdk-config
+        run: |
+          echo "⚙️ Parsing CDK configuration..."
+
+          # Default commands
+          DEFAULT_BOOTSTRAP="npx cdk bootstrap"
+          DEFAULT_SYNTH="npx cdk synth"
+          DEFAULT_DIFF="npx cdk diff"
+          DEFAULT_DEPLOY="npx cdk deploy"
+
+          CONFIG_PATH="${{ inputs.cdk-config-path }}"
+
+          if [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ]; then
+            echo "📄 Found cdk-config.yml at: $CONFIG_PATH"
+
+            # Convert YAML to JSON using yq (pre-installed on GitHub runners) and parse with jq
+            CONFIG_JSON=$(yq -o=json '.' "$CONFIG_PATH")
+
+            # Extract commands from config, fallback to defaults if not present
+            BOOTSTRAP_CMD=$(echo "$CONFIG_JSON" | jq -r '."cdk-pipe".commands.cdk.bootstrap // empty')
+            SYNTH_CMD=$(echo "$CONFIG_JSON" | jq -r '."cdk-pipe".commands.cdk.synth // empty')
+            DIFF_CMD=$(echo "$CONFIG_JSON" | jq -r '."cdk-pipe".commands.cdk.diff // empty')
+            DEPLOY_CMD=$(echo "$CONFIG_JSON" | jq -r '."cdk-pipe".commands.cdk.deploy // empty')
+
+            # Use config values or fall back to defaults
+            [ -z "$BOOTSTRAP_CMD" ] && BOOTSTRAP_CMD="$DEFAULT_BOOTSTRAP"
+            [ -z "$SYNTH_CMD" ] && SYNTH_CMD="$DEFAULT_SYNTH"
+            [ -z "$DIFF_CMD" ] && DIFF_CMD="$DEFAULT_DIFF"
+            [ -z "$DEPLOY_CMD" ] && DEPLOY_CMD="$DEFAULT_DEPLOY"
+
+            echo "✅ Using commands from cdk-config.yml:"
+          else
+            if [ -n "$CONFIG_PATH" ]; then
+              echo "⚠️ Config file not found at: $CONFIG_PATH, using defaults"
+            else
+              echo "ℹ️ No cdk-config-path provided, using default commands"
+            fi
+
+            BOOTSTRAP_CMD="$DEFAULT_BOOTSTRAP"
+            SYNTH_CMD="$DEFAULT_SYNTH"
+            DIFF_CMD="$DEFAULT_DIFF"
+            DEPLOY_CMD="$DEFAULT_DEPLOY"
+
+            echo "✅ Using default CDK commands:"
+          fi
+
+          echo "  bootstrap: $BOOTSTRAP_CMD"
+          echo "  synth: $SYNTH_CMD"
+          echo "  diff: $DIFF_CMD"
+          echo "  deploy: $DEPLOY_CMD"
+
+          echo "bootstrap-cmd=$BOOTSTRAP_CMD" >> $GITHUB_OUTPUT
+          echo "synth-cmd=$SYNTH_CMD" >> $GITHUB_OUTPUT
+          echo "diff-cmd=$DIFF_CMD" >> $GITHUB_OUTPUT
+          echo "deploy-cmd=$DEPLOY_CMD" >> $GITHUB_OUTPUT
+
       - name: Validate required inputs
         run: |
           echo "🔍 Validating deployment configuration..."
@@ -299,22 +368,32 @@ jobs:
       - name: Bootstrap CDK environment
         run: |
           echo "🥾 Bootstrapping CDK environment..."
-          
+
           verbose=""
           if [ "${{ inputs.debug }}" = "true" ]; then
             verbose="--verbose"
           fi
-          
-          role_args=""
-          if [ -n "${{ secrets.cfn-execution-role }}" ]; then
-            role_args="--cloudformation-execution-policies ${{ secrets.cfn-execution-role }}"
+
+          BOOTSTRAP_CMD="${{ needs.prepare.outputs.cdk-bootstrap-cmd }}"
+
+          # Check if using custom command from config or default
+          if [ "$BOOTSTRAP_CMD" = "npx cdk bootstrap" ]; then
+            # Default command - add AWS-specific arguments
+            role_args=""
+            if [ -n "${{ secrets.cfn-execution-role }}" ]; then
+              role_args="--cloudformation-execution-policies ${{ secrets.cfn-execution-role }}"
+            fi
+
+            $BOOTSTRAP_CMD \
+              aws://$(aws sts get-caller-identity --query Account --output text)/${{ inputs.aws-region }} \
+              $role_args \
+              $verbose
+          else
+            # Custom command from cdk-config.yml - run as-is with extra args
+            echo "📄 Using custom bootstrap command from cdk-config.yml"
+            $BOOTSTRAP_CMD ${{ inputs.extra-arguments }} $verbose
           fi
-          
-          npx cdk bootstrap \
-            aws://$(aws sts get-caller-identity --query Account --output text)/${{ inputs.aws-region }} \
-            $role_args \
-            $verbose
-          
+
           echo "✅ CDK environment bootstrapped successfully"
 
   # Synthesize CDK application
@@ -391,17 +470,27 @@ jobs:
       - name: Synthesize CDK application
         run: |
           echo "🔨 Synthesizing CDK application..."
-          
+
           verbose=""
           if [ "${{ inputs.debug }}" = "true" ]; then
             verbose="--verbose"
           fi
-          
-          npx cdk synth ${{ inputs.cdk-stack-name }} \
-            ${{ needs.prepare.outputs.context-args }} \
-            ${{ inputs.extra-arguments }}  \
-            $verbose
-          
+
+          SYNTH_CMD="${{ needs.prepare.outputs.cdk-synth-cmd }}"
+
+          # Check if using custom command from config or default
+          if [ "$SYNTH_CMD" = "npx cdk synth" ]; then
+            # Default command - add stack name, context args, and extra arguments
+            $SYNTH_CMD ${{ inputs.cdk-stack-name }} \
+              ${{ needs.prepare.outputs.context-args }} \
+              ${{ inputs.extra-arguments }} \
+              $verbose
+          else
+            # Custom command from cdk-config.yml - run as-is with extra args
+            echo "📄 Using custom synth command from cdk-config.yml"
+            $SYNTH_CMD ${{ inputs.extra-arguments }} $verbose
+          fi
+
           echo "✅ CDK synthesis completed successfully"
 
       - name: Upload synthesis artifacts
@@ -491,16 +580,25 @@ jobs:
         id: diff-analysis
         run: |
           echo "📊 Analyzing deployment changes..."
-          
-          # Generate diff output
-          diff_output=$(npx cdk diff ${{ inputs.cdk-stack-name }} \
-            ${{ needs.prepare.outputs.context-args }} \
-            ${{ inputs.extra-arguments }}  \
-            --no-color 2>&1 || true)
-          
+
+          DIFF_CMD="${{ needs.prepare.outputs.cdk-diff-cmd }}"
+
+          # Check if using custom command from config or default
+          if [ "$DIFF_CMD" = "npx cdk diff" ]; then
+            # Default command - add stack name, context args, and extra arguments
+            diff_output=$($DIFF_CMD ${{ inputs.cdk-stack-name }} \
+              ${{ needs.prepare.outputs.context-args }} \
+              ${{ inputs.extra-arguments }} \
+              --no-color 2>&1 || true)
+          else
+            # Custom command from cdk-config.yml - run as-is with extra args
+            echo "📄 Using custom diff command from cdk-config.yml"
+            diff_output=$($DIFF_CMD ${{ inputs.extra-arguments }} --no-color 2>&1 || true)
+          fi
+
           # Save diff to file for analysis
           echo "$diff_output" > deployment-diff.txt
-          
+
           # Analyze diff for changes
           if echo "$diff_output" | grep -q "There were no differences"; then
             echo "has-changes=false" >> $GITHUB_OUTPUT
@@ -508,13 +606,13 @@ jobs:
             echo "ℹ️ No changes detected in infrastructure"
           else
             echo "has-changes=true" >> $GITHUB_OUTPUT
-            
+
             # Create summary
             summary="Infrastructure changes detected"
             if echo "$diff_output" | grep -q "Resources"; then
               summary="$summary - Resource modifications found"
             fi
-            
+
             echo "summary=$summary" >> $GITHUB_OUTPUT
             echo "⚠️ Infrastructure changes detected!"
             echo "$diff_output"
@@ -612,16 +710,29 @@ jobs:
           if [ "${{ inputs.debug }}" = "true" ]; then
             verbose="--verbose"
           fi
-          
+
           echo "🚀 Deploying CDK stack: ${{ inputs.cdk-stack-name }}"
-          
-          npx cdk deploy ${{ inputs.cdk-stack-name }} \
-            ${{ needs.prepare.outputs.context-args }} \
-            ${{ inputs.extra-arguments }}  \
-            --require-approval never \
-            --outputs-file stack-outputs.json \
-            $verbose
-          
+
+          DEPLOY_CMD="${{ needs.prepare.outputs.cdk-deploy-cmd }}"
+
+          # Check if using custom command from config or default
+          if [ "$DEPLOY_CMD" = "npx cdk deploy" ]; then
+            # Default command - add stack name, context args, and extra arguments
+            $DEPLOY_CMD ${{ inputs.cdk-stack-name }} \
+              ${{ needs.prepare.outputs.context-args }} \
+              ${{ inputs.extra-arguments }} \
+              --require-approval never \
+              --outputs-file stack-outputs.json \
+              $verbose
+          else
+            # Custom command from cdk-config.yml - run as-is with extra args
+            echo "📄 Using custom deploy command from cdk-config.yml"
+            $DEPLOY_CMD ${{ inputs.extra-arguments }} \
+              --require-approval never \
+              --outputs-file stack-outputs.json \
+              $verbose
+          fi
+
           # Extract stack outputs
           if [ -f "stack-outputs.json" ]; then
             # Compact JSON to single line to avoid multiline output issues
@@ -630,7 +741,7 @@ jobs:
           else
             echo "stack-outputs={}" >> $GITHUB_OUTPUT
           fi
-          
+
           echo "status=success" >> $GITHUB_OUTPUT
           echo "✅ Stack deployed successfully"
 
