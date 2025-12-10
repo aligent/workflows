@@ -26,17 +26,22 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 | **Core Configuration** |
 | aws-region | ❌ | string | ap-southeast-2 | AWS region for deployment |
 | cdk-stack-name | ✅ | string | | CDK stack name to deploy (required) |
-| environment-target | ❌ | string | development | Target environment (staging/production/development) |
+| environment-target | ❌ | string |  | Target environment (stg/prd/dev/"") |
+| aws-access-key-id | ✅ | string | | AWS access key ID |
 | **Deployment Control** |
-| bootstrap-stack | ❌ | boolean | false | Bootstrap CDK environment before deployment |
+| bootstrap | ❌ | boolean | false | Bootstrap CDK environment before deployment |
 | deploy | ❌ | boolean | false | Deploy stack |
 | diff | ❌ | boolean | false | Diff stack |
 | synth | ❌ | boolean | false | Synth stack |
 | **Advanced Configuration** |
 | context-values | ❌ | string | {} | CDK context values as JSON object |
 | extra-arguments | ❌ | string |  | Extra arguments as string |
-| aws-access-key-id | ✅ | string | AWS access key ID |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
+| **Custom CDK Commands** |
+| bootstrap-command | ❌ | string | npx cdk bootstrap | Custom bootstrap command |
+| synth-command | ❌ | string | npx cdk synth | Custom synth command |
+| diff-command | ❌ | string | npx cdk diff | Custom diff command |
+| deploy-command | ❌ | string | npx cdk deploy | Custom deploy command |
 
 #### **Secrets**
 | Name | Required | Description |
@@ -52,6 +57,27 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 
 #### **Example Usage**
 
+**Bootstrap New Environment:**
+```yaml
+on:
+  push:
+    branches:
+      - staging
+
+...
+
+jobs:
+  bootstrap-staging:
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
+    with:
+      cdk-stack-name: ${{ vars.STACK_NAME }}
+      bootstrap: true
+      aws-region: us-east-1
+      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+    secrets:
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
 **PR synth and diff:**
 ```yaml
 on:
@@ -62,7 +88,7 @@ on:
 ...
 
 jobs:
-  cdk-diff-synth:
+  diff-synth:
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
       cdk-stack-name: ${{ vars.STACK_NAME }}
@@ -83,7 +109,7 @@ on:
 ...
 
 jobs:
-  cdk-deploy-staging:
+  deploy:
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
       cdk-stack-name: ${{ vars.STACK_NAME }}
@@ -103,7 +129,7 @@ on:
 ...
 
 jobs:
-  deploy-prod:
+  deploy:
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
       cdk-stack-name: ${{ vars.STACK_NAME }}
@@ -134,16 +160,41 @@ jobs:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
-**Bootstrap New Environment:**
+**Deploy Staging in NX Monorepo:**
 ```yaml
+on:
+  push:
+    branches:
+      - staging
+
+...
+
 jobs:
-  bootstrap-staging:
+  deploy:
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
       cdk-stack-name: ${{ vars.STACK_NAME }}
-      bootstrap-stack: true
-      aws-region: us-east-1
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+      deploy: true
+      deploy-command: yarn nx run core:cdk deploy
+    secrets:
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+**Deploy Production in NX Monorepo from Release:**
+```yaml
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
+    with:
+      cdk-stack-name: ${{ vars.STACK_NAME }}
+      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+      deploy: true
+      deploy-command: yarn nx run core:cdk deploy
     secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```

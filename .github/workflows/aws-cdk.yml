@@ -24,7 +24,7 @@ on:
         required: true
       
       # Deployment Control
-      bootstrap-stack:
+      bootstrap:
         description: "Bootstrap CDK environment before deployment"
         type: boolean
         required: false
@@ -60,7 +60,7 @@ on:
         type: boolean
         required: false
         default: false
-        
+
       # Custom CDK Commands
       bootstrap-command:
         description: "Custom bootstrap command"
@@ -278,7 +278,7 @@ jobs:
     name: 🥾 CDK Bootstrap
     runs-on: ubuntu-latest
     needs: [setup-node, prepare]
-    if: inputs.bootstrap-stack == true
+    if: inputs.bootstrap == true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
