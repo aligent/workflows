@@ -363,8 +363,6 @@ jobs:
               $role_args \
               $verbose
           else
-            # Custom command from cdk-config.yml - run as-is with extra args
-            echo "📄 Using custom bootstrap command from cdk-config.yml"
             $BOOTSTRAP_CMD ${{ inputs.extra-arguments }} $verbose
           fi
 
@@ -460,8 +458,6 @@ jobs:
               ${{ inputs.extra-arguments }} \
               $verbose
           else
-            # Custom command from cdk-config.yml - run as-is with extra args
-            echo "📄 Using custom synth command from cdk-config.yml"
             $SYNTH_CMD ${{ inputs.extra-arguments }} $verbose
           fi
 
@@ -565,8 +561,6 @@ jobs:
               ${{ inputs.extra-arguments }} \
               --no-color 2>&1 || true)
           else
-            # Custom command from cdk-config.yml - run as-is with extra args
-            echo "📄 Using custom diff command from cdk-config.yml"
             diff_output=$($DIFF_CMD ${{ inputs.extra-arguments }} --no-color 2>&1 || true)
           fi
 
@@ -699,8 +693,6 @@ jobs:
               --outputs-file stack-outputs.json \
               $verbose
           else
-            # Custom command from cdk-config.yml - run as-is with extra args
-            echo "📄 Using custom deploy command from cdk-config.yml"
             $DEPLOY_CMD ${{ inputs.extra-arguments }} \
               --require-approval never \
               --outputs-file stack-outputs.json \
