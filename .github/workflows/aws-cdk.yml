@@ -449,17 +449,11 @@ jobs:
           fi
 
           SYNTH_CMD="${{ needs.prepare.outputs.cdk-synth-cmd }}"
-
-          # Check if using custom command from config or default
-          if [ "$SYNTH_CMD" = "npx cdk synth" ]; then
-            # Default command - add stack name, context args, and extra arguments
-            $SYNTH_CMD ${{ inputs.cdk-stack-name }} \
-              ${{ needs.prepare.outputs.context-args }} \
-              ${{ inputs.extra-arguments }} \
-              $verbose
-          else
-            $SYNTH_CMD ${{ inputs.extra-arguments }} $verbose
-          fi
+            
+          $SYNTH_CMD ${{ inputs.cdk-stack-name }} \
+            ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }} \
+            $verbose
 
           echo "✅ CDK synthesis completed successfully"
 
@@ -553,17 +547,11 @@ jobs:
 
           DIFF_CMD="${{ needs.prepare.outputs.cdk-diff-cmd }}"
 
-          # Check if using custom command from config or default
-          if [ "$DIFF_CMD" = "npx cdk diff" ]; then
-            # Default command - add stack name, context args, and extra arguments
-            diff_output=$($DIFF_CMD ${{ inputs.cdk-stack-name }} \
-              ${{ needs.prepare.outputs.context-args }} \
-              ${{ inputs.extra-arguments }} \
-              --no-color 2>&1 || true)
-          else
-            diff_output=$($DIFF_CMD ${{ inputs.extra-arguments }} --no-color 2>&1 || true)
-          fi
-
+          diff_output=$($DIFF_CMD ${{ inputs.cdk-stack-name }} \
+            ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }} \
+            --no-color 2>&1 || true)
+            
           # Save diff to file for analysis
           echo "$diff_output" > deployment-diff.txt
 
@@ -682,22 +670,13 @@ jobs:
           echo "🚀 Deploying CDK stack: ${{ inputs.cdk-stack-name }}"
 
           DEPLOY_CMD="${{ needs.prepare.outputs.cdk-deploy-cmd }}"
-
-          # Check if using custom command from config or default
-          if [ "$DEPLOY_CMD" = "npx cdk deploy" ]; then
-            # Default command - add stack name, context args, and extra arguments
-            $DEPLOY_CMD ${{ inputs.cdk-stack-name }} \
-              ${{ needs.prepare.outputs.context-args }} \
-              ${{ inputs.extra-arguments }} \
-              --require-approval never \
-              --outputs-file stack-outputs.json \
-              $verbose
-          else
-            $DEPLOY_CMD ${{ inputs.extra-arguments }} \
-              --require-approval never \
-              --outputs-file stack-outputs.json \
-              $verbose
-          fi
+          
+          $DEPLOY_CMD ${{ inputs.cdk-stack-name }} \
+            ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }} \
+            --require-approval never \
+            --outputs-file stack-outputs.json \
+            $verbose
 
           # Extract stack outputs
           if [ -f "stack-outputs.json" ]; then
