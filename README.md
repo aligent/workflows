@@ -14,20 +14,19 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 - **Bootstrap validation**: Automatic CDK environment preparation and validation
 - **Infrastructure validation**: Comprehensive stack validation and drift detection
 - **Changeset preview**: CloudFormation diff analysis before deployment
-- **Rollback capabilities**: Support for stack destruction and rollback operations
 - **Smart Node.js setup**: Automatic detection from .nvmrc file with dependency caching
 - **Package manager detection**: Automatic support for npm, yarn (classic/berry), and pnpm
 - **Debug support**: Verbose logging and debug output for troubleshooting
-- **Stack name**: Variable can be defined per Environment 
+- **GitHub Environments support**: Credentials and stack names can be configured per-environment via GitHub Environment variables/secrets 
 
 #### **Inputs**
 | Name | Required | Type | Default | Description |
 |------|----------|------|---------|-------------|
 | **Core Configuration** |
 | aws-region | ❌ | string | ap-southeast-2 | AWS region for deployment |
-| cdk-stack-name | ✅ | string | | CDK stack name to deploy (required) |
-| environment-target | ❌ | string |  | Target environment (stg/prd/dev/"") |
-| aws-access-key-id | ✅ | string | | AWS access key ID |
+| cdk-stack-name | ⚠️ | string | | CDK stack name to deploy (optional if `STACK_NAME` env var is set in a GitHub environment) |
+| aws-access-key-id | ⚠️ | string | | AWS access key ID (optional if `AWS_ACCESS_KEY_ID` env var is set in a GitHub environment) |
+| github-environment | ❌ | string | | GitHub Environment name for secrets/variables (e.g., Staging, Production) |
 | **Deployment Control** |
 | bootstrap | ❌ | boolean | false | Bootstrap CDK environment before deployment |
 | deploy | ❌ | boolean | false | Deploy stack |
@@ -35,6 +34,7 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 | synth | ❌ | boolean | false | Synth stack |
 | **Advanced Configuration** |
 | context-values | ❌ | string | {} | CDK context values as JSON object |
+| environment-target | ❌ | string |  | Target environment for CDK context (stg/prd/dev) - passed as `--context environment=<value>` |
 | extra-arguments | ❌ | string |  | Extra arguments as string |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 | **Custom CDK Commands** |
@@ -46,8 +46,12 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 #### **Secrets**
 | Name | Required | Description |
 |------|----------|-------------|
-| aws-secret-access-key | ✅ | AWS secret access key |
+| aws-secret-access-key | ⚠️ | AWS secret access key (optional if `AWS_SECRET_ACCESS_KEY` is set in a GitHub environment) |
 | cfn-execution-role | ❌ | CloudFormation execution role ARN (optional, for cross-account deployments) |
+
+> **Legend:** ✅ = Required, ❌ = Optional, ⚠️ = Conditionally required (can be provided via input OR GitHub environment variable/secret)
+
+> **Note:** At least one of `synth`, `diff`, or `deploy` must be set to `true` for the workflow to run.
 
 #### **Outputs**
 | Name | Description |
@@ -78,25 +82,46 @@ jobs:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
-**PR synth and diff:**
+**PR Diff (No Environment):**
 ```yaml
 on:
   pull_request:
     branches:
       - '**'
 
-...
-
 jobs:
-  diff-synth:
+  diff:
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
       cdk-stack-name: ${{ vars.STACK_NAME }}
       aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
       diff: true
-      synth: true
     secrets:
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+**PR Diff (Multiple Environments):**
+
+To diff against both staging and production on every pull request, use separate jobs with different GitHub Environments. Each environment should have its own `STACK_NAME`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` configured.
+
+```yaml
+on:
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  diff-staging:
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
+    with:
+      github-environment: Staging
+      diff: true
+
+  diff-production:
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
+    with:
+      github-environment: Production
+      diff: true
 ```
 
 **Staging Deployment:**
@@ -106,17 +131,12 @@ on:
     branches:
       - staging
 
-...
-
 jobs:
   deploy:
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
-      cdk-stack-name: ${{ vars.STACK_NAME }}
-      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+      github-environment: Staging
       deploy: true
-    secrets:
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
 **Production Deployment:**
@@ -124,40 +144,14 @@ jobs:
 on:
   push:
     branches:
-      - production
-
-...
+      - main
 
 jobs:
   deploy:
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
-      cdk-stack-name: ${{ vars.STACK_NAME }}
-      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+      github-environment: Production
       deploy: true
-    secrets:
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-```
-
-**Deploy Staging and Production:**
-```yaml
-on:
-  push:
-    branches:
-      - staging
-      - production
-
-...
-
-jobs:
-  deploy:
-    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
-    with:
-      cdk-stack-name: ${{ vars.STACK_NAME }}
-      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
-      deploy: true
-    secrets:
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
 **Deploy Staging in NX Monorepo:**
@@ -167,18 +161,13 @@ on:
     branches:
       - staging
 
-...
-
 jobs:
   deploy:
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
-      cdk-stack-name: ${{ vars.STACK_NAME }}
-      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+      github-environment: Staging
       deploy: true
       deploy-command: yarn nx run core:cdk deploy
-    secrets:
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
 **Deploy Production in NX Monorepo from Release:**
@@ -191,12 +180,9 @@ jobs:
   deploy:
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
-      cdk-stack-name: ${{ vars.STACK_NAME }}
-      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+      github-environment: Production
       deploy: true
       deploy-command: yarn nx run core:cdk deploy
-    secrets:
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
 
 ### Node Pull Request Checks
