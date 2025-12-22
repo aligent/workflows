@@ -9,19 +9,11 @@ on:
         type: string
         required: false
         default: "ap-southeast-2"
-      cdk-stack-name:
-        description: "CDK stack name to deploy (required)"
-        type: string
-        required: true
-      environment-target:
-        description: "Target environment (stg/prd/dev)"
+      github-environment:
+        description: "GitHub Environment name for secrets/variables (e.g. Staging, Production)"
         type: string
         required: false
         default: ""
-      aws-access-key-id:
-        description: "AWS access key ID"
-        type: string
-        required: true
       
       # Deployment Control
       bootstrap:
@@ -51,6 +43,11 @@ on:
         type: string
         required: false
         default: "{}"
+      environment-target:
+        description: "Target environment for CDK context (stg/prd/dev)"
+        type: string
+        required: false
+        default: ""
       extra-arguments:
         description: "Extra arguments"
         type: string
@@ -82,14 +79,6 @@ on:
         type: string
         required: false
         default: "npx cdk deploy"
-
-    secrets:
-      aws-secret-access-key:
-        description: "AWS secret access key"
-        required: true
-      cfn-execution-role:
-        description: "CloudFormation execution role ARN (optional, for cross-account deployments)"
-        required: false
 
     outputs:
       stack-outputs:
@@ -182,6 +171,7 @@ jobs:
   prepare:
     name: 🔍 Prepare CDK Deployment
     runs-on: ubuntu-latest
+    environment: ${{ inputs.github-environment }}
     outputs:
       context-args: ${{ steps.context-config.outputs.args }}
       sanitised-cdk-stack-name: ${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
@@ -210,11 +200,38 @@ jobs:
       - name: Validate required inputs
         run: |
           echo "🔍 Validating deployment configuration..."
-          
-          if [ -z "${{ inputs.cdk-stack-name }}" ]; then
-            echo "❌ Error: cdk-stack-name is required"
+
+          ENVIRONMENT="${{ inputs.github-environment }}"
+          STACK_NAME="${{ vars.STACK_NAME }}"
+          AWS_ACCESS_KEY_ID="${{ vars.AWS_ACCESS_KEY_ID }}"
+          AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+
+          if [ -z "$ENVIRONMENT" ]; then
+            ENVIRONMENT="Repository"
+          fi
+
+          echo "ℹ️ Using variables from $ENVIRONMENT environment"
+
+          if [ -z "$STACK_NAME" ]; then
+            echo "❌ Error: STACK_NAME is not defined as a variable in your $ENVIRONMENT environment"
             exit 1
           fi
+
+          echo "ℹ️ STACK_NAME set from variable: $STACK_NAME"
+
+          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
+            echo "❌ Error: AWS_ACCESS_KEY_ID is not defined as a variable in your $ENVIRONMENT environment"
+            exit 1
+          fi
+
+          echo "ℹ️ AWS_ACCESS_KEY_ID set from variable: $AWS_ACCESS_KEY_ID"
+
+          if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "❌ Error: AWS_SECRET_ACCESS_KEY is not defined as a secret in your $ENVIRONMENT environment"
+            exit 1
+          fi
+
+          echo "✅ AWS_SECRET_ACCESS_KEY secret is configured"
 
           # Validate environment target
           case "${{ inputs.environment-target }}" in
@@ -225,7 +242,7 @@ jobs:
               echo "ℹ️ Environment target is empty"
               ;;
             *)
-              echo "❌ Error: environment-target must be one of: stg, prd, dev"
+              echo "❌ Error: environment-target must be one of: stg, prd, dev or empty"
               exit 1
               ;;
           esac
@@ -270,7 +287,7 @@ jobs:
       - name: Sanitise stack name
         id: sanitise
         run: |
-          sanitised_cdk_stack_name=$(echo "${{ inputs.cdk-stack-name }}" | tr -cd '[:alnum:]-_')
+          sanitised_cdk_stack_name=$(echo "${{ vars.STACK_NAME }}" | tr -cd '[:alnum:]-_')
           echo "sanitised-cdk-stack-name=$sanitised_cdk_stack_name" >> $GITHUB_OUTPUT
 
   # Bootstrap CDK environment if required
@@ -279,6 +296,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-node, prepare]
     if: inputs.bootstrap == true
+    environment: ${{ inputs.github-environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -310,10 +328,10 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ inputs.aws-access-key-id }}
-          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.aws-region }}
-          role-to-assume: ${{ secrets.cfn-execution-role }}
+          role-to-assume: ${{ secrets.CFN_EXECUTION_ROLE }}
 
       - name: Install dependencies
         run: |
@@ -354,8 +372,8 @@ jobs:
           if [ "$BOOTSTRAP_CMD" = "npx cdk bootstrap" ]; then
             # Default command - add AWS-specific arguments
             role_args=""
-            if [ -n "${{ secrets.cfn-execution-role }}" ]; then
-              role_args="--cloudformation-execution-policies ${{ secrets.cfn-execution-role }}"
+            if [ -n "${{ secrets.CFN_EXECUTION_ROLE }}" ]; then
+              role_args="--cloudformation-execution-policies ${{ secrets.CFN_EXECUTION_ROLE }}"
             fi
 
             $BOOTSTRAP_CMD \
@@ -379,6 +397,7 @@ jobs:
       needs.prepare.result == 'success' &&
       (needs.bootstrap.result == 'success' || needs.bootstrap.result == 'skipped') &&
       inputs.synth == true
+    environment: ${{ inputs.github-environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -410,10 +429,10 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ inputs.aws-access-key-id }}
-          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.aws-region }}
-          role-to-assume: ${{ secrets.cfn-execution-role }}
+          role-to-assume: ${{ secrets.CFN_EXECUTION_ROLE }}
 
       - name: Install dependencies
         run: |
@@ -449,8 +468,8 @@ jobs:
           fi
 
           SYNTH_CMD="${{ needs.prepare.outputs.cdk-synth-cmd }}"
-            
-          $SYNTH_CMD ${{ inputs.cdk-stack-name }} \
+
+          $SYNTH_CMD ${{ vars.STACK_NAME }} \
             ${{ needs.prepare.outputs.context-args }} \
             ${{ inputs.extra-arguments }} \
             $verbose
@@ -475,6 +494,7 @@ jobs:
       needs.prepare.result == 'success' &&
       (needs.synth.result == 'success' || needs.synth.result == 'skipped') &&
       inputs.diff == true
+    environment: ${{ inputs.github-environment }}
     outputs:
       has-changes: ${{ steps.diff-analysis.outputs.has-changes }}
       diff-summary: ${{ steps.diff-analysis.outputs.summary }}
@@ -509,10 +529,10 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ inputs.aws-access-key-id }}
-          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.aws-region }}
-          role-to-assume: ${{ secrets.cfn-execution-role }}
+          role-to-assume: ${{ secrets.CFN_EXECUTION_ROLE }}
 
       - name: Download synthesis artifacts
         if: needs.synth.result == 'success'
@@ -547,7 +567,7 @@ jobs:
 
           DIFF_CMD="${{ needs.prepare.outputs.cdk-diff-cmd }}"
 
-          diff_output=$($DIFF_CMD ${{ inputs.cdk-stack-name }} \
+          diff_output=$($DIFF_CMD ${{ vars.STACK_NAME }} \
             ${{ needs.prepare.outputs.context-args }} \
             ${{ inputs.extra-arguments }} \
             --no-color 2>&1 || true)
@@ -593,7 +613,7 @@ jobs:
       (needs.synth.result == 'success' || needs.synth.result == 'skipped') &&
       (needs.diff.result == 'success' || needs.diff.result == 'skipped') &&
       inputs.deploy == true
-    environment: ${{ inputs.environment-target }}
+    environment: ${{ inputs.github-environment }}
     outputs:
       stack-outputs: ${{ steps.deployment.outputs.stack-outputs }}
       deployment-status: ${{ steps.deployment.outputs.status }}
@@ -628,10 +648,10 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ inputs.aws-access-key-id }}
-          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.aws-region }}
-          role-to-assume: ${{ secrets.cfn-execution-role }}
+          role-to-assume: ${{ secrets.CFN_EXECUTION_ROLE }}
 
       - name: Download synthesis artifacts
         if: needs.synth.result == 'success'
@@ -667,11 +687,11 @@ jobs:
             verbose="--verbose"
           fi
 
-          echo "🚀 Deploying CDK stack: ${{ inputs.cdk-stack-name }}"
+          echo "🚀 Deploying CDK stack: ${{ vars.STACK_NAME }}"
 
           DEPLOY_CMD="${{ needs.prepare.outputs.cdk-deploy-cmd }}"
-          
-          $DEPLOY_CMD ${{ inputs.cdk-stack-name }} \
+
+          $DEPLOY_CMD ${{ vars.STACK_NAME }} \
             ${{ needs.prepare.outputs.context-args }} \
             ${{ inputs.extra-arguments }} \
             --require-approval never \
@@ -704,6 +724,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, deploy]
     if: needs.deploy.result == 'success'
+    environment: ${{ inputs.github-environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -735,10 +756,10 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ inputs.aws-access-key-id }}
-          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.aws-region }}
-          role-to-assume: ${{ secrets.cfn-execution-role }}
+          role-to-assume: ${{ secrets.CFN_EXECUTION_ROLE }}
 
       - name: Install dependencies
         run: |
@@ -762,10 +783,10 @@ jobs:
       - name: Validate stack deployment
         run: |
           echo "🔍 Validating deployed stack..."
-          
+
           # Check stack status
           stack_status=$(aws cloudformation describe-stacks \
-            --stack-name ${{ inputs.cdk-stack-name }} \
+            --stack-name ${{ vars.STACK_NAME }} \
             --query 'Stacks[0].StackStatus' \
             --output text)
           
@@ -781,10 +802,10 @@ jobs:
       - name: Check for stack drift
         run: |
           echo "🔍 Checking for infrastructure drift..."
-          
+
           # Initiate drift detection
           drift_id=$(aws cloudformation detect-stack-drift \
-            --stack-name ${{ inputs.cdk-stack-name }} \
+            --stack-name ${{ vars.STACK_NAME }} \
             --query 'StackDriftDetectionId' \
             --output text)
           
@@ -818,8 +839,8 @@ jobs:
         run: |
           echo "📋 Deployment Summary"
           echo "===================="
-          echo "Stack Name: ${{ inputs.cdk-stack-name }}"
-          echo "Environment: ${{ inputs.environment-target }}"
+          echo "Stack Name: ${{ vars.STACK_NAME }}"
+          echo "Environment: ${{ inputs.github-environment }}"
           echo "Region: ${{ inputs.aws-region }}"
           echo "Status: ${{ needs.deploy.outputs.deployment-status }}"
           echo "Node Version: ${{ needs.setup-node.outputs.node-version }}"
