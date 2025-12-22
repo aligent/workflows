@@ -24,9 +24,7 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 |------|----------|------|---------|-------------|
 | **Core Configuration** |
 | aws-region | ❌ | string | ap-southeast-2 | AWS region for deployment |
-| cdk-stack-name | ⚠️ | string | | CDK stack name to deploy (optional if `STACK_NAME` env var is set in a GitHub environment) |
-| aws-access-key-id | ⚠️ | string | | AWS access key ID (optional if `AWS_ACCESS_KEY_ID` env var is set in a GitHub environment) |
-| github-environment | ❌ | string | | GitHub Environment name for secrets/variables (e.g., Staging, Production) |
+| github-environment | ❌ | string | Repository| GitHub Environment name for secrets/variables (e.g., Staging, Production) |
 | **Deployment Control** |
 | bootstrap | ❌ | boolean | false | Bootstrap CDK environment before deployment |
 | deploy | ❌ | boolean | false | Deploy stack |
@@ -42,16 +40,19 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 | synth-command | ❌ | string | npx cdk synth | Custom synth command |
 | diff-command | ❌ | string | npx cdk diff | Custom diff command |
 | deploy-command | ❌ | string | npx cdk deploy | Custom deploy command |
-
-#### **Secrets**
-| Name | Required | Description |
-|------|----------|-------------|
-| aws-secret-access-key | ⚠️ | AWS secret access key (optional if `AWS_SECRET_ACCESS_KEY` is set in a GitHub environment) |
-| cfn-execution-role | ❌ | CloudFormation execution role ARN (optional, for cross-account deployments) |
-
-> **Legend:** ✅ = Required, ❌ = Optional, ⚠️ = Conditionally required (can be provided via input OR GitHub environment variable/secret)
-
 > **Note:** At least one of `synth`, `diff`, or `deploy` must be set to `true` for the workflow to run.
+
+#### **Variables and Secrets**
+
+These should be configured in your GitHub Environment (or at the repository level if not using environments).
+
+| Name | Required | Type | Description |
+|------|----------|------|-------------|
+| `STACK_NAME` | ✅ | Variable | The name of the CloudFormation stack to deploy |
+| `AWS_ACCESS_KEY_ID` | ✅ | Variable | AWS Access Key ID for authentication |
+| `AWS_SECRET_ACCESS_KEY` | ✅ | Secret | AWS Secret Access Key for authentication |
+| `CFN_EXECUTION_ROLE` | ❌ | Secret | CloudFormation execution role ARN (optional, for cross-account deployments) |
+
 
 #### **Outputs**
 | Name | Description |
@@ -74,12 +75,9 @@ jobs:
   bootstrap-staging:
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
-      cdk-stack-name: ${{ vars.STACK_NAME }}
       bootstrap: true
       aws-region: us-east-1
-      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
-    secrets:
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    secrets: inherit
 ```
 
 **PR Diff (No Environment):**
@@ -93,11 +91,8 @@ jobs:
   diff:
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
-      cdk-stack-name: ${{ vars.STACK_NAME }}
-      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
       diff: true
-    secrets:
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    secrets: inherit
 ```
 
 **PR Diff (Multiple Environments):**
@@ -116,12 +111,14 @@ jobs:
     with:
       github-environment: Staging
       diff: true
+    secrets: inherit
 
   diff-production:
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
       github-environment: Production
       diff: true
+    secrets: inherit
 ```
 
 **Staging Deployment:**
@@ -137,6 +134,7 @@ jobs:
     with:
       github-environment: Staging
       deploy: true
+    secrets: inherit
 ```
 
 **Production Deployment:**
@@ -152,6 +150,7 @@ jobs:
     with:
       github-environment: Production
       deploy: true
+    secrets: inherit
 ```
 
 **Deploy Staging in NX Monorepo:**
@@ -168,6 +167,7 @@ jobs:
       github-environment: Staging
       deploy: true
       deploy-command: yarn nx run core:cdk deploy
+      secrets: inherit
 ```
 
 **Deploy Production in NX Monorepo from Release:**
@@ -183,6 +183,7 @@ jobs:
       github-environment: Production
       deploy: true
       deploy-command: yarn nx run core:cdk deploy
+    secrets: inherit
 ```
 
 ### Node Pull Request Checks
