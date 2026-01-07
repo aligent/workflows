@@ -9,19 +9,30 @@ on:
         type: string
         required: false
         default: "ap-southeast-2"
-      cdk-stack-name:
-        description: "CDK stack name to deploy (required)"
-        type: string
-        required: true
-      environment-target:
-        description: "Target environment (staging/production/development)"
+      github-environment:
+        description: "GitHub Environment name for secrets/variables (e.g. Staging, Production)"
         type: string
         required: false
-        default: "development"
+        default: ""
       
       # Deployment Control
-      bootstrap-stack:
+      bootstrap:
         description: "Bootstrap CDK environment before deployment"
+        type: boolean
+        required: false
+        default: false
+      deploy:
+        description: "Boolean for CDK deploy"
+        type: boolean
+        required: false
+        default: false
+      diff:
+        description: "Boolean for CDK diff"
+        type: boolean
+        required: false
+        default: false
+      synth:
+        description: "Boolean for CDK synth"
         type: boolean
         required: false
         default: false
@@ -32,22 +43,42 @@ on:
         type: string
         required: false
         default: "{}"
+      environment-target:
+        description: "Target environment for CDK context (stg/prd/dev)"
+        type: string
+        required: false
+        default: ""
+      extra-arguments:
+        description: "Extra arguments"
+        type: string
+        required: false
       debug:
         description: "Enable verbose logging and debug output"
         type: boolean
         required: false
         default: false
 
-    secrets:
-      aws-access-key-id:
-        description: "AWS access key ID"
-        required: true
-      aws-secret-access-key:
-        description: "AWS secret access key"
-        required: true
-      cfn-execution-role:
-        description: "CloudFormation execution role ARN (optional, for cross-account deployments)"
+      # Custom CDK Commands
+      bootstrap-command:
+        description: "Custom bootstrap command"
+        type: string
         required: false
+        default: "npx cdk bootstrap"
+      synth-command:
+        description: "Custom synth command"
+        type: string
+        required: false
+        default: "npx cdk synth"
+      diff-command:
+        description: "Custom diff command"
+        type: string
+        required: false
+        default: "npx cdk diff"
+      deploy-command:
+        description: "Custom deploy command"
+        type: string
+        required: false
+        default: "npx cdk deploy"
 
     outputs:
       stack-outputs:
@@ -105,6 +136,29 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ steps.node-version.outputs.version }}
+
+      - name: Enable Corepack for Yarn Berry
+        if: steps.detect-package-manager.outputs.manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
+
+          # Initialize yarn and ensure cache directory exists for post-job cache step
+          yarn --version
+          CACHE_DIR=$(yarn config get cacheFolder)
+          mkdir -p "$CACHE_DIR"
+          echo "✅ Corepack enabled and cache directory created: $CACHE_DIR"
+
+      - name: Configure dependency cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.node-version.outputs.version }}
           cache: ${{ steps.detect-package-manager.outputs.manager == 'yarn-berry' && 'yarn' || (steps.detect-package-manager.outputs.manager == 'yarn-classic' && 'yarn' || steps.detect-package-manager.outputs.manager) }}
 
       - name: Configure cache key
@@ -117,26 +171,78 @@ jobs:
   prepare:
     name: 🔍 Prepare CDK Deployment
     runs-on: ubuntu-latest
+    environment: ${{ inputs.github-environment }}
     outputs:
-      deploy-cdk: ${{ steps.deployment-config.outputs.strategy }}
       context-args: ${{ steps.context-config.outputs.args }}
+      sanitised-cdk-stack-name: ${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
+      cdk-bootstrap-cmd: ${{ steps.parse-cdk-config.outputs.bootstrap-cmd }}
+      cdk-synth-cmd: ${{ steps.parse-cdk-config.outputs.synth-cmd }}
+      cdk-diff-cmd: ${{ steps.parse-cdk-config.outputs.diff-cmd }}
+      cdk-deploy-cmd: ${{ steps.parse-cdk-config.outputs.deploy-cmd }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set CDK commands
+        id: parse-cdk-config
+        run: |
+          echo "✅ CDK commands:"
+          echo "  bootstrap: ${{ inputs.bootstrap-command }}"
+          echo "  synth: ${{ inputs.synth-command }}"
+          echo "  diff: ${{ inputs.diff-command }}"
+          echo "  deploy: ${{ inputs.deploy-command }}"
+
+          echo "bootstrap-cmd=${{ inputs.bootstrap-command }}" >> $GITHUB_OUTPUT
+          echo "synth-cmd=${{ inputs.synth-command }}" >> $GITHUB_OUTPUT
+          echo "diff-cmd=${{ inputs.diff-command }}" >> $GITHUB_OUTPUT
+          echo "deploy-cmd=${{ inputs.deploy-command }}" >> $GITHUB_OUTPUT
+
       - name: Validate required inputs
         run: |
           echo "🔍 Validating deployment configuration..."
-          
-          if [ -z "${{ inputs.cdk-stack-name }}" ]; then
-            echo "❌ Error: cdk-stack-name is required"
+
+          ENVIRONMENT="${{ inputs.github-environment }}"
+          STACK_NAME="${{ vars.STACK_NAME }}"
+          AWS_ACCESS_KEY_ID="${{ vars.AWS_ACCESS_KEY_ID }}"
+          AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+
+          if [ -z "$ENVIRONMENT" ]; then
+            ENVIRONMENT="Repository"
+          fi
+
+          echo "ℹ️ Using variables from $ENVIRONMENT environment"
+
+          if [ -z "$STACK_NAME" ]; then
+            echo "❌ Error: STACK_NAME is not defined as a variable in your $ENVIRONMENT environment"
             exit 1
           fi
-          
+
+          echo "ℹ️ STACK_NAME set from variable: $STACK_NAME"
+
+          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
+            echo "❌ Error: AWS_ACCESS_KEY_ID is not defined as a variable in your $ENVIRONMENT environment"
+            exit 1
+          fi
+
+          echo "ℹ️ AWS_ACCESS_KEY_ID set from variable: $AWS_ACCESS_KEY_ID"
+
+          if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "❌ Error: AWS_SECRET_ACCESS_KEY is not defined as a secret in your $ENVIRONMENT environment"
+            exit 1
+          fi
+
+          echo "✅ AWS_SECRET_ACCESS_KEY secret is configured"
+
           # Validate environment target
           case "${{ inputs.environment-target }}" in
-            staging|production|development)
+            stg|prd|dev)
               echo "✅ Environment target: ${{ inputs.environment-target }}"
               ;;
+            "")
+              echo "ℹ️ Environment target is empty"
+              ;;
             *)
-              echo "❌ Error: environment-target must be one of: staging, production, development"
+              echo "❌ Error: environment-target must be one of: stg, prd, dev or empty"
               exit 1
               ;;
           esac
@@ -149,51 +255,48 @@ jobs:
               exit 1
             fi
           fi
+
+          # Validate that at least one of synth, diff or deploy is true
+          if [ "${{ inputs.synth }}" != "true" ] && [ "${{ inputs.diff }}" != "true" ] && [ "${{ inputs.deploy }}" != "true" ]; then
+            echo "❌ Error: At least one of synth, diff, or deploy must be true"
+            exit 1
+          fi
           
           echo "✅ All inputs validated successfully"
-
-      - name: Configure deployment strategy
-        id: deployment-config
-        run: |
-          echo "📋 Configuring deployment strategy..."
-
-          # Check if deploy is true in context-values
-          deploy_enabled=$(echo '${{ inputs.context-values }}' | jq -r '.deploy // false')
-
-          if [ "$deploy_enabled" = "true" ]; then
-            echo "strategy=true" >> $GITHUB_OUTPUT
-            echo "Strategy: Deploy stack"
-          else
-            echo "strategy=false" >> $GITHUB_OUTPUT
-            echo "Strategy: Deploy disabled (deploy not set to true in context-values)"
-          fi
 
       - name: Configure CDK context
         id: context-config
         run: |
           echo "⚙️ Configuring CDK context..."
-          
+
           context_args=""
-          
+
           # Add environment-specific context
           context_args="$context_args --context environment=${{ inputs.environment-target }}"
-          
-          # Add custom context values
+
+          # Add custom context values (using process substitution to avoid subshell)
           if [ "${{ inputs.context-values }}" != "{}" ]; then
-            echo '${{ inputs.context-values }}' | jq -r 'to_entries[] | "--context \(.key)=\(.value)"' | while read -r ctx; do
+            while read -r ctx; do
               context_args="$context_args $ctx"
-            done
+            done < <(echo '${{ inputs.context-values }}' | jq -r 'to_entries[] | "--context \(.key)=\(.value)"')
           fi
-          
+
           echo "args=$context_args" >> $GITHUB_OUTPUT
           echo "✅ Context arguments configured"
+
+      - name: Sanitise stack name
+        id: sanitise
+        run: |
+          sanitised_cdk_stack_name=$(echo "${{ vars.STACK_NAME }}" | tr -cd '[:alnum:]-_')
+          echo "sanitised-cdk-stack-name=$sanitised_cdk_stack_name" >> $GITHUB_OUTPUT
 
   # Bootstrap CDK environment if required
   bootstrap:
     name: 🥾 CDK Bootstrap
     runs-on: ubuntu-latest
     needs: [setup-node, prepare]
-    if: inputs.bootstrap-stack == true
+    if: inputs.bootstrap == true
+    environment: ${{ inputs.github-environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -202,25 +305,43 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ needs.setup-node.outputs.node-version }}
+
+      - name: Enable Corepack
+        if: needs.setup-node.outputs.package-manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
+          echo "✅ Corepack enabled"
+
+      - name: Configure dependency cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ needs.setup-node.outputs.node-version }}
           cache: ${{ needs.setup-node.outputs.package-manager == 'yarn-berry' && 'yarn' || (needs.setup-node.outputs.package-manager == 'yarn-classic' && 'yarn' || needs.setup-node.outputs.package-manager) }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.aws-access-key-id }}
-          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.aws-region }}
-          role-to-assume: ${{ secrets.cfn-execution-role }}
+          role-to-assume: ${{ secrets.CFN_EXECUTION_ROLE }}
 
       - name: Install dependencies
         run: |
           echo "📦 Installing dependencies with ${{ needs.setup-node.outputs.package-manager }}..."
-          
+
           verbose=""
           if [ "${{ inputs.debug }}" = "true" ]; then
             verbose="--verbose"
           fi
-          
+
           case "${{ needs.setup-node.outputs.package-manager }}" in
             "npm")
               npm ci $verbose
@@ -239,22 +360,30 @@ jobs:
       - name: Bootstrap CDK environment
         run: |
           echo "🥾 Bootstrapping CDK environment..."
-          
+
           verbose=""
           if [ "${{ inputs.debug }}" = "true" ]; then
             verbose="--verbose"
           fi
-          
-          role_args=""
-          if [ -n "${{ secrets.cfn-execution-role }}" ]; then
-            role_args="--cloudformation-execution-policies ${{ secrets.cfn-execution-role }}"
+
+          BOOTSTRAP_CMD="${{ needs.prepare.outputs.cdk-bootstrap-cmd }}"
+
+          # Check if using custom command from config or default
+          if [ "$BOOTSTRAP_CMD" = "npx cdk bootstrap" ]; then
+            # Default command - add AWS-specific arguments
+            role_args=""
+            if [ -n "${{ secrets.CFN_EXECUTION_ROLE }}" ]; then
+              role_args="--cloudformation-execution-policies ${{ secrets.CFN_EXECUTION_ROLE }}"
+            fi
+
+            $BOOTSTRAP_CMD \
+              aws://$(aws sts get-caller-identity --query Account --output text)/${{ inputs.aws-region }} \
+              $role_args \
+              $verbose
+          else
+            $BOOTSTRAP_CMD ${{ inputs.extra-arguments }} $verbose
           fi
-          
-          npx cdk bootstrap \
-            aws://$(aws sts get-caller-identity --query Account --output text)/${{ inputs.aws-region }} \
-            $role_args \
-            $verbose
-          
+
           echo "✅ CDK environment bootstrapped successfully"
 
   # Synthesize CDK application
@@ -262,9 +391,13 @@ jobs:
     name: 🔨 CDK Synthesis
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, bootstrap]
-    if: always() && (needs.prepare.result == 'success' && (needs.bootstrap.result == 'success' || needs.bootstrap.result == 'skipped'))
-    outputs:
-      sanitised-cdk-stack-name: ${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
+    if: |
+      !cancelled() &&
+      needs.setup-node.result == 'success' &&
+      needs.prepare.result == 'success' &&
+      (needs.bootstrap.result == 'success' || needs.bootstrap.result == 'skipped') &&
+      inputs.synth == true
+    environment: ${{ inputs.github-environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -273,25 +406,43 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ needs.setup-node.outputs.node-version }}
+
+      - name: Enable Corepack
+        if: needs.setup-node.outputs.package-manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
+          echo "✅ Corepack enabled"
+
+      - name: Configure dependency cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ needs.setup-node.outputs.node-version }}
           cache: ${{ needs.setup-node.outputs.package-manager == 'yarn-berry' && 'yarn' || (needs.setup-node.outputs.package-manager == 'yarn-classic' && 'yarn' || needs.setup-node.outputs.package-manager) }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.aws-access-key-id }}
-          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.aws-region }}
-          role-to-assume: ${{ secrets.cfn-execution-role }}
+          role-to-assume: ${{ secrets.CFN_EXECUTION_ROLE }}
 
       - name: Install dependencies
         run: |
           echo "📦 Installing dependencies with ${{ needs.setup-node.outputs.package-manager }}..."
-          
+
           verbose=""
           if [ "${{ inputs.debug }}" = "true" ]; then
             verbose="--verbose"
           fi
-          
+
           case "${{ needs.setup-node.outputs.package-manager }}" in
             "npm")
               npm ci $verbose
@@ -310,28 +461,25 @@ jobs:
       - name: Synthesize CDK application
         run: |
           echo "🔨 Synthesizing CDK application..."
-          
+
           verbose=""
           if [ "${{ inputs.debug }}" = "true" ]; then
             verbose="--verbose"
           fi
-          
-          npx cdk synth ${{ inputs.cdk-stack-name }} \
-            ${{ needs.prepare.outputs.context-args }} \
-            $verbose
-          
-          echo "✅ CDK synthesis completed successfully"
 
-      - name: Sanitise stack name
-        id: sanitise
-        run: |
-          sanitised_cdk_stack_name=$(echo "${{ inputs.cdk-stack-name }}" | tr -cd '[:alnum:]-_')
-          echo "sanitised-cdk-stack-name=$sanitised_cdk_stack_name" >> $GITHUB_OUTPUT
+          SYNTH_CMD="${{ needs.prepare.outputs.cdk-synth-cmd }}"
+
+          $SYNTH_CMD ${{ vars.STACK_NAME }} \
+            ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }} \
+            $verbose
+
+          echo "✅ CDK synthesis completed successfully"
 
       - name: Upload synthesis artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cdk-synthesis-${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
+          name: cdk-synthesis-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: cdk.out/
           retention-days: 30
 
@@ -340,7 +488,13 @@ jobs:
     name: 📊 CDK Diff
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, synth]
-    if: always() && needs.synth.result == 'success'
+    if: |
+      !cancelled() &&
+      needs.setup-node.result == 'success' &&
+      needs.prepare.result == 'success' &&
+      (needs.synth.result == 'success' || needs.synth.result == 'skipped') &&
+      inputs.diff == true
+    environment: ${{ inputs.github-environment }}
     outputs:
       has-changes: ${{ steps.diff-analysis.outputs.has-changes }}
       diff-summary: ${{ steps.diff-analysis.outputs.summary }}
@@ -352,26 +506,45 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ needs.setup-node.outputs.node-version }}
+
+      - name: Enable Corepack
+        if: needs.setup-node.outputs.package-manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
+          echo "✅ Corepack enabled"
+
+      - name: Configure dependency cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ needs.setup-node.outputs.node-version }}
           cache: ${{ needs.setup-node.outputs.package-manager == 'yarn-berry' && 'yarn' || (needs.setup-node.outputs.package-manager == 'yarn-classic' && 'yarn' || needs.setup-node.outputs.package-manager) }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.aws-access-key-id }}
-          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.aws-region }}
-          role-to-assume: ${{ secrets.cfn-execution-role }}
+          role-to-assume: ${{ secrets.CFN_EXECUTION_ROLE }}
 
       - name: Download synthesis artifacts
+        if: needs.synth.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: cdk-synthesis-${{ needs.synth.outputs.sanitised-cdk-stack-name }}
+          name: cdk-synthesis-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: cdk.out/
 
       - name: Install dependencies
         run: |
           echo "📦 Installing dependencies with ${{ needs.setup-node.outputs.package-manager }}..."
-          
+
           case "${{ needs.setup-node.outputs.package-manager }}" in
             "npm")
               npm ci
@@ -391,15 +564,17 @@ jobs:
         id: diff-analysis
         run: |
           echo "📊 Analyzing deployment changes..."
-          
-          # Generate diff output
-          diff_output=$(npx cdk diff ${{ inputs.cdk-stack-name }} \
+
+          DIFF_CMD="${{ needs.prepare.outputs.cdk-diff-cmd }}"
+
+          diff_output=$($DIFF_CMD ${{ vars.STACK_NAME }} \
             ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }} \
             --no-color 2>&1 || true)
-          
+            
           # Save diff to file for analysis
           echo "$diff_output" > deployment-diff.txt
-          
+
           # Analyze diff for changes
           if echo "$diff_output" | grep -q "There were no differences"; then
             echo "has-changes=false" >> $GITHUB_OUTPUT
@@ -407,13 +582,13 @@ jobs:
             echo "ℹ️ No changes detected in infrastructure"
           else
             echo "has-changes=true" >> $GITHUB_OUTPUT
-            
+
             # Create summary
             summary="Infrastructure changes detected"
             if echo "$diff_output" | grep -q "Resources"; then
               summary="$summary - Resource modifications found"
             fi
-            
+
             echo "summary=$summary" >> $GITHUB_OUTPUT
             echo "⚠️ Infrastructure changes detected!"
             echo "$diff_output"
@@ -422,7 +597,7 @@ jobs:
       - name: Upload diff analysis
         uses: actions/upload-artifact@v4
         with:
-          name: deployment-diff-${{ needs.synth.outputs.sanitised-cdk-stack-name }}
+          name: deployment-diff-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: deployment-diff.txt
           retention-days: 30
 
@@ -431,8 +606,14 @@ jobs:
     name: '🚀 CDK Deploy'
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, synth, diff]
-    if: needs.prepare.result == 'success' && needs.synth.result == 'success' && (needs.diff.result == 'success' || needs.diff.result == 'skipped') && needs.prepare.outputs.deploy-cdk == 'true'
-    environment: ${{ inputs.environment-target }}
+    if: |
+      !cancelled() &&
+      needs.setup-node.result == 'success' &&
+      needs.prepare.result == 'success' &&
+      (needs.synth.result == 'success' || needs.synth.result == 'skipped') &&
+      (needs.diff.result == 'success' || needs.diff.result == 'skipped') &&
+      inputs.deploy == true
+    environment: ${{ inputs.github-environment }}
     outputs:
       stack-outputs: ${{ steps.deployment.outputs.stack-outputs }}
       deployment-status: ${{ steps.deployment.outputs.status }}
@@ -444,26 +625,45 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ needs.setup-node.outputs.node-version }}
+
+      - name: Enable Corepack
+        if: needs.setup-node.outputs.package-manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
+          echo "✅ Corepack enabled"
+
+      - name: Configure dependency cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ needs.setup-node.outputs.node-version }}
           cache: ${{ needs.setup-node.outputs.package-manager == 'yarn-berry' && 'yarn' || (needs.setup-node.outputs.package-manager == 'yarn-classic' && 'yarn' || needs.setup-node.outputs.package-manager) }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.aws-access-key-id }}
-          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.aws-region }}
-          role-to-assume: ${{ secrets.cfn-execution-role }}
+          role-to-assume: ${{ secrets.CFN_EXECUTION_ROLE }}
 
       - name: Download synthesis artifacts
+        if: needs.synth.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: cdk-synthesis-${{ needs.synth.outputs.sanitised-cdk-stack-name }}
+          name: cdk-synthesis-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: cdk.out/
 
       - name: Install dependencies
         run: |
           echo "📦 Installing dependencies with ${{ needs.setup-node.outputs.package-manager }}..."
-          
+
           case "${{ needs.setup-node.outputs.package-manager }}" in
             "npm")
               npm ci
@@ -486,23 +686,27 @@ jobs:
           if [ "${{ inputs.debug }}" = "true" ]; then
             verbose="--verbose"
           fi
-          
-          echo "🚀 Deploying CDK stack: ${{ inputs.cdk-stack-name }}"
-          
-          npx cdk deploy ${{ inputs.cdk-stack-name }} \
+
+          echo "🚀 Deploying CDK stack: ${{ vars.STACK_NAME }}"
+
+          DEPLOY_CMD="${{ needs.prepare.outputs.cdk-deploy-cmd }}"
+
+          $DEPLOY_CMD ${{ vars.STACK_NAME }} \
             ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }} \
             --require-approval never \
             --outputs-file stack-outputs.json \
             $verbose
-          
+
           # Extract stack outputs
           if [ -f "stack-outputs.json" ]; then
-            outputs=$(cat stack-outputs.json)
+            # Compact JSON to single line to avoid multiline output issues
+            outputs=$(jq -c '.' stack-outputs.json)
             echo "stack-outputs=$outputs" >> $GITHUB_OUTPUT
           else
             echo "stack-outputs={}" >> $GITHUB_OUTPUT
           fi
-          
+
           echo "status=success" >> $GITHUB_OUTPUT
           echo "✅ Stack deployed successfully"
 
@@ -510,7 +714,7 @@ jobs:
         if: steps.deployment.outputs.status == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: deployment-outputs-${{ needs.synth.outputs.sanitised-cdk-stack-name }}
+          name: deployment-outputs-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: stack-outputs.json
           retention-days: 30
 
@@ -520,6 +724,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, deploy]
     if: needs.deploy.result == 'success'
+    environment: ${{ inputs.github-environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -528,20 +733,38 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ needs.setup-node.outputs.node-version }}
+
+      - name: Enable Corepack
+        if: needs.setup-node.outputs.package-manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
+          echo "✅ Corepack enabled"
+
+      - name: Configure dependency cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ needs.setup-node.outputs.node-version }}
           cache: ${{ needs.setup-node.outputs.package-manager == 'yarn-berry' && 'yarn' || (needs.setup-node.outputs.package-manager == 'yarn-classic' && 'yarn' || needs.setup-node.outputs.package-manager) }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.aws-access-key-id }}
-          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.aws-region }}
-          role-to-assume: ${{ secrets.cfn-execution-role }}
+          role-to-assume: ${{ secrets.CFN_EXECUTION_ROLE }}
 
       - name: Install dependencies
         run: |
           echo "📦 Installing dependencies with ${{ needs.setup-node.outputs.package-manager }}..."
-          
+
           case "${{ needs.setup-node.outputs.package-manager }}" in
             "npm")
               npm ci
@@ -560,10 +783,10 @@ jobs:
       - name: Validate stack deployment
         run: |
           echo "🔍 Validating deployed stack..."
-          
+
           # Check stack status
           stack_status=$(aws cloudformation describe-stacks \
-            --stack-name ${{ inputs.cdk-stack-name }} \
+            --stack-name ${{ vars.STACK_NAME }} \
             --query 'Stacks[0].StackStatus' \
             --output text)
           
@@ -579,10 +802,10 @@ jobs:
       - name: Check for stack drift
         run: |
           echo "🔍 Checking for infrastructure drift..."
-          
+
           # Initiate drift detection
           drift_id=$(aws cloudformation detect-stack-drift \
-            --stack-name ${{ inputs.cdk-stack-name }} \
+            --stack-name ${{ vars.STACK_NAME }} \
             --query 'StackDriftDetectionId' \
             --output text)
           
@@ -616,8 +839,8 @@ jobs:
         run: |
           echo "📋 Deployment Summary"
           echo "===================="
-          echo "Stack Name: ${{ inputs.cdk-stack-name }}"
-          echo "Environment: ${{ inputs.environment-target }}"
+          echo "Stack Name: ${{ vars.STACK_NAME }}"
+          echo "Environment: ${{ inputs.github-environment }}"
           echo "Region: ${{ inputs.aws-region }}"
           echo "Status: ${{ needs.deploy.outputs.deployment-status }}"
           echo "Node Version: ${{ needs.setup-node.outputs.node-version }}"
