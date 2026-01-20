@@ -325,6 +325,9 @@ jobs:
           node-version: ${{ needs.setup-node.outputs.node-version }}
           cache: ${{ needs.setup-node.outputs.package-manager == 'yarn-berry' && 'yarn' || (needs.setup-node.outputs.package-manager == 'yarn-classic' && 'yarn' || needs.setup-node.outputs.package-manager) }}
 
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -426,6 +429,9 @@ jobs:
           node-version: ${{ needs.setup-node.outputs.node-version }}
           cache: ${{ needs.setup-node.outputs.package-manager == 'yarn-berry' && 'yarn' || (needs.setup-node.outputs.package-manager == 'yarn-classic' && 'yarn' || needs.setup-node.outputs.package-manager) }}
 
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -525,6 +531,9 @@ jobs:
         with:
           node-version: ${{ needs.setup-node.outputs.node-version }}
           cache: ${{ needs.setup-node.outputs.package-manager == 'yarn-berry' && 'yarn' || (needs.setup-node.outputs.package-manager == 'yarn-classic' && 'yarn' || needs.setup-node.outputs.package-manager) }}
+
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -645,6 +654,9 @@ jobs:
           node-version: ${{ needs.setup-node.outputs.node-version }}
           cache: ${{ needs.setup-node.outputs.package-manager == 'yarn-berry' && 'yarn' || (needs.setup-node.outputs.package-manager == 'yarn-classic' && 'yarn' || needs.setup-node.outputs.package-manager) }}
 
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -752,6 +764,9 @@ jobs:
         with:
           node-version: ${{ needs.setup-node.outputs.node-version }}
           cache: ${{ needs.setup-node.outputs.package-manager == 'yarn-berry' && 'yarn' || (needs.setup-node.outputs.package-manager == 'yarn-classic' && 'yarn' || needs.setup-node.outputs.package-manager) }}
+
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

@@ -108,6 +108,8 @@ jobs:
         with:
           cache: ${{ inputs.package-manager }}
           node-version-file: .nvmrc
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''
         run: |

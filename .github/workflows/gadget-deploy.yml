@@ -66,6 +66,15 @@ jobs:
         run: |
           ggt pull --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+
       - name: Install dependencies
         run: yarn --frozen-lockfile
 
