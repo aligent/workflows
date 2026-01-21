@@ -82,6 +82,10 @@ on:
         description: "If debug flags should be set"
         default: false
         type: boolean
+      fetch-depth:
+        description: "Number of commits to fetch. 0 indicates all history for all branches and tags"
+        default: 1
+        type: number
 
 jobs:
   install:
@@ -91,6 +95,8 @@ jobs:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
       - name: Install Node.js
         uses: actions/setup-node@v5
         with:
@@ -165,6 +171,8 @@ jobs:
       has-check-types: ${{ steps.check.outputs.has-check-types }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
       - id: check
         run: |
           scripts=$(jq -r '.scripts | keys[]' package.json)
@@ -198,6 +206,8 @@ jobs:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
       - name: Fetch Origin
         run: git fetch origin
       - name: Install Node.js
@@ -248,6 +258,8 @@ jobs:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
       - name: Fetch Origin
         run: git fetch origin
       - name: Install Node.js
@@ -298,6 +310,8 @@ jobs:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
       - name: Fetch Origin
         run: git fetch origin
       - name: Install Node.js
@@ -348,6 +362,8 @@ jobs:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
       - name: Fetch Origin
         run: git fetch origin
       - name: Install Node.js
@@ -398,6 +414,8 @@ jobs:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
       - name: Fetch Origin
         run: git fetch origin
       - name: Install Node.js
@@ -451,6 +469,8 @@ jobs:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
       - name: Fetch Origin
         run: git fetch origin
       - name: Install Node.js
