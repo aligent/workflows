@@ -21,6 +21,7 @@
 | skip-test-storybook | ❌ | boolean | false | If the test-storybook step should be skipped |
 | skip-check-types | ❌ | boolean | false | If the check-types step should be skipped |
 | debug           | ❌      | boolean  | false            | If debug flags should be set |
+| fetch-depth     | ❌      | number   | 1                | Number of commits to fetch. 0 indicates all history for all branches and tags |
 
 #### **Secrets**
 | Name          | Required | Description                        |
