@@ -4,6 +4,11 @@ on:
   workflow_call:
     inputs:
       # Core Configuration
+      stack-name:
+        description: "CDK stack name (overrides STACK_NAME variable if provided)"
+        type: string
+        required: false
+        default: ""
       aws-region:
         description: "AWS region for deployment"
         type: string
@@ -14,7 +19,7 @@ on:
         type: string
         required: false
         default: ""
-      
+
       # Deployment Control
       bootstrap:
         description: "Bootstrap CDK environment before deployment"
@@ -36,7 +41,7 @@ on:
         type: boolean
         required: false
         default: false
-      
+
       # Advanced Configuration
       context-values:
         description: "CDK context values as JSON object"
@@ -174,6 +179,7 @@ jobs:
     environment: ${{ inputs.github-environment }}
     outputs:
       context-args: ${{ steps.context-config.outputs.args }}
+      stack-name: ${{ steps.resolve-stack-name.outputs.stack-name }}
       sanitised-cdk-stack-name: ${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
       cdk-bootstrap-cmd: ${{ steps.parse-cdk-config.outputs.bootstrap-cmd }}
       cdk-synth-cmd: ${{ steps.parse-cdk-config.outputs.synth-cmd }}
@@ -197,12 +203,23 @@ jobs:
           echo "diff-cmd=${{ inputs.diff-command }}" >> $GITHUB_OUTPUT
           echo "deploy-cmd=${{ inputs.deploy-command }}" >> $GITHUB_OUTPUT
 
+      - name: Resolve stack name
+        id: resolve-stack-name
+        run: |
+          # Input takes priority over variable
+          if [ -n "${{ inputs.stack-name }}" ]; then
+            STACK_NAME="${{ inputs.stack-name }}"
+          else
+            STACK_NAME="${{ vars.STACK_NAME }}"
+          fi
+          echo "stack-name=$STACK_NAME" >> $GITHUB_OUTPUT
+
       - name: Validate required inputs
         run: |
           echo "🔍 Validating deployment configuration..."
 
           ENVIRONMENT="${{ inputs.github-environment }}"
-          STACK_NAME="${{ vars.STACK_NAME }}"
+          STACK_NAME="${{ steps.resolve-stack-name.outputs.stack-name }}"
           AWS_ACCESS_KEY_ID="${{ vars.AWS_ACCESS_KEY_ID }}"
           AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
 
@@ -213,11 +230,11 @@ jobs:
           echo "ℹ️ Using variables from $ENVIRONMENT environment"
 
           if [ -z "$STACK_NAME" ]; then
-            echo "❌ Error: STACK_NAME is not defined as a variable in your $ENVIRONMENT environment"
+            echo "❌ Error: STACK_NAME must be provided via input or as a variable in your $ENVIRONMENT environment"
             exit 1
           fi
 
-          echo "ℹ️ STACK_NAME set from variable: $STACK_NAME"
+          echo "✅ STACK_NAME: $STACK_NAME"
 
           if [ -z "$AWS_ACCESS_KEY_ID" ]; then
             echo "❌ Error: AWS_ACCESS_KEY_ID is not defined as a variable in your $ENVIRONMENT environment"
@@ -246,7 +263,7 @@ jobs:
               exit 1
               ;;
           esac
-          
+
           # Validate context JSON if provided
           if [ "${{ inputs.context-values }}" != "{}" ]; then
             echo '${{ inputs.context-values }}' | jq . > /dev/null
@@ -261,7 +278,7 @@ jobs:
             echo "❌ Error: At least one of synth, diff, or deploy must be true"
             exit 1
           fi
-          
+
           echo "✅ All inputs validated successfully"
 
       - name: Configure CDK context
@@ -287,7 +304,7 @@ jobs:
       - name: Sanitise stack name
         id: sanitise
         run: |
-          sanitised_cdk_stack_name=$(echo "${{ vars.STACK_NAME }}" | tr -cd '[:alnum:]-_')
+          sanitised_cdk_stack_name=$(echo "${{ steps.resolve-stack-name.outputs.stack-name }}" | tr -cd '[:alnum:]-_')
           echo "sanitised-cdk-stack-name=$sanitised_cdk_stack_name" >> $GITHUB_OUTPUT
 
   # Bootstrap CDK environment if required
@@ -469,7 +486,7 @@ jobs:
 
           SYNTH_CMD="${{ needs.prepare.outputs.cdk-synth-cmd }}"
 
-          $SYNTH_CMD ${{ vars.STACK_NAME }} \
+          $SYNTH_CMD ${{ needs.prepare.outputs.stack-name }} \
             ${{ needs.prepare.outputs.context-args }} \
             ${{ inputs.extra-arguments }} \
             $verbose
@@ -567,11 +584,11 @@ jobs:
 
           DIFF_CMD="${{ needs.prepare.outputs.cdk-diff-cmd }}"
 
-          diff_output=$($DIFF_CMD ${{ vars.STACK_NAME }} \
+          diff_output=$($DIFF_CMD ${{ needs.prepare.outputs.stack-name }} \
             ${{ needs.prepare.outputs.context-args }} \
             ${{ inputs.extra-arguments }} \
             --no-color 2>&1 || true)
-            
+
           # Save diff to file for analysis
           echo "$diff_output" > deployment-diff.txt
 
@@ -603,7 +620,7 @@ jobs:
 
   # Deploy CDK stack
   deploy:
-    name: '🚀 CDK Deploy'
+    name: "🚀 CDK Deploy"
     runs-on: ubuntu-latest
     needs: [setup-node, prepare, synth, diff]
     if: |
@@ -687,11 +704,11 @@ jobs:
             verbose="--verbose"
           fi
 
-          echo "🚀 Deploying CDK stack: ${{ vars.STACK_NAME }}"
+          echo "🚀 Deploying CDK stack: ${{ needs.prepare.outputs.stack-name }}"
 
           DEPLOY_CMD="${{ needs.prepare.outputs.cdk-deploy-cmd }}"
 
-          $DEPLOY_CMD ${{ vars.STACK_NAME }} \
+          $DEPLOY_CMD ${{ needs.prepare.outputs.stack-name }} \
             ${{ needs.prepare.outputs.context-args }} \
             ${{ inputs.extra-arguments }} \
             --require-approval never \
@@ -786,12 +803,12 @@ jobs:
 
           # Check stack status
           stack_status=$(aws cloudformation describe-stacks \
-            --stack-name ${{ vars.STACK_NAME }} \
+            --stack-name ${{ needs.prepare.outputs.stack-name }} \
             --query 'Stacks[0].StackStatus' \
             --output text)
-          
+
           echo "Stack status: $stack_status"
-          
+
           if [[ "$stack_status" =~ ^(CREATE_COMPLETE|UPDATE_COMPLETE)$ ]]; then
             echo "✅ Stack deployment validated successfully"
           else
@@ -805,24 +822,24 @@ jobs:
 
           # Initiate drift detection
           drift_id=$(aws cloudformation detect-stack-drift \
-            --stack-name ${{ vars.STACK_NAME }} \
+            --stack-name ${{ needs.prepare.outputs.stack-name }} \
             --query 'StackDriftDetectionId' \
             --output text)
-          
+
           echo "Drift detection initiated: $drift_id"
-          
+
           # Wait for drift detection to complete
           aws cloudformation wait stack-drift-detection-complete \
             --stack-drift-detection-id $drift_id
-          
+
           # Get drift detection results
           drift_status=$(aws cloudformation describe-stack-drift-detection-status \
             --stack-drift-detection-id $drift_id \
             --query 'StackDriftStatus' \
             --output text)
-          
+
           echo "Stack drift status: $drift_status"
-          
+
           case $drift_status in
             "IN_SYNC")
               echo "✅ No infrastructure drift detected"
@@ -839,12 +856,13 @@ jobs:
         run: |
           echo "📋 Deployment Summary"
           echo "===================="
-          echo "Stack Name: ${{ vars.STACK_NAME }}"
+          echo "Stack Name: ${{ needs.prepare.outputs.stack-name }}"
           echo "Environment: ${{ inputs.github-environment }}"
           echo "Region: ${{ inputs.aws-region }}"
           echo "Status: ${{ needs.deploy.outputs.deployment-status }}"
           echo "Node Version: ${{ needs.setup-node.outputs.node-version }}"
           echo "Package Manager: ${{ needs.setup-node.outputs.package-manager }}"
-          
+
           echo ""
           echo "🎉 Deployment completed successfully!"
+

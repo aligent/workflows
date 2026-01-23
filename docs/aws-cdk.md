@@ -17,6 +17,7 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 | Name | Required | Type | Default | Description |
 |------|----------|------|---------|-------------|
 | **Core Configuration** |
+| stack-name | ❌ | string | | CDK stack name (overrides `STACK_NAME` variable if provided) |
 | aws-region | ❌ | string | ap-southeast-2 | AWS region for deployment |
 | github-environment | ❌ | string | Repository| GitHub Environment name for secrets/variables (e.g., Staging, Production) |
 | **Deployment Control** |
@@ -42,7 +43,7 @@ These should be configured in your GitHub Environment (or at the repository leve
 
 | Name | Required | Type | Description |
 |------|----------|------|-------------|
-| `STACK_NAME` | ✅ | Variable | The name of the CloudFormation stack to deploy |
+| `STACK_NAME` | ❌ | Variable | The name of the CloudFormation stack to deploy (required unless `stack-name` input is provided) |
 | `AWS_ACCESS_KEY_ID` | ✅ | Variable | AWS Access Key ID for authentication |
 | `AWS_SECRET_ACCESS_KEY` | ✅ | Secret | AWS Secret Access Key for authentication |
 | `CFN_EXECUTION_ROLE` | ❌ | Secret | CloudFormation execution role ARN (optional, for cross-account deployments) |
