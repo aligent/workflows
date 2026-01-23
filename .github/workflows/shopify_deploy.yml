@@ -43,6 +43,9 @@ jobs:
           cache: 'yarn'
           cache-dependency-path: ${{ inputs.working-directory }}/yarn.lock
 
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+
       - name: Install dependencies
         working-directory: ${{ inputs.working-directory }}
         run: yarn install --frozen-lockfile
