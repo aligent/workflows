@@ -211,13 +211,24 @@ jobs:
             fi
           done <<< "${{ secrets.ENV_VARS }}"
 
+      - name: Check build command exists
+        id: check-build
+        uses: ./.github/actions/command-exists
+        with:
+          command: ${{ inputs.build-command }}
+
       - name: Build
+        if: steps.check-build.outputs.exists == 'true'
         run: ${{ inputs.package-manager }} run ${{ inputs.build-command }} ${{ inputs.debug && '--verbose' || '' }}
+
+      - name: Skip build (command not found)
+        if: steps.check-build.outputs.exists != 'true'
+        run: echo "Build command '${{ inputs.build-command }}' not found, skipping"
 
   test:
     name: 🧪 Pull Request Checks
     needs: [install]
-    if: inputs.skip-test == false && inputs.skip-lint == false && inputs.skip-format == false && inputs.skip-test-storybook == false && inputs.skip-check-types == false
+    if: inputs.skip-test == false || inputs.skip-lint == false || inputs.skip-format == false || inputs.skip-test-storybook == false || inputs.skip-check-types == false
     runs-on: ubuntu-latest
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -263,14 +274,67 @@ jobs:
             fi
           done <<< "${{ secrets.ENV_VARS }}"
 
-      - name: Run checks concurrently
-        run: |
-          debug=${{ inputs.debug && '--verbose' || '' }}
-          pm=${{ inputs.package-manager }}
+      - name: Check test command exists
+        id: check-test
+        if: inputs.skip-test == false
+        uses: ./.github/actions/command-exists
+        with:
+          command: ${{ inputs.test-command }}
 
-          parallel --tag --keep-order --line-buffer ::: \
-            "$pm run ${{ inputs.test-command }} $debug" \
-            "$pm run ${{ inputs.lint-command }} $debug" \
-            "$pm run ${{ inputs.format-command }} $debug" \
-            "$pm run ${{ inputs.test-storybook-command }} $debug" \
-            "$pm run ${{ inputs.check-types-command }} $debug"
+      - name: Check lint command exists
+        id: check-lint
+        if: inputs.skip-lint == false
+        uses: ./.github/actions/command-exists
+        with:
+          command: ${{ inputs.lint-command }}
+
+      - name: Check format command exists
+        id: check-format
+        if: inputs.skip-format == false
+        uses: ./.github/actions/command-exists
+        with:
+          command: ${{ inputs.format-command }}
+
+      - name: Check test-storybook command exists
+        id: check-test-storybook
+        if: inputs.skip-test-storybook == false
+        uses: ./.github/actions/command-exists
+        with:
+          command: ${{ inputs.test-storybook-command }}
+
+      - name: Check check-types command exists
+        id: check-check-types
+        if: inputs.skip-check-types == false
+        uses: ./.github/actions/command-exists
+        with:
+          command: ${{ inputs.check-types-command }}
+
+      - name: Build commands list
+        id: build-commands
+        run: |
+          commands=()
+          if [ "${{ inputs.skip-test }}" != "true" ] && [ "${{ steps.check-test.outputs.exists }}" == "true" ]; then
+            commands+=("${{ inputs.test-command }}")
+          fi
+          if [ "${{ inputs.skip-lint }}" != "true" ] && [ "${{ steps.check-lint.outputs.exists }}" == "true" ]; then
+            commands+=("${{ inputs.lint-command }}")
+          fi
+          if [ "${{ inputs.skip-format }}" != "true" ] && [ "${{ steps.check-format.outputs.exists }}" == "true" ]; then
+            commands+=("${{ inputs.format-command }}")
+          fi
+          if [ "${{ inputs.skip-test-storybook }}" != "true" ] && [ "${{ steps.check-test-storybook.outputs.exists }}" == "true" ]; then
+            commands+=("${{ inputs.test-storybook-command }}")
+          fi
+          if [ "${{ inputs.skip-check-types }}" != "true" ] && [ "${{ steps.check-check-types.outputs.exists }}" == "true" ]; then
+            commands+=("${{ inputs.check-types-command }}")
+          fi
+          # Convert to JSON array
+          json=$(printf '%s\n' "${commands[@]}" | jq -R . | jq -s -c .)
+          echo "commands=$json" >> $GITHUB_OUTPUT
+
+      - name: Run checks concurrently
+        uses: ./.github/actions/run-checks
+        with:
+          package-manager: ${{ inputs.package-manager }}
+          debug: ${{ inputs.debug }}
+          commands: ${{ steps.build-commands.outputs.commands }}
