@@ -161,48 +161,10 @@ jobs:
           name: node_modules
           path: node_modules.tar.gz
 
-  check-commands:
-    name: 📝 Check Commands
-    runs-on: ubuntu-latest
-    outputs:
-      has-build: ${{ steps.check.outputs.has-build }}
-      has-test: ${{ steps.check.outputs.has-test }}
-      has-lint: ${{ steps.check.outputs.has-lint }}
-      has-format: ${{ steps.check.outputs.has-format }}
-      has-test-storybook: ${{ steps.check.outputs.has-test-storybook }}
-      has-check-types: ${{ steps.check.outputs.has-check-types }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: ${{ inputs.fetch-depth }}
-      - id: check
-        run: |
-          scripts=$(jq -r '.scripts | keys[]' package.json)
-
-          check_command() {
-            command_name="$1"
-            output_name="$2"
-
-            if echo "$scripts" | grep -q "^$command_name$"; then
-              echo "$command_name script found"
-              echo "has-$output_name=true" >> $GITHUB_OUTPUT
-            else
-              echo "$command_name script not found"
-              echo "has-$output_name=false" >> $GITHUB_OUTPUT
-            fi
-          }
-
-          check_command "${{ inputs.build-command }}" "build"
-          check_command "${{ inputs.test-command }}" "test"
-          check_command "${{ inputs.lint-command }}" "lint"
-          check_command "${{ inputs.format-command }}" "format"
-          check_command "${{ inputs.test-storybook-command }}" "test-storybook"
-          check_command "${{ inputs.check-types-command }}" "check-types"
-
   build:
     name: 🏗️ Build
-    needs: [install, check-commands]
-    if: inputs.skip-build == false && needs.check-commands.outputs.has-build == 'true'
+    needs: [install]
+    if: inputs.skip-build == false
     runs-on: ubuntu-latest
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -252,9 +214,9 @@ jobs:
         run: ${{ inputs.package-manager }} run ${{ inputs.build-command }} ${{ inputs.debug && '--verbose' || '' }}
 
   test:
-    name: 🧪 Test
-    needs: [install, check-commands]
-    if: inputs.skip-test == false && needs.check-commands.outputs.has-test == 'true'
+    name: 🧪 Pull Request Checks
+    needs: [install]
+    if: inputs.skip-test == false && inputs.skip-lint == false && inputs.skip-format == false && inputs.skip-test-storybook == false && inputs.skip-check-types == false
     runs-on: ubuntu-latest
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -303,213 +265,14 @@ jobs:
       - name: Test
         run: ${{ inputs.package-manager }} run ${{ inputs.test-command }} ${{ inputs.debug && '--verbose' || '' }}
 
-  lint:
-    name: 🛞 Lint
-    needs: [install, check-commands]
-    if: inputs.skip-lint == false && needs.check-commands.outputs.has-lint == 'true'
-    runs-on: ubuntu-latest
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: ${{ inputs.fetch-depth }}
-      - name: Fetch Origin
-        run: git fetch origin
-      - name: Install Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          package-manager-cache: false
-      - name: Enable Corepack
-        run: |
-          # Enable corepack if packageManager is specified in package.json
-          if [ -f package.json ] && jq -e '.packageManager' package.json > /dev/null 2>&1; then
-            echo "packageManager field detected in package.json, enabling corepack"
-            corepack enable
-          fi
-      - name: Configure Dependency Cache
-        uses: actions/setup-node@v5
-        with:
-          cache: ${{ inputs.package-manager }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: node_modules
-      - name: Extract node_modules with tar
-        run: tar -xvzf node_modules.tar.gz -C .
-      - name: Setup additional environment variables
-        if: inputs.has-env-vars
-        run: |
-          # Parse and set additional environment variables securely
-          while IFS= read -r line || [ -n "$line" ]; do
-            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
-              key="${line%%=*}"
-              value="${line#*=}"
-              # Mask the value in logs
-              echo "::add-mask::${value}"
-              echo "Setting environment variable: ${key}"
-              echo "${key}=${value}" >> $GITHUB_ENV
-            fi
-          done <<< "${{ secrets.ENV_VARS }}"
-
       - name: Lint
         run: ${{ inputs.package-manager }} run ${{ inputs.lint-command }} ${{ inputs.debug && '--verbose' || '' }}
-
-  format:
-    name: 🖌️ Format
-    needs: [install, check-commands]
-    if: inputs.skip-format == false && needs.check-commands.outputs.has-format == 'true'
-    runs-on: ubuntu-latest
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: ${{ inputs.fetch-depth }}
-      - name: Fetch Origin
-        run: git fetch origin
-      - name: Install Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          package-manager-cache: false
-      - name: Enable Corepack
-        run: |
-          # Enable corepack if packageManager is specified in package.json
-          if [ -f package.json ] && jq -e '.packageManager' package.json > /dev/null 2>&1; then
-            echo "packageManager field detected in package.json, enabling corepack"
-            corepack enable
-          fi
-      - name: Configure Dependency Cache
-        uses: actions/setup-node@v5
-        with:
-          cache: ${{ inputs.package-manager }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: node_modules
-      - name: Extract node_modules with tar
-        run: tar -xvzf node_modules.tar.gz -C .
-      - name: Setup additional environment variables
-        if: inputs.has-env-vars
-        run: |
-          # Parse and set additional environment variables securely
-          while IFS= read -r line || [ -n "$line" ]; do
-            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
-              key="${line%%=*}"
-              value="${line#*=}"
-              # Mask the value in logs
-              echo "::add-mask::${value}"
-              echo "Setting environment variable: ${key}"
-              echo "${key}=${value}" >> $GITHUB_ENV
-            fi
-          done <<< "${{ secrets.ENV_VARS }}"
 
       - name: Format
         run: ${{ inputs.package-manager }} run ${{ inputs.format-command }} ${{ inputs.debug && '--verbose' || '' }}
 
-  test-storybook:
-    name: 📖 Test Storybook
-    needs: [install, check-commands]
-    if: inputs.skip-test-storybook == false && needs.check-commands.outputs.has-test-storybook == 'true'
-    runs-on: ubuntu-latest
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: ${{ inputs.fetch-depth }}
-      - name: Fetch Origin
-        run: git fetch origin
-      - name: Install Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          package-manager-cache: false
-      - name: Enable Corepack
-        run: |
-          # Enable corepack if packageManager is specified in package.json
-          if [ -f package.json ] && jq -e '.packageManager' package.json > /dev/null 2>&1; then
-            echo "packageManager field detected in package.json, enabling corepack"
-            corepack enable
-          fi
-      - name: Configure Dependency Cache
-        uses: actions/setup-node@v5
-        with:
-          cache: ${{ inputs.package-manager }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: node_modules
-      - name: Extract node_modules with tar
-        run: tar -xvzf node_modules.tar.gz -C .
-
-      - name: Install Playwright
-        run: npx playwright install
-      - name: Setup additional environment variables
-        if: inputs.has-env-vars
-        run: |
-          # Parse and set additional environment variables securely
-          while IFS= read -r line || [ -n "$line" ]; do
-            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
-              key="${line%%=*}"
-              value="${line#*=}"
-              # Mask the value in logs
-              echo "::add-mask::${value}"
-              echo "Setting environment variable: ${key}"
-              echo "${key}=${value}" >> $GITHUB_ENV
-            fi
-          done <<< "${{ secrets.ENV_VARS }}"
-
       - name: Test Storybook
         run: ${{ inputs.package-manager }} run ${{ inputs.test-storybook-command }} ${{ inputs.debug && '--verbose' || '' }}
-
-  check-types:
-    name: 🔍 Check Types
-    needs: [install, check-commands]
-    if: inputs.skip-check-types == false && needs.check-commands.outputs.has-check-types == 'true'
-    runs-on: ubuntu-latest
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: ${{ inputs.fetch-depth }}
-      - name: Fetch Origin
-        run: git fetch origin
-      - name: Install Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          package-manager-cache: false
-      - name: Enable Corepack
-        run: |
-          # Enable corepack if packageManager is specified in package.json
-          if [ -f package.json ] && jq -e '.packageManager' package.json > /dev/null 2>&1; then
-            echo "packageManager field detected in package.json, enabling corepack"
-            corepack enable
-          fi
-      - name: Configure Dependency Cache
-        uses: actions/setup-node@v5
-        with:
-          cache: ${{ inputs.package-manager }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: node_modules
-      - name: Extract node_modules with tar
-        run: tar -xvzf node_modules.tar.gz -C .
-      - name: Setup additional environment variables
-        if: inputs.has-env-vars
-        run: |
-          # Parse and set additional environment variables securely
-          while IFS= read -r line || [ -n "$line" ]; do
-            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
-              key="${line%%=*}"
-              value="${line#*=}"
-              # Mask the value in logs
-              echo "::add-mask::${value}"
-              echo "Setting environment variable: ${key}"
-              echo "${key}=${value}" >> $GITHUB_ENV
-            fi
-          done <<< "${{ secrets.ENV_VARS }}"
 
       - name: Check Types
         run: ${{ inputs.package-manager }} run ${{ inputs.check-types-command }} ${{ inputs.debug && '--verbose' || '' }}
@@ -517,9 +280,9 @@ jobs:
   cleanup:
     name: 🧹 Cleanup
     runs-on: ubuntu-latest
-    needs: [install, build, test, lint, format, test-storybook, check-types]
+    needs: [install, build, test]
     if: always() # Run this step regardless of success of other steps
-    permissions: 
+    permissions:
       actions: write
     steps:
       - name: Delete 'node_modules' artifact from this run
