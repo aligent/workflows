@@ -262,20 +262,17 @@ jobs:
             fi
           done <<< "${{ secrets.ENV_VARS }}"
 
-      - name: Test
-        run: ${{ inputs.package-manager }} run ${{ inputs.test-command }} ${{ inputs.debug && '--verbose' || '' }}
+      - name: Run checks concurrently
+        run: |
+          debug=${{ inputs.debug && '--verbose' || '' }}
+          pm=${{ inputs.package-manager }}
 
-      - name: Lint
-        run: ${{ inputs.package-manager }} run ${{ inputs.lint-command }} ${{ inputs.debug && '--verbose' || '' }}
-
-      - name: Format
-        run: ${{ inputs.package-manager }} run ${{ inputs.format-command }} ${{ inputs.debug && '--verbose' || '' }}
-
-      - name: Test Storybook
-        run: ${{ inputs.package-manager }} run ${{ inputs.test-storybook-command }} ${{ inputs.debug && '--verbose' || '' }}
-
-      - name: Check Types
-        run: ${{ inputs.package-manager }} run ${{ inputs.check-types-command }} ${{ inputs.debug && '--verbose' || '' }}
+          parallel --tag --keep-order --line-buffer ::: \
+            "$pm run ${{ inputs.test-command }} $debug" \
+            "$pm run ${{ inputs.lint-command }} $debug" \
+            "$pm run ${{ inputs.format-command }} $debug" \
+            "$pm run ${{ inputs.test-storybook-command }} $debug" \
+            "$pm run ${{ inputs.check-types-command }} $debug"
 
   cleanup:
     name: 🧹 Cleanup
