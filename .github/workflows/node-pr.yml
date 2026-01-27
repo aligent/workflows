@@ -213,7 +213,7 @@ jobs:
 
       - name: Check build command exists
         id: check-build
-        uses: aligent/workflows/.github/actions/command-exists@feature/DO-1984-reduce-cost
+        uses: aligent/workflows/.github/actions/command-exists@main
         with:
           command: ${{ inputs.build-command }}
 
@@ -277,35 +277,35 @@ jobs:
       - name: Check test command exists
         id: check-test
         if: inputs.skip-test == false
-        uses: aligent/workflows/.github/actions/command-exists@feature/DO-1984-reduce-cost
+        uses: aligent/workflows/.github/actions/command-exists@main
         with:
           command: ${{ inputs.test-command }}
 
       - name: Check lint command exists
         id: check-lint
         if: inputs.skip-lint == false
-        uses: aligent/workflows/.github/actions/command-exists@feature/DO-1984-reduce-cost
+        uses: aligent/workflows/.github/actions/command-exists@main
         with:
           command: ${{ inputs.lint-command }}
 
       - name: Check format command exists
         id: check-format
         if: inputs.skip-format == false
-        uses: aligent/workflows/.github/actions/command-exists@feature/DO-1984-reduce-cost
+        uses: aligent/workflows/.github/actions/command-exists@main
         with:
           command: ${{ inputs.format-command }}
 
       - name: Check test-storybook command exists
         id: check-test-storybook
         if: inputs.skip-test-storybook == false
-        uses: aligent/workflows/.github/actions/command-exists@feature/DO-1984-reduce-cost
+        uses: aligent/workflows/.github/actions/command-exists@main
         with:
           command: ${{ inputs.test-storybook-command }}
 
       - name: Check check-types command exists
         id: check-check-types
         if: inputs.skip-check-types == false
-        uses: aligent/workflows/.github/actions/command-exists@feature/DO-1984-reduce-cost
+        uses: aligent/workflows/.github/actions/command-exists@main
         with:
           command: ${{ inputs.check-types-command }}
 
@@ -333,7 +333,7 @@ jobs:
           echo "commands=$json" >> $GITHUB_OUTPUT
 
       - name: Run checks concurrently
-        uses: aligent/workflows/.github/actions/run-checks@feature/DO-1984-reduce-cost
+        uses: aligent/workflows/.github/actions/run-checks@main
         with:
           package-manager: ${{ inputs.package-manager }}
           debug: ${{ inputs.debug }}
