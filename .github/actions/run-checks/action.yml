@@ -1,0 +1,39 @@
+name: "Run Checks Concurrently"
+description: "Runs multiple npm/yarn scripts in parallel using GNU parallel"
+
+inputs:
+  package-manager:
+    description: "Package manager to use (yarn/npm/pnpm)"
+    required: true
+  commands:
+    description: "JSON array of command names to run, e.g. '[\"test\", \"lint\", \"format\"]'"
+    required: true
+  debug:
+    description: "Enable verbose output"
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      run: |
+        debug=${{ inputs.debug == 'true' && '--verbose' || '' }}
+        pm=${{ inputs.package-manager }}
+
+        # Parse JSON array of commands
+        readarray -t commands < <(echo '${{ inputs.commands }}' | jq -r '.[]')
+
+        if [ ${#commands[@]} -gt 0 ]; then
+          # Build the full command strings
+          full_commands=()
+          for cmd in "${commands[@]}"; do
+            full_commands+=("$pm run $cmd $debug")
+          done
+
+          echo "Running ${#full_commands[@]} check(s) in parallel..."
+          parallel --tag --keep-order --line-buffer ::: "${full_commands[@]}"
+        else
+          echo "No commands to run"
+        fi
