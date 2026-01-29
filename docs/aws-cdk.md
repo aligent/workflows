@@ -92,7 +92,9 @@ jobs:
 
 **PR Diff (Multiple Environments):**
 
-To diff against both staging and production on every pull request, use separate jobs with different GitHub Environments. Each environment should have its own `STACK_NAME`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` configured.
+- Each environment should have its own `STACK_NAME`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` configured.
+
+- `github.base_ref` references the name of the target branch for staging and production 
 
 ```yaml
 on:
@@ -102,6 +104,7 @@ on:
 
 jobs:
   diff-staging:
+    if: github.base_ref == 'staging'
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
       github-environment: Staging
@@ -109,6 +112,7 @@ jobs:
     secrets: inherit
 
   diff-production:
+    if: github.base_ref == 'production'
     uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
     with:
       github-environment: Production
