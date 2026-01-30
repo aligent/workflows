@@ -4,9 +4,14 @@ on:
   workflow_call:
     inputs:
       app-name:
-        description: "Gadget App name to deploy too (required)"
+        description: "Gadget App name to deploy to (required)"
         type: string
         required: true
+      working-directory:
+        description: "Working directory for the Gadget app"
+        type: string
+        required: false
+        default: "."
       deploy-production:
         description: "Boolean to check if deploy to production"
         type: boolean
@@ -44,6 +49,7 @@ jobs:
 
       - name: Push code to environment in Gadget
         id: push-environment
+        working-directory: ${{ inputs.working-directory }}
         run: |
           ggt push --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory 
 
@@ -63,22 +69,26 @@ jobs:
           ggt version
 
       - name: Pull client files into env # pull .gadget folder into test runner
+        working-directory: ${{ inputs.working-directory }}
         run: |
           ggt pull --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version-file: ${{ inputs.working-directory }}/.nvmrc
           cache: yarn
+          cache-dependency-path: ${{ inputs.working-directory }}/yarn.lock
 
       - name: Install safe-chain
         run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
 
       - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
         run: yarn --frozen-lockfile
 
       - name: Run tests
+        working-directory: ${{ inputs.working-directory }}
         run: yarn test
 
   deploy:
@@ -90,6 +100,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Install ggt
+        run: |
+          npm install -g ggt
+          ggt version
+
       - name: Deploy (promote) to Production environment in Gadget
+        working-directory: ${{ inputs.working-directory }}
         run: |
           ggt deploy --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory --allow-problems
