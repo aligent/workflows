@@ -30,6 +30,7 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 | environment-target | ❌ | string |  | Target environment for CDK context (stg/prd/dev) - passed as `--context environment=<value>` |
 | extra-arguments | ❌ | string |  | Extra arguments as string |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
+| lfs | ❌ | boolean | false | Enable Git LFS support for checkout |
 | **Custom CDK Commands** |
 | bootstrap-command | ❌ | string | npx cdk bootstrap | Custom bootstrap command |
 | synth-command | ❌ | string | npx cdk synth | Custom synth command |
