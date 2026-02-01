@@ -3,6 +3,7 @@ name: 🤖 Gadget Deploy
 on:
   workflow_call:
     inputs:
+      # Core Configuration
       app-name:
         description: "Gadget App name to deploy to (required)"
         type: string
@@ -12,18 +13,24 @@ on:
         type: string
         required: false
         default: "."
-      deploy-production:
-        description: "Boolean to check if deploy to production"
+      environment-name: 
+        description: "Staging/Development environment of Gadget App to push code"
+        type: string
+        default: "staging"
+
+      # Deployment Control
+      push-staging:
+        description: "Boolean to check if push to staging/development Gadget environment"
         type: boolean
         default: false
       test:
         description: "Boolean to check if run tests"
         type: boolean
+        default: false    
+      deploy-production:
+        description: "Boolean to check if promot from staging/development to production"
+        type: boolean
         default: false
-      environment-name: 
-        description: "Environment of Gadget App to push code"
-        type: string
-        default: "staging"
 
     secrets:
       gadget-api-token:
@@ -39,6 +46,7 @@ jobs:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
     outputs:
         push-environment-status: ${{ steps.push-environment.outcome }}
+    if: inputs.push-staging == true
     steps:
       - uses: actions/checkout@v5
 
@@ -59,7 +67,7 @@ jobs:
     env:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
     needs: push
-    if: inputs.test == true && needs.push.outputs.push-environment-status == 'success'
+    if: inputs.test == true
     steps:
       - uses: actions/checkout@v5
 

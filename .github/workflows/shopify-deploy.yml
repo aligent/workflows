@@ -8,10 +8,6 @@ on:
         required: false
         type: string
         default: '.'
-      deploy-production:
-        description: "Boolean to check if deploy to production"
-        type: boolean
-        default: false
       development-toml-name:
         description: 'Name of development.toml'
         required: false
@@ -23,6 +19,16 @@ on:
         type: string
         default: 'shopify.app.toml'
 
+      # Deployment Control
+      deploy-staging:
+        description: "Boolean to check if deploy to staging"
+        type: boolean
+        default: false
+      deploy-production:
+        description: "Boolean to check if deploy to production"
+        type: boolean
+        default: false
+
     secrets:
       shopify_cli_token:
         description: 'Shopify CLI authentication token'
@@ -33,6 +39,13 @@ jobs:
     name: Deploy to Shopify
     runs-on: ubuntu-latest
     steps:
+      - name: Check deployment selection
+        if: ${{ inputs.deploy-staging == false && inputs.deploy-production == false }}
+        run: |
+          echo "Error: Neither 'deploy-staging' nor 'deploy-production' is selected."
+          echo "Please select at least one deployment target."
+          exit 1
+          
       - name: Checkout code
         uses: actions/checkout@v5
 
