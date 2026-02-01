@@ -62,6 +62,11 @@ on:
         type: boolean
         required: false
         default: false
+      lfs:
+        description: "Enable Git LFS support for checkout"
+        type: boolean
+        required: false
+        default: false
 
       # Custom CDK Commands
       bootstrap-command:
@@ -105,6 +110,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: ${{ inputs.lfs }}
 
       - name: Detect Node.js version
         id: node-version
@@ -188,6 +195,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: ${{ inputs.lfs }}
 
       - name: Set CDK commands
         id: parse-cdk-config
@@ -317,6 +326,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: ${{ inputs.lfs }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -421,6 +432,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: ${{ inputs.lfs }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -524,6 +537,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: ${{ inputs.lfs }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -646,6 +661,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: ${{ inputs.lfs }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -757,6 +774,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: ${{ inputs.lfs }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
