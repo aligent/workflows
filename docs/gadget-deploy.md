@@ -47,8 +47,8 @@ jobs:
   push-staging:
     uses: aligent/workflows/.github/workflows/gadget-deploy.yml@main
     with:
-      app-name: pj-int
-      working-directory: gadget-apps/pj-gadget-int
+      app-name: my-gadget-app
+      working-directory: apps/gadget-app
       environment-name: staging
       push-staging: true
     secrets:
@@ -87,8 +87,8 @@ on:
 jobs:
   push-and-test:
     with:
-      app-name: pj-int
-      working-directory: gadget-apps/pj-gadget-int
+      app-name: my-gadget-app
+      working-directory: apps/gadget-app
       environment-name: staging
       push-staging: true
       test: true
@@ -108,8 +108,8 @@ jobs:
   deploy-production:
     uses: aligent/workflows/.github/workflows/gadget-deploy.yml@main
     with:
-      app-name: pj-int
-      working-directory: gadget-apps/pj-gadget-int
+      app-name: my-gadget-app
+      working-directory: apps/gadget-app
       environment-name: staging
       deploy-production: true
     secrets:
