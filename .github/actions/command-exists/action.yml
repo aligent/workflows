@@ -7,14 +7,17 @@ inputs:
     required: true
 
 outputs:
-  exists:
-    description: "Whether the command exists (true/false)"
-    value: ${{ steps.check.outputs.exists }}
+  exists-script:
+    description: "Whether the command exists in package.json scripts (true/false)"
+    value: ${{ steps.check-script.outputs.exists }}
+  exists-nx-target:
+    description: "Whether the command exists as an Nx target (true/false)"
+    value: ${{ steps.check-nx.outputs.exists }}
 
 runs:
   using: composite
   steps:
-    - id: check
+    - id: check-script
       shell: bash
       run: |
         cmd="${{ inputs.command }}"
@@ -64,6 +67,13 @@ runs:
             done
           done
         fi
+
+        echo "exists=false" >> $GITHUB_OUTPUT
+
+    - id: check-nx
+      shell: bash
+      run: |
+        cmd="${{ inputs.command }}"
 
         # Check Nx targets if this is an Nx workspace
         if [ -f "nx.json" ]; then
