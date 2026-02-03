@@ -398,11 +398,13 @@ jobs:
             fi
 
             account_id="$(aws sts get-caller-identity --query Account --output text)"
+            # shellcheck disable=SC2086
             $BOOTSTRAP_CMD \
               "aws://${account_id}/${{ inputs.aws-region }}" \
               $role_args \
               $verbose
           else
+            # shellcheck disable=SC2086
             $BOOTSTRAP_CMD ${{ inputs.extra-arguments }} $verbose
           fi
 

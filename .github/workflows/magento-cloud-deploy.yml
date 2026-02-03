@@ -307,11 +307,8 @@ jobs:
             CST_PROJECT_KEY="${{ vars.CST_PROJECT_KEY }}"
           fi
           
-          # Determine CST reporting key - input overrides workspace secret
+          # Determine CST reporting key from workflow secret
           CST_KEY="${{ secrets.cst-reporting-token }}"
-          if [ -z "$CST_KEY" ]; then
-            CST_KEY="${{ secrets.CST_REPORTING_TOKEN }}"
-          fi
           
           # Check if we have all required CST configuration
           if [ -z "$CST_ENDPOINT" ] || [ -z "$CST_PROJECT_KEY" ] || [ -z "$CST_KEY" ]; then

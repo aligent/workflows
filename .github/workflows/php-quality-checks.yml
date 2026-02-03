@@ -283,6 +283,7 @@ jobs:
           if [ -n "$dirs" ]; then
             echo "Creating archive with:$dirs"
             # Use --warning=no-file-changed to suppress warnings about files changing during archive
+            # shellcheck disable=SC2086
             tar --warning=no-file-changed -czf dependencies.tar.gz $dirs
 
             # Show archive size for debugging
