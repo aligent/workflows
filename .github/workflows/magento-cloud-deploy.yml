@@ -101,9 +101,9 @@ jobs:
         run: |
           echo "📦 Installing Magento Cloud CLI..."
           curl -fsS https://accounts.magento.cloud/cli/installer | php
-          export PATH=$HOME/.magento-cloud/bin:$PATH
-          echo "$HOME/.magento-cloud/bin" >> $GITHUB_PATH
-          
+          export PATH="$HOME/.magento-cloud/bin:$PATH"
+          echo "$HOME/.magento-cloud/bin" >> "$GITHUB_PATH"
+
           # Verify installation
           magento-cloud --version
           echo "✅ Magento Cloud CLI installed successfully"
@@ -166,33 +166,41 @@ jobs:
 
       - name: Generate deployment summary
         run: |
-          echo "## 🛍️ Magento Cloud Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Project ID** | ${{ inputs.magento-cloud-project-id }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Environment** | ${{ inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Deployment ID** | ${{ steps.deploy-info.outputs.id }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Site URL** | [${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }}) |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Git Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Deployed By** | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
+          {
+            echo "## 🛍️ Magento Cloud Deployment Summary"
+            echo ""
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| **Project ID** | ${{ inputs.magento-cloud-project-id }} |"
+            echo "| **Environment** | ${{ inputs.environment }} |"
+            echo "| **Deployment ID** | ${{ steps.deploy-info.outputs.id }} |"
+            echo "| **Site URL** | [${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }}) |"
+            echo "| **Git Commit** | ${{ github.sha }} |"
+            echo "| **Deployed By** | ${{ github.actor }} |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
           case "${{ inputs.environment }}" in
             "production")
-              echo "### 🌍 Production Deployment" >> $GITHUB_STEP_SUMMARY
-              echo "Your Magento store is now live at:" >> $GITHUB_STEP_SUMMARY
-              echo "**[${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }})**" >> $GITHUB_STEP_SUMMARY
+              {
+                echo "### 🌍 Production Deployment"
+                echo "Your Magento store is now live at:"
+                echo "**[${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }})**"
+              } >> "$GITHUB_STEP_SUMMARY"
               ;;
             "staging")
-              echo "### 🚀 Staging Environment" >> $GITHUB_STEP_SUMMARY
-              echo "Staging environment updated successfully:" >> $GITHUB_STEP_SUMMARY
-              echo "**[${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }})**" >> $GITHUB_STEP_SUMMARY
+              {
+                echo "### 🚀 Staging Environment"
+                echo "Staging environment updated successfully:"
+                echo "**[${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }})**"
+              } >> "$GITHUB_STEP_SUMMARY"
               ;;
             *)
-              echo "### 🔧 Integration Environment" >> $GITHUB_STEP_SUMMARY
-              echo "Integration environment deployed for testing:" >> $GITHUB_STEP_SUMMARY
-              echo "**[${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }})**" >> $GITHUB_STEP_SUMMARY
+              {
+                echo "### 🔧 Integration Environment"
+                echo "Integration environment deployed for testing:"
+                echo "**[${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }})**"
+              } >> "$GITHUB_STEP_SUMMARY"
               ;;
           esac
 

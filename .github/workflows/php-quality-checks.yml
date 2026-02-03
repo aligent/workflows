@@ -137,10 +137,10 @@ jobs:
         run: |
           if [ -f "composer.json" ]; then
             echo "✅ composer.json found"
-            echo "has-composer=true" >> $GITHUB_OUTPUT
+            echo "has-composer=true" >> "$GITHUB_OUTPUT"
           else
             echo "❌ composer.json not found"
-            echo "has-composer=false" >> $GITHUB_OUTPUT
+            echo "has-composer=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Check for analysis tool configurations
@@ -149,19 +149,19 @@ jobs:
           # Check for PHPStan
           if [ -f "phpstan.neon" ] || [ -f "phpstan.neon.dist" ] || [ -f "phpstan.dist.neon" ]; then
             echo "✅ PHPStan configuration found"
-            echo "has-phpstan-config=true" >> $GITHUB_OUTPUT
+            echo "has-phpstan-config=true" >> "$GITHUB_OUTPUT"
           else
             echo "ℹ️ No PHPStan configuration found, will use defaults"
-            echo "has-phpstan-config=false" >> $GITHUB_OUTPUT
+            echo "has-phpstan-config=false" >> "$GITHUB_OUTPUT"
           fi
 
           # Check for PHPCS
           if [ -f "phpcs.xml" ] || [ -f "phpcs.xml.dist" ] || [ -f "phpcs.dist.xml" ] || [ -f ".phpcs.xml" ]; then
             echo "✅ PHPCS configuration found"
-            echo "has-phpcs-config=true" >> $GITHUB_OUTPUT
+            echo "has-phpcs-config=true" >> "$GITHUB_OUTPUT"
           else
             echo "ℹ️ No PHPCS configuration found, will use standard"
-            echo "has-phpcs-config=false" >> $GITHUB_OUTPUT
+            echo "has-phpcs-config=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Check for test configurations
@@ -170,37 +170,37 @@ jobs:
           # Check for Unit tests
           if [ -f "dev/tests/unit/phpunit.xml" ]; then
             echo "✅ PHPUnit configuration found"
-            echo "has-unit-tests=true" >> $GITHUB_OUTPUT
+            echo "has-unit-tests=true" >> "$GITHUB_OUTPUT"
           else
             echo "ℹ️ No PHPUnit configuration found"
-            echo "has-unit-tests=false" >> $GITHUB_OUTPUT
+            echo "has-unit-tests=false" >> "$GITHUB_OUTPUT"
           fi
 
           # Check for Integration tests
           if [ -f "dev/tests/integration/phpunit.xml" ]; then
             echo "✅ Integration test configuration found"
-            echo "has-integration-tests=true" >> $GITHUB_OUTPUT
+            echo "has-integration-tests=true" >> "$GITHUB_OUTPUT"
           else
             echo "ℹ️ No integration test configuration found"
-            echo "has-integration-tests=false" >> $GITHUB_OUTPUT
+            echo "has-integration-tests=false" >> "$GITHUB_OUTPUT"
           fi
 
           # Check for REST API tests
           if [ -f "dev/tests/api-functional/phpunit_rest.xml" ]; then
             echo "✅ REST API test configuration found"
-            echo "has-rest-api-tests=true" >> $GITHUB_OUTPUT
+            echo "has-rest-api-tests=true" >> "$GITHUB_OUTPUT"
           else
             echo "ℹ️ No REST API test configuration found"
-            echo "has-rest-api-tests=false" >> $GITHUB_OUTPUT
+            echo "has-rest-api-tests=false" >> "$GITHUB_OUTPUT"
           fi
 
           # Check for GraphQL tests
           if [ -f "dev/tests/api-functional/phpunit_graphql.xml" ]; then
             echo "✅ GraphQL test configuration found"
-            echo "has-graphql-tests=true" >> $GITHUB_OUTPUT
+            echo "has-graphql-tests=true" >> "$GITHUB_OUTPUT"
           else
             echo "ℹ️ No GraphQL test configuration found"
-            echo "has-graphql-tests=false" >> $GITHUB_OUTPUT
+            echo "has-graphql-tests=false" >> "$GITHUB_OUTPUT"
           fi
 
 
@@ -225,10 +225,10 @@ jobs:
 
       - name: Get composer cache directory
         id: composer-cache
-        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
@@ -281,7 +281,7 @@ jobs:
           done
 
           if [ -n "$dirs" ]; then
-            echo "Creating archive with: $dirs"
+            echo "Creating archive with:$dirs"
             # Use --warning=no-file-changed to suppress warnings about files changing during archive
             tar --warning=no-file-changed -czf dependencies.tar.gz $dirs
 
@@ -392,7 +392,7 @@ jobs:
             fi
 
             # Execute PHPStan
-            eval $cmd
+            eval "$cmd"
           else
             echo "Installing PHPStan globally..."
             composer global require phpstan/phpstan:^1.0
@@ -408,7 +408,7 @@ jobs:
             fi
 
             # Execute PHPStan
-            eval $cmd
+            eval "$cmd"
           fi
 
   # PHP CodeSniffer style checks
@@ -481,7 +481,7 @@ jobs:
             if [ "${{ inputs.debug }}" = "true" ]; then
               cmd="$cmd --verbose"
             fi
-            eval $cmd
+            eval "$cmd"
           elif [ -f "vendor/bin/phpcs" ]; then
             echo "✅ Using vendor PHPCS with ${{ inputs.coding-standard }} standard"
             phpcs_cmd="vendor/bin/phpcs"
@@ -495,7 +495,7 @@ jobs:
               cmd="$cmd --verbose"
             fi
 
-            eval $cmd
+            eval "$cmd"
           else
             echo "Installing PHP CodeSniffer globally..."
             composer global require squizlabs/php_codesniffer:^3.0
@@ -515,7 +515,7 @@ jobs:
               cmd="$cmd --verbose"
             fi
 
-            eval $cmd
+            eval "$cmd"
           fi
 
   # PHPUnit testing with coverage
@@ -579,12 +579,12 @@ jobs:
             exit 1
           fi
 
-          # Unit tests need to be excuted from inside this directory
+          # Unit tests need to be executed from inside this directory
           # or we have pathing issues
           pushd dev/tests/unit
 
           # Build PHPUnit command with coverage
-          cmd='php -d memory_limit=${{ inputs.memory-limit }} -d xdebug.mode=coverage $phpunit_cmd -c ./phpunit.xml --testsuite="Unit Tests" --log-junit ./test-results/report.xml'
+          cmd="php -d memory_limit=${{ inputs.memory-limit }} -d xdebug.mode=coverage $phpunit_cmd -c ./phpunit.xml --testsuite=\"Unit Tests\" --log-junit ./test-results/report.xml"
           cmd="$cmd --coverage-text --coverage-clover=coverage.xml"
 
           # Add debug flags if enabled
@@ -593,7 +593,7 @@ jobs:
           fi
 
           # Execute PHPUnit
-          eval $cmd
+          eval "$cmd"
 
       - name: Check coverage threshold
         run: |
@@ -733,7 +733,7 @@ jobs:
           # Run integration tests
           if [ -f "vendor/bin/phpunit" ]; then
             php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit \
-              -c $(pwd)/dev/tests/integration/phpunit.xml \
+              -c "$(pwd)/dev/tests/integration/phpunit.xml" \
               --log-junit ./test-results/integration-report.xml \
               --testsuite="Integration Tests" \
               ${{ inputs.debug && '--verbose' || '' }}
@@ -859,7 +859,7 @@ jobs:
           # Run REST API tests
           if [ -f "vendor/bin/phpunit" ]; then
             php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit \
-              -c $(pwd)/dev/tests/api-functional/phpunit_rest.xml \
+              -c "$(pwd)/dev/tests/api-functional/phpunit_rest.xml" \
               --log-junit ./test-results/rest-api-report.xml \
               --testsuite="REST API Tests" \
               ${{ inputs.debug && '--verbose' || '' }}
@@ -869,8 +869,8 @@ jobs:
           fi
 
           # Kill the PHP server if it was started
-          if [ ! -z "$SERVER_PID" ]; then
-            kill $SERVER_PID || true
+          if [ -n "$SERVER_PID" ]; then
+            kill "$SERVER_PID" || true
           fi
 
       - name: Upload test results
@@ -990,7 +990,7 @@ jobs:
           # Run GraphQL tests
           if [ -f "vendor/bin/phpunit" ]; then
             php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit \
-              -c $(pwd)/dev/tests/api-functional/phpunit_graphql.xml \
+              -c "$(pwd)/dev/tests/api-functional/phpunit_graphql.xml" \
               --log-junit ./test-results/graphql-report.xml \
               --testsuite="GraphQL API Tests" \
               ${{ inputs.debug && '--verbose' || '' }}
@@ -1000,8 +1000,8 @@ jobs:
           fi
 
           # Kill the PHP server if it was started
-          if [ ! -z "$SERVER_PID" ]; then
-            kill $SERVER_PID || true
+          if [ -n "$SERVER_PID" ]; then
+            kill "$SERVER_PID" || true
           fi
 
       - name: Upload test results

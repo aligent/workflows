@@ -116,10 +116,10 @@ jobs:
         run: |
           echo "Checking repository type..."
           if [ -f "nx.json" ]; then
-            echo "is_monorepo=true" >> $GITHUB_OUTPUT
+            echo "is_monorepo=true" >> "$GITHUB_OUTPUT"
             echo "Repository is a monorepo (nx.json found)"
           else
-            echo "is_monorepo=false" >> $GITHUB_OUTPUT
+            echo "is_monorepo=false" >> "$GITHUB_OUTPUT"
             echo "Repository is not a monorepo (nx.json not found)"
           fi
 

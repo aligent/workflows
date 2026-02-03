@@ -36,7 +36,6 @@ on:
         description: "Path to deploy"
         type: string
         required: true
-        default: ""
       DELETE_FLAG:
         description: "Enable __delete flag"
         type: string
@@ -81,7 +80,7 @@ jobs:
           if [ "$DELETE_FLAG_INPUT" = "true" ]; then
             DELETE_FLAG="--delete"
           fi
-          echo "DELETE_FLAG=$DELETE_FLAG" >> $GITHUB_ENV
+          echo "DELETE_FLAG=$DELETE_FLAG" >> "$GITHUB_ENV"
         env:
           DELETE_FLAG_INPUT: ${{ inputs.DELETE_FLAG }}
 

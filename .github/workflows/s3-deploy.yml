@@ -21,7 +21,6 @@ on:
         description: "Path to deploy"
         type: string
         required: true
-        default: ""
       delete-flag:
         description: "Enable --delete flag"
         type: boolean
@@ -53,22 +52,21 @@ jobs:
 
       - name: Deploy to S3
         run: |
-          s3_path=""
-          cache_control=""
-          extra_args=""
+          # Build command arguments as an array to handle quoting correctly
+          cmd=(aws s3 sync "${{ inputs.local-path }}" "s3://${{ inputs.s3-bucket }}${{ inputs.s3-path }}")
 
-          if [ -n "${{inputs.cache-control}}" ]; then
-              cache_control="--cache-control \"${{inputs.cache-control}}\""
+          if [ -n "${{ inputs.cache-control }}" ]; then
+            cmd+=(--cache-control "${{ inputs.cache-control }}")
           fi
 
-          command="aws s3 sync ${{inputs.local-path}} s3://${{inputs.s3-bucket}}${{inputs.s3-path}} ${cache_control} ${{inputs.extra-args}}"
-
-          if [ "${{inputs.delete-flag}}" = "true" ]; then
-            command="$command --delete"
+          if [ "${{ inputs.delete-flag }}" = "true" ]; then
+            cmd+=(--delete)
           fi
 
-          $command
+          # Add extra args if provided (word-split intentionally)
+          if [ -n "${{ inputs.extra-args }}" ]; then
+            # shellcheck disable=SC2086
+            cmd+=(${{ inputs.extra-args }})
+          fi
 
-
-    
-
+          "${cmd[@]}"

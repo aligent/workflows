@@ -1,0 +1,178 @@
+name: Pull Request
+
+on: [pull_request]
+
+jobs:
+  check-readme:
+    name: 📖 Check readme for updates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      
+      - name: Compare package list against readme
+        run: |
+          PACKAGES="$(ls -1 packages | wc -l)"
+          README_PACKAGES="$(grep -Ff <(ls packages) README.md | wc -l)"
+          if [ "$PACKAGES" -eq "$README_PACKAGES" ]; then
+            echo "README correctly lists all packages."
+            exit 0
+          else
+            echo "Mismatch: Found $PACKAGES packages, but README lists $README_PACKAGES."
+            exit 1
+          fi
+
+  install:
+    name: 📦 Install dependencies
+    runs-on: ubuntu-latest
+    outputs:
+      cache-hit: ${{ steps.cache-node-modules.outputs.cache-hit }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Fetch target
+        run: git fetch origin ${{ env.PR_BASE_REF }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+
+      - name: Cache node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: yarn install --frozen-lockfile
+
+    env:
+      PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+
+  lint:
+    name: 🔍 Lint affected packages
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Fetch target
+        run: git fetch origin ${{ env.PR_BASE_REF }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Restore node_modules cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Lint affected packages
+        run: yarn nx affected:lint --base=origin/${{ env.PR_BASE_REF }} --parallel --max-parallel=3 
+
+    env:
+      PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+
+  build:
+    name: 🏭 Build affected packages
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Fetch target
+        run: git fetch origin ${{ env.PR_BASE_REF }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Restore node_modules cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Build affected packages
+        run: yarn nx affected:build --base=origin/${{ env.PR_BASE_REF }} --parallel --max-parallel=3
+
+    env:
+      PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+
+  test:
+    name: 🧪 Run tests
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Fetch target
+        run: git fetch origin ${{ env.PR_BASE_REF }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Restore node_modules cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Build affected packages
+        run: yarn nx affected:build --base=origin/${{ env.PR_BASE_REF }} --parallel --max-parallel=3
+
+      - name: Test affected packages
+        run: yarn nx affected:test --base=origin/${{ env.PR_BASE_REF }} --parallel --max-parallel=3
+
+    env:
+      PR_BASE_REF: ${{ github.event.pull_request.base.ref }}

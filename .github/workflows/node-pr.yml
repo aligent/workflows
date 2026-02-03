@@ -137,7 +137,7 @@ jobs:
               # Mask the value in logs
               echo "::add-mask::${value}"
               echo "Setting environment variable: ${key}"
-              echo "${key}=${value}" >> $GITHUB_ENV
+              echo "${key}=${value}" >> "$GITHUB_ENV"
             fi
           done <<< "${{ secrets.ENV_VARS }}"
       - name: Install dependencies
@@ -207,7 +207,7 @@ jobs:
               # Mask the value in logs
               echo "::add-mask::${value}"
               echo "Setting environment variable: ${key}"
-              echo "${key}=${value}" >> $GITHUB_ENV
+              echo "${key}=${value}" >> "$GITHUB_ENV"
             fi
           done <<< "${{ secrets.ENV_VARS }}"
 
@@ -270,7 +270,7 @@ jobs:
               # Mask the value in logs
               echo "::add-mask::${value}"
               echo "Setting environment variable: ${key}"
-              echo "${key}=${value}" >> $GITHUB_ENV
+              echo "${key}=${value}" >> "$GITHUB_ENV"
             fi
           done <<< "${{ secrets.ENV_VARS }}"
 
@@ -330,7 +330,7 @@ jobs:
           fi
           # Convert to JSON array
           json=$(printf '%s\n' "${commands[@]}" | jq -R . | jq -s -c .)
-          echo "commands=$json" >> $GITHUB_OUTPUT
+          echo "commands=$json" >> "$GITHUB_OUTPUT"
 
       - name: Run checks concurrently
         uses: aligent/workflows/.github/actions/run-checks@main

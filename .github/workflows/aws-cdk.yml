@@ -110,11 +110,11 @@ jobs:
         id: node-version
         run: |
           if [ -f ".nvmrc" ]; then
-            NODE_VERSION=$(cat .nvmrc | tr -d '\n' | tr -d 'v')
-            echo "version=$NODE_VERSION" >> $GITHUB_OUTPUT
-            echo "✅ Using Node.js version from .nvmrc: $NODE_VERSION"
+            NODE_VERSION="$(tr -d '\n' < .nvmrc | tr -d 'v')"
+            echo "version=$NODE_VERSION" >> "$GITHUB_OUTPUT"
+            echo "Using Node.js version from .nvmrc: $NODE_VERSION"
           else
-            echo "❌ Error: No .nvmrc file found. Please create an .nvmrc file with the required Node.js version."
+            echo "Error: No .nvmrc file found. Please create an .nvmrc file with the required Node.js version."
             exit 1
           fi
 
@@ -123,17 +123,17 @@ jobs:
         run: |
           if [ -f "yarn.lock" ]; then
             if [ -f ".yarnrc.yml" ] || [ -f ".yarnrc" ]; then
-              echo "manager=yarn-berry" >> $GITHUB_OUTPUT
+              echo "manager=yarn-berry" >> "$GITHUB_OUTPUT"
               echo "✅ Detected Yarn Berry (v2+)"
             else
-              echo "manager=yarn-classic" >> $GITHUB_OUTPUT
+              echo "manager=yarn-classic" >> "$GITHUB_OUTPUT"
               echo "✅ Detected Yarn Classic (v1)"
             fi
           elif [ -f "pnpm-lock.yaml" ]; then
-            echo "manager=pnpm" >> $GITHUB_OUTPUT
+            echo "manager=pnpm" >> "$GITHUB_OUTPUT"
             echo "✅ Detected pnpm"
           else
-            echo "manager=npm" >> $GITHUB_OUTPUT
+            echo "manager=npm" >> "$GITHUB_OUTPUT"
             echo "✅ Detected npm"
           fi
 
@@ -156,7 +156,7 @@ jobs:
 
           # Initialize yarn and ensure cache directory exists for post-job cache step
           yarn --version
-          CACHE_DIR=$(yarn config get cacheFolder)
+          CACHE_DIR="$(yarn config get cacheFolder)"
           mkdir -p "$CACHE_DIR"
           echo "✅ Corepack enabled and cache directory created: $CACHE_DIR"
 
@@ -170,7 +170,7 @@ jobs:
         id: cache-config
         run: |
           CACHE_KEY="node-${{ steps.node-version.outputs.version }}-${{ steps.detect-package-manager.outputs.manager }}-${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/pnpm-lock.yaml') }}"
-          echo "key=$CACHE_KEY" >> $GITHUB_OUTPUT
+          echo "key=$CACHE_KEY" >> "$GITHUB_OUTPUT"
 
   # Validate inputs and prepare deployment configuration
   prepare:
@@ -192,16 +192,18 @@ jobs:
       - name: Set CDK commands
         id: parse-cdk-config
         run: |
-          echo "✅ CDK commands:"
+          echo "CDK commands:"
           echo "  bootstrap: ${{ inputs.bootstrap-command }}"
           echo "  synth: ${{ inputs.synth-command }}"
           echo "  diff: ${{ inputs.diff-command }}"
           echo "  deploy: ${{ inputs.deploy-command }}"
 
-          echo "bootstrap-cmd=${{ inputs.bootstrap-command }}" >> $GITHUB_OUTPUT
-          echo "synth-cmd=${{ inputs.synth-command }}" >> $GITHUB_OUTPUT
-          echo "diff-cmd=${{ inputs.diff-command }}" >> $GITHUB_OUTPUT
-          echo "deploy-cmd=${{ inputs.deploy-command }}" >> $GITHUB_OUTPUT
+          {
+            echo "bootstrap-cmd=${{ inputs.bootstrap-command }}"
+            echo "synth-cmd=${{ inputs.synth-command }}"
+            echo "diff-cmd=${{ inputs.diff-command }}"
+            echo "deploy-cmd=${{ inputs.deploy-command }}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Resolve stack name
         id: resolve-stack-name
@@ -212,7 +214,7 @@ jobs:
           else
             STACK_NAME="${{ vars.STACK_NAME }}"
           fi
-          echo "stack-name=$STACK_NAME" >> $GITHUB_OUTPUT
+          echo "stack-name=$STACK_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Validate required inputs
         run: |
@@ -266,8 +268,7 @@ jobs:
 
           # Validate context JSON if provided
           if [ "${{ inputs.context-values }}" != "{}" ]; then
-            echo '${{ inputs.context-values }}' | jq . > /dev/null
-            if [ $? -ne 0 ]; then
+            if ! echo '${{ inputs.context-values }}' | jq . > /dev/null; then
               echo "❌ Error: context-values must be valid JSON"
               exit 1
             fi
@@ -298,14 +299,14 @@ jobs:
             done < <(echo '${{ inputs.context-values }}' | jq -r 'to_entries[] | "--context \(.key)=\(.value)"')
           fi
 
-          echo "args=$context_args" >> $GITHUB_OUTPUT
+          echo "args=$context_args" >> "$GITHUB_OUTPUT"
           echo "✅ Context arguments configured"
 
       - name: Sanitise stack name
         id: sanitise
         run: |
-          sanitised_cdk_stack_name=$(echo "${{ steps.resolve-stack-name.outputs.stack-name }}" | tr -cd '[:alnum:]-_')
-          echo "sanitised-cdk-stack-name=$sanitised_cdk_stack_name" >> $GITHUB_OUTPUT
+          sanitised_cdk_stack_name="$(echo "${{ steps.resolve-stack-name.outputs.stack-name }}" | tr -cd '[:alnum:]-_')"
+          echo "sanitised-cdk-stack-name=$sanitised_cdk_stack_name" >> "$GITHUB_OUTPUT"
 
   # Bootstrap CDK environment if required
   bootstrap:
@@ -379,7 +380,7 @@ jobs:
 
       - name: Bootstrap CDK environment
         run: |
-          echo "🥾 Bootstrapping CDK environment..."
+          echo "Bootstrapping CDK environment..."
 
           verbose=""
           if [ "${{ inputs.debug }}" = "true" ]; then
@@ -396,15 +397,16 @@ jobs:
               role_args="--cloudformation-execution-policies ${{ secrets.CFN_EXECUTION_ROLE }}"
             fi
 
+            account_id="$(aws sts get-caller-identity --query Account --output text)"
             $BOOTSTRAP_CMD \
-              aws://$(aws sts get-caller-identity --query Account --output text)/${{ inputs.aws-region }} \
+              "aws://${account_id}/${{ inputs.aws-region }}" \
               $role_args \
               $verbose
           else
             $BOOTSTRAP_CMD ${{ inputs.extra-arguments }} $verbose
           fi
 
-          echo "✅ CDK environment bootstrapped successfully"
+          echo "CDK environment bootstrapped successfully"
 
   # Synthesize CDK application
   synth:
@@ -603,11 +605,13 @@ jobs:
 
           # Analyze diff for changes
           if echo "$diff_output" | grep -q "There were no differences"; then
-            echo "has-changes=false" >> $GITHUB_OUTPUT
-            echo "summary=No infrastructure changes detected" >> $GITHUB_OUTPUT
-            echo "ℹ️ No changes detected in infrastructure"
+            {
+              echo "has-changes=false"
+              echo "summary=No infrastructure changes detected"
+            } >> "$GITHUB_OUTPUT"
+            echo "No changes detected in infrastructure"
           else
-            echo "has-changes=true" >> $GITHUB_OUTPUT
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
 
             # Create summary
             summary="Infrastructure changes detected"
@@ -615,8 +619,8 @@ jobs:
               summary="$summary - Resource modifications found"
             fi
 
-            echo "summary=$summary" >> $GITHUB_OUTPUT
-            echo "⚠️ Infrastructure changes detected!"
+            echo "summary=$summary" >> "$GITHUB_OUTPUT"
+            echo "Infrastructure changes detected!"
             echo "$diff_output"
           fi
 
@@ -730,14 +734,19 @@ jobs:
           # Extract stack outputs
           if [ -f "stack-outputs.json" ]; then
             # Compact JSON to single line to avoid multiline output issues
-            outputs=$(jq -c '.' stack-outputs.json)
-            echo "stack-outputs=$outputs" >> $GITHUB_OUTPUT
+            outputs="$(jq -c '.' stack-outputs.json)"
+            {
+              echo "stack-outputs=$outputs"
+              echo "status=success"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "stack-outputs={}" >> $GITHUB_OUTPUT
+            {
+              echo "stack-outputs={}"
+              echo "status=success"
+            } >> "$GITHUB_OUTPUT"
           fi
 
-          echo "status=success" >> $GITHUB_OUTPUT
-          echo "✅ Stack deployed successfully"
+          echo "Stack deployed successfully"
 
       - name: Upload deployment artifacts
         if: steps.deployment.outputs.status == 'success'
@@ -814,20 +823,20 @@ jobs:
 
       - name: Validate stack deployment
         run: |
-          echo "🔍 Validating deployed stack..."
+          echo "Validating deployed stack..."
 
           # Check stack status
-          stack_status=$(aws cloudformation describe-stacks \
-            --stack-name ${{ needs.prepare.outputs.stack-name }} \
+          stack_status="$(aws cloudformation describe-stacks \
+            --stack-name "${{ needs.prepare.outputs.stack-name }}" \
             --query 'Stacks[0].StackStatus' \
-            --output text)
+            --output text)"
 
           echo "Stack status: $stack_status"
 
           if [[ "$stack_status" =~ ^(CREATE_COMPLETE|UPDATE_COMPLETE)$ ]]; then
-            echo "✅ Stack deployment validated successfully"
+            echo "Stack deployment validated successfully"
           else
-            echo "❌ Stack is in unexpected state: $stack_status"
+            echo "Stack is in unexpected state: $stack_status"
             exit 1
           fi
 
@@ -836,20 +845,20 @@ jobs:
           echo "🔍 Checking for infrastructure drift..."
 
           # Initiate drift detection
-          drift_id=$(aws cloudformation detect-stack-drift \
-            --stack-name ${{ needs.prepare.outputs.stack-name }} \
+          drift_id="$(aws cloudformation detect-stack-drift \
+            --stack-name "${{ needs.prepare.outputs.stack-name }}" \
             --query 'StackDriftDetectionId' \
-            --output text)
+            --output text)"
 
           echo "Drift detection initiated: $drift_id"
 
           # Wait for drift detection to complete
           aws cloudformation wait stack-drift-detection-complete \
-            --stack-drift-detection-id $drift_id
+            --stack-drift-detection-id "$drift_id"
 
           # Get drift detection results
           drift_status=$(aws cloudformation describe-stack-drift-detection-status \
-            --stack-drift-detection-id $drift_id \
+            --stack-drift-detection-id "$drift_id" \
             --query 'StackDriftStatus' \
             --output text)
 
