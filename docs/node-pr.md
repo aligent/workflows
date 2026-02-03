@@ -23,6 +23,16 @@
 | debug           | ❌      | boolean  | false            | If debug flags should be set |
 | fetch-depth     | ❌      | number   | 1                | Number of commits to fetch. 0 indicates all history for all branches and tags |
 
+#### **Nx Workspace Support**
+
+This workflow automatically detects Nx workspaces and handles build commands appropriately:
+
+- **Package.json scripts take priority**: If a command (e.g., `build`) exists in your `package.json` scripts, it will be executed using your package manager (e.g., `yarn run build`).
+- **Nx targets as fallback**: If the command doesn't exist as a package.json script but exists as an Nx target, the workflow will use `npx nx run-many -t <command>` instead.
+- **Skipped if not found**: If the command doesn't exist in either location, the step is skipped with an informational message.
+
+This allows Nx monorepos to work seamlessly without needing custom build commands, while still respecting package.json scripts when they exist.
+
 #### **Secrets**
 | Name          | Required | Description                        |
 |---------------|----------|-------------------------------------|
