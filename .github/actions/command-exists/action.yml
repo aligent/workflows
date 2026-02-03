@@ -7,9 +7,6 @@ inputs:
     required: true
 
 outputs:
-  exists:
-    description: "Whether the command exists anywhere (true/false)"
-    value: ${{ steps.result.outputs.exists }}
   exists-script:
     description: "Whether the command exists in package.json scripts (true/false)"
     value: ${{ steps.check-script.outputs.exists }}
@@ -87,12 +84,3 @@ runs:
         fi
 
         echo "exists=false" >> $GITHUB_OUTPUT
-
-    - id: result
-      shell: bash
-      run: |
-        if [ "${{ steps.check-script.outputs.exists }}" == "true" ] || [ "${{ steps.check-nx.outputs.exists }}" == "true" ]; then
-          echo "exists=true" >> $GITHUB_OUTPUT
-        else
-          echo "exists=false" >> $GITHUB_OUTPUT
-        fi

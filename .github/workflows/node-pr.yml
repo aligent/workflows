@@ -226,7 +226,7 @@ jobs:
         run: npx nx run-many -t ${{ inputs.build-command }} ${{ inputs.debug && '--verbose' || '' }}
 
       - name: Skip build (command not found)
-        if: steps.check-build.outputs.exists != 'true'
+        if: steps.check-build.outputs.exists-script != 'true' && steps.check-build.outputs.exists-nx-target != 'true'
         run: echo "Build command '${{ inputs.build-command }}' not found, skipping"
 
   test:
