@@ -297,7 +297,7 @@ jobs:
         with:
           name: vendor-php${{ inputs.php-version }}
           path: dependencies.tar.gz
-          retention-days: 7
+          retention-days: 1
 
   # PHPStan static analysis
   phpstan:
