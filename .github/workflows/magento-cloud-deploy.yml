@@ -208,7 +208,7 @@ jobs:
           esac
 
       - name: Create NewRelic deployment marker (complete)
-        if: always() && inputs.newrelic-app-id != ''
+        if: inputs.newrelic-app-id != ''
         env:
           NEWRELIC_API_KEY: ${{ secrets.newrelic-api-key }}
         run: |
