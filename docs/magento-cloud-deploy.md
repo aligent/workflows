@@ -9,7 +9,6 @@ A simple Magento Cloud deployment workflow that pushes code to your Magento Clou
 - **CST system integration**: Optional composer.lock reporting to Confidentiality and Security Team
 - **Environment protection**: Uses GitHub environment protection rules for deployment gates
 - **Full git history support**: Required for Magento Cloud deployment requirements
-- **Parallel post-deployment**: NewRelic completion and CST reporting run in parallel for efficiency
 
 #### **Inputs**
 | Name | Required | Type | Default | Description |
