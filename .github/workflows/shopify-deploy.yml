@@ -80,7 +80,7 @@ jobs:
 
       - name: Deploy to Shopify
         working-directory: ${{ inputs.working-directory }}
-        run: yarn shopify app deploy --force
+        run: yarn shopify app deploy --allow-updates
         env:
           SHOPIFY_CLI_TOKEN: ${{ secrets.shopify_cli_token }}
           SHOPIFY_FLAG_PATH: ${{ inputs.working-directory }}
