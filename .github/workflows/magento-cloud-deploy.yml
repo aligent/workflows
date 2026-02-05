@@ -85,12 +85,19 @@ jobs:
           echo "✅ All required inputs validated"
 
       - name: Create NewRelic deployment marker (start)
-        if: inputs.newrelic-app-id != '' && secrets.newrelic-api-key != ''
+        if: inputs.newrelic-app-id != ''
+        env:
+          NEWRELIC_API_KEY: ${{ secrets.newrelic-api-key }}
         run: |
+          if [ -z "$NEWRELIC_API_KEY" ]; then
+            echo "ℹ️ NewRelic API key not configured, skipping deployment marker"
+            exit 0
+          fi
+
           echo "📊 Creating NewRelic deployment marker (start)..."
 
           curl -X POST "https://api.newrelic.com/v2/applications/${{ inputs.newrelic-app-id }}/deployments.json" \
-            -H "X-Api-Key: ${{ secrets.newrelic-api-key }}" \
+            -H "X-Api-Key: $NEWRELIC_API_KEY" \
             -H "Content-Type: application/json" \
             -d '{
               "deployment": {
@@ -201,8 +208,15 @@ jobs:
           esac
 
       - name: Create NewRelic deployment marker (complete)
-        if: always() && inputs.newrelic-app-id != '' && secrets.newrelic-api-key != ''
+        if: always() && inputs.newrelic-app-id != ''
+        env:
+          NEWRELIC_API_KEY: ${{ secrets.newrelic-api-key }}
         run: |
+          if [ -z "$NEWRELIC_API_KEY" ]; then
+            echo "ℹ️ NewRelic API key not configured, skipping deployment marker"
+            exit 0
+          fi
+
           echo "📊 Creating NewRelic deployment marker (complete)..."
 
           # Determine deployment status based on previous step outcomes
@@ -225,7 +239,7 @@ jobs:
           fi
 
           curl -X POST "https://api.newrelic.com/v2/applications/${{ inputs.newrelic-app-id }}/deployments.json" \
-            -H "X-Api-Key: ${{ secrets.newrelic-api-key }}" \
+            -H "X-Api-Key: $NEWRELIC_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
               \"deployment\": {
