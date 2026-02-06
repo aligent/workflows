@@ -69,18 +69,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
-      GADGET_ENV: ${{ inputs.environment-name }}
     needs: push
     if: inputs.test == true
     steps:
       - uses: actions/checkout@v5
-
-      - name: Create env file
-        working-directory: ${{ inputs.working-directory }}
-        run: |
-          touch .env
-          echo GADGET_TEST_API_KEY="${{ secrets.gadget-test-api-key }}" >> .env
-          echo GADGET_ENV="${{ inputs.environment-name }}" >> .env
 
       - name: Install ggt
         run: |
@@ -108,6 +100,9 @@ jobs:
 
       - name: Run tests
         working-directory: ${{ inputs.working-directory }}
+        env:
+          GADGET_TEST_API_KEY: ${{ secrets.gadget-test-api-key }}
+          GADGET_ENV: ${{ inputs.environment-name }}
         run: yarn test
 
   deploy:
