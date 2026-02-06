@@ -375,7 +375,7 @@ jobs:
           echo "✅ Corepack enabled"
 
       - name: Download node_modules artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: node_modules-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
 
@@ -534,69 +534,145 @@ jobs:
           path: stack-outputs.json
           retention-days: 7
 
+      - name: Resolve deployed stack names
+        if: inputs.deploy == true && steps.deploy.outputs.status == 'success' && inputs.skip-validation != true
+        id: resolve-stacks
+        run: |
+          echo "🔍 Resolving deployed stack names..."
+
+          CDK_CMD="${{ needs.prepare.outputs.cdk-diff-cmd }}"
+          PROJECT_DIR=$(echo "$CDK_CMD" | grep -oP '[^ ]+(?=:cdk)' || true)
+
+          if [ -n "$PROJECT_DIR" ]; then
+            cdk_output=$(cd "$PROJECT_DIR" && npx cdk ls ${{ needs.prepare.outputs.stack-name }} \
+              ${{ needs.prepare.outputs.context-args }} 2>/dev/null || true)
+          else
+            cdk_output=$(npx cdk ls ${{ needs.prepare.outputs.stack-name }} \
+              ${{ needs.prepare.outputs.context-args }} 2>/dev/null || true)
+          fi
+
+          stack_names=$(echo "$cdk_output" | grep -oP '\(\K[^)]+' || true)
+
+          if [ -z "$stack_names" ]; then
+            echo "⚠️ No stacks resolved from cdk ls, falling back to stack-outputs.json"
+            if [ -f "stack-outputs.json" ]; then
+              stack_names=$(jq -r 'keys[]' stack-outputs.json)
+            fi
+          fi
+
+          if [ -z "$stack_names" ]; then
+            echo "⚠️ No stacks could be resolved for validation"
+            echo "stacks=" >> $GITHUB_OUTPUT
+          else
+            # Convert newline-separated list to space-separated
+            stack_list=$(echo "$stack_names" | tr '\n' ' ' | xargs)
+            echo "stacks=$stack_list" >> $GITHUB_OUTPUT
+            echo "✅ Resolved stacks: $stack_list"
+          fi
+
       - name: Validate stack deployment
         if: inputs.deploy == true && steps.deploy.outputs.status == 'success' && inputs.skip-validation != true
         run: |
-          echo "🔍 Validating deployed stack..."
+          echo "🔍 Validating deployed stacks..."
 
-          # Check stack status
-          stack_status=$(aws cloudformation describe-stacks \
-            --stack-name ${{ needs.prepare.outputs.stack-name }} \
-            --query 'Stacks[0].StackStatus' \
-            --output text)
+          STACKS="${{ steps.resolve-stacks.outputs.stacks }}"
+          if [ -z "$STACKS" ]; then
+            echo "⚠️ No stacks resolved, skipping validation"
+            exit 0
+          fi
 
-          echo "Stack status: $stack_status"
+          validation_failed=false
 
-          if [[ "$stack_status" =~ ^(CREATE_COMPLETE|UPDATE_COMPLETE)$ ]]; then
-            echo "✅ Stack deployment validated successfully"
-          else
-            echo "❌ Stack is in unexpected state: $stack_status"
+          for stack_name in $STACKS; do
+            echo "Validating stack: $stack_name"
+
+            stack_status=$(aws cloudformation describe-stacks \
+              --stack-name "$stack_name" \
+              --query 'Stacks[0].StackStatus' \
+              --output text)
+
+            echo "  Status: $stack_status"
+
+            if [[ "$stack_status" =~ ^(CREATE_COMPLETE|UPDATE_COMPLETE)$ ]]; then
+              echo "  ✅ Stack validated successfully"
+            else
+              echo "  ❌ Stack is in unexpected state: $stack_status"
+              validation_failed=true
+            fi
+          done
+
+          if [ "$validation_failed" = true ]; then
+            echo "❌ One or more stacks failed validation"
             exit 1
           fi
+
+          echo "✅ All stacks validated successfully"
 
       - name: Check for stack drift
         if: inputs.deploy == true && steps.deploy.outputs.status == 'success' && inputs.skip-validation != true
         run: |
           echo "🔍 Checking for infrastructure drift..."
 
-          # Initiate drift detection
-          drift_id=$(aws cloudformation detect-stack-drift \
-            --stack-name ${{ needs.prepare.outputs.stack-name }} \
-            --query 'StackDriftDetectionId' \
-            --output text)
+          STACKS="${{ steps.resolve-stacks.outputs.stacks }}"
+          if [ -z "$STACKS" ]; then
+            echo "⚠️ No stacks resolved, skipping drift check"
+            exit 0
+          fi
 
-          echo "Drift detection initiated: $drift_id"
+          for stack_name in $STACKS; do
+            echo "Checking drift for stack: $stack_name"
 
-          # Wait for drift detection to complete
-          aws cloudformation wait stack-drift-detection-complete \
-            --stack-drift-detection-id $drift_id
+            # Initiate drift detection
+            drift_id=$(aws cloudformation detect-stack-drift \
+              --stack-name "$stack_name" \
+              --query 'StackDriftDetectionId' \
+              --output text)
 
-          # Get drift detection results
-          drift_status=$(aws cloudformation describe-stack-drift-detection-status \
-            --stack-drift-detection-id $drift_id \
-            --query 'StackDriftStatus' \
-            --output text)
+            echo "  Drift detection initiated: $drift_id"
 
-          echo "Stack drift status: $drift_status"
+            # Wait for drift detection to complete
+            aws cloudformation wait stack-drift-detection-complete \
+              --stack-drift-detection-id $drift_id
 
-          case $drift_status in
-            "IN_SYNC")
-              echo "✅ No infrastructure drift detected"
-              ;;
-            "DRIFTED")
-              echo "⚠️ Infrastructure drift detected - manual review recommended"
-              ;;
-            *)
-              echo "❓ Unknown drift status: $drift_status"
-              ;;
-          esac
+            # Get drift detection results
+            drift_status=$(aws cloudformation describe-stack-drift-detection-status \
+              --stack-drift-detection-id $drift_id \
+              --query 'StackDriftStatus' \
+              --output text)
+
+            echo "  Drift status: $drift_status"
+
+            case $drift_status in
+              "IN_SYNC")
+                echo "  ✅ No drift detected"
+                ;;
+              "DRIFTED")
+                echo "  ⚠️ Drift detected - manual review recommended"
+                ;;
+              *)
+                echo "  ❓ Unknown drift status: $drift_status"
+                ;;
+            esac
+          done
+
+          echo "✅ Drift check completed for all stacks"
 
       - name: Display deployment summary
         if: inputs.deploy == true && steps.deploy.outputs.status == 'success'
         run: |
           echo "📋 Deployment Summary"
           echo "===================="
-          echo "Stack Name: ${{ needs.prepare.outputs.stack-name }}"
+          echo "Stack Pattern: ${{ needs.prepare.outputs.stack-name }}"
+
+          # Show actual deployed stacks
+          STACKS="${{ steps.resolve-stacks.outputs.stacks }}"
+          if [ -n "$STACKS" ]; then
+            echo "Deployed Stacks:"
+            for stack_name in $STACKS; do
+              echo "  - $stack_name"
+            done
+          fi
+
           echo "Environment: ${{ inputs.github-environment }}"
           echo "Region: ${{ inputs.aws-region }}"
           echo "Status: ${{ steps.deploy.outputs.status }}"
