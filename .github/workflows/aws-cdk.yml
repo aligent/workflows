@@ -375,7 +375,7 @@ jobs:
           echo "✅ Corepack enabled"
 
       - name: Download node_modules artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: node_modules-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
 
