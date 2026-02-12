@@ -34,7 +34,7 @@ The CST (Confidentiality and Security Team) reporting feature can be configured 
    - Use `cst-reporting-key` input to override the workspace secret
    - Useful for testing or special deployments
 
-The workflow constructs the full CST URL as: `{endpoint}/{project-key}/adobe-commerce`
+The workflow constructs the full CST URL as: `{endpoint}/{project-key}`
 
-CST reporting only runs when endpoint, project key, and auth key are all configured. If any are missing, the step is skipped with an informational message.
+CST reporting only runs when deploying from the target branch (defaults to the repository's default branch, overridable via `cst-branch` input) and when endpoint, project key, and auth key are all configured. If any are missing or the branch doesn't match, the step is skipped with an informational message.
 

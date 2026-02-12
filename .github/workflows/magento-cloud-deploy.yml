@@ -32,7 +32,12 @@ on:
         type: string
         required: false
         default: ""
-      
+      cst-branch:
+        description: "CST branch to report against (optional, defaults to repository default branch)"
+        type: string
+        required: false
+        default: ""
+
       # Advanced Configuration
       debug:
         description: "Enable verbose logging and debug output"
@@ -285,10 +290,23 @@ jobs:
             exit 0
           fi
 
+          # Determine CST branch - input overrides default branch
+          CST_BRANCH="${{ inputs.cst-branch }}"
+          if [ -z "$CST_BRANCH" ]; then
+            CST_BRANCH="${{ github.event.repository.default_branch }}"
+          fi
+
+          # Only report when deploying from the target branch
+          CURRENT_BRANCH="${{ github.ref_name }}"
+          if [ "$CURRENT_BRANCH" != "$CST_BRANCH" ]; then
+            echo "ℹ️ CST reporting skipped (branch '${CURRENT_BRANCH}' does not match target '${CST_BRANCH}')"
+            exit 0
+          fi
+
           echo "📡 Reporting deployment to CST (Confidentiality and Security Team)..."
 
-          # Construct full CST URL: endpoint/project_key/adobe-commerce
-          CST_FULL_URL="${CST_ENDPOINT}/${CST_PROJECT_KEY}/adobe-commerce"
+          # Construct full CST URL: endpoint/project_key
+          CST_FULL_URL="${CST_ENDPOINT}/${CST_PROJECT_KEY}"
 
           # Send composer.lock file contents to CST endpoint
           if [ -f "composer.lock" ]; then
