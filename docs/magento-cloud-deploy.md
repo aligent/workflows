@@ -21,6 +21,7 @@ A simple Magento Cloud deployment workflow that pushes code to your Magento Clou
 | **CST Reporting Configuration** |
 | cst-endpoint | ❌ | string | | CST endpoint base URL (optional, overrides workspace variable) |
 | cst-project-key | ❌ | string | | CST project key (optional, overrides workspace variable. Defaults to repository name) |
+| cst-branch | ❌ | string | | CST branch to report against (optional, defaults to repository default branch) |
 | **Advanced Configuration** |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 
@@ -94,6 +95,7 @@ jobs:
       environment: staging
       cst-endpoint: "https://package.report.aligent.consulting"
       cst-project-key: "your-project-key"
+      cst-branch: "main"  # Only report when deploying from this branch
     secrets:
       magento-cloud-cli-token: ${{ secrets.MAGENTO_CLOUD_CLI_TOKEN }}
       cst-reporting-token: ${{ secrets.CST_REPORTING_TOKEN }}
