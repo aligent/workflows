@@ -6,7 +6,6 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 - **CDK synth → diff → deploy workflow**: Complete infrastructure deployment pipeline
 - **Multi-environment support**: development, staging, and production deployments
 - **Bootstrap validation**: Automatic CDK environment preparation and validation
-- **Infrastructure validation**: Comprehensive stack validation and drift detection
 - **Changeset preview**: CloudFormation diff analysis before deployment
 - **Smart Node.js setup**: Automatic detection from .nvmrc file with dependency caching
 - **Package manager detection**: Automatic support for npm, yarn (classic/berry), and pnpm

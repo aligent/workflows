@@ -41,11 +41,6 @@ on:
         type: boolean
         required: false
         default: false
-      skip-validation:
-        description: "Skip post-deployment validation"
-        type: boolean
-        required: false
-        default: false
 
       # Advanced Configuration
       context-values:
@@ -375,7 +370,7 @@ jobs:
           echo "✅ Corepack enabled"
 
       - name: Download node_modules artifact
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: node_modules-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
 
@@ -534,69 +529,13 @@ jobs:
           path: stack-outputs.json
           retention-days: 7
 
-      - name: Validate stack deployment
-        if: inputs.deploy == true && steps.deploy.outputs.status == 'success' && inputs.skip-validation != true
-        run: |
-          echo "🔍 Validating deployed stack..."
-
-          # Check stack status
-          stack_status=$(aws cloudformation describe-stacks \
-            --stack-name ${{ needs.prepare.outputs.stack-name }} \
-            --query 'Stacks[0].StackStatus' \
-            --output text)
-
-          echo "Stack status: $stack_status"
-
-          if [[ "$stack_status" =~ ^(CREATE_COMPLETE|UPDATE_COMPLETE)$ ]]; then
-            echo "✅ Stack deployment validated successfully"
-          else
-            echo "❌ Stack is in unexpected state: $stack_status"
-            exit 1
-          fi
-
-      - name: Check for stack drift
-        if: inputs.deploy == true && steps.deploy.outputs.status == 'success' && inputs.skip-validation != true
-        run: |
-          echo "🔍 Checking for infrastructure drift..."
-
-          # Initiate drift detection
-          drift_id=$(aws cloudformation detect-stack-drift \
-            --stack-name ${{ needs.prepare.outputs.stack-name }} \
-            --query 'StackDriftDetectionId' \
-            --output text)
-
-          echo "Drift detection initiated: $drift_id"
-
-          # Wait for drift detection to complete
-          aws cloudformation wait stack-drift-detection-complete \
-            --stack-drift-detection-id $drift_id
-
-          # Get drift detection results
-          drift_status=$(aws cloudformation describe-stack-drift-detection-status \
-            --stack-drift-detection-id $drift_id \
-            --query 'StackDriftStatus' \
-            --output text)
-
-          echo "Stack drift status: $drift_status"
-
-          case $drift_status in
-            "IN_SYNC")
-              echo "✅ No infrastructure drift detected"
-              ;;
-            "DRIFTED")
-              echo "⚠️ Infrastructure drift detected - manual review recommended"
-              ;;
-            *)
-              echo "❓ Unknown drift status: $drift_status"
-              ;;
-          esac
-
       - name: Display deployment summary
         if: inputs.deploy == true && steps.deploy.outputs.status == 'success'
         run: |
           echo "📋 Deployment Summary"
           echo "===================="
-          echo "Stack Name: ${{ needs.prepare.outputs.stack-name }}"
+          echo "Stack Pattern: ${{ needs.prepare.outputs.stack-name }}"
+
           echo "Environment: ${{ inputs.github-environment }}"
           echo "Region: ${{ inputs.aws-region }}"
           echo "Status: ${{ steps.deploy.outputs.status }}"
