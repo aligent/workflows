@@ -26,6 +26,7 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 | Name | Required | Description |
 |------|----------|-------------|
 | gadget-api-token | ✅ | Gadget API authentication token |
+| gadget-test-api-key | ❌ | Gadget Test API key (required when `test: true`) |
 
 #### **Outputs**
 | Name | Description |
@@ -86,6 +87,7 @@ on:
 
 jobs:
   push-and-test:
+    uses: aligent/workflows/.github/workflows/gadget-deploy.yml@main
     with:
       app-name: my-gadget-app
       working-directory: apps/gadget-app
@@ -94,6 +96,7 @@ jobs:
       test: true
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
+      gadget-test-api-key: ${{ secrets.GADGET_TEST_API_KEY }}
 ```
 
 **Production deployment from Release:**
