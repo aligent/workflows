@@ -20,7 +20,7 @@ A simple Magento Cloud deployment workflow that pushes code to your Magento Clou
 | newrelic-app-id | ❌ | string | | NewRelic application ID for deployment markers (optional) |
 | **CST Reporting Configuration** |
 | cst-endpoint | ❌ | string | | CST endpoint base URL (optional, overrides workspace variable) |
-| cst-project-key | ❌ | string | | CST project key (optional, overrides workspace variable) |
+| cst-project-key | ❌ | string | | CST project key (optional, overrides workspace variable. Defaults to repository name) |
 | **Advanced Configuration** |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 

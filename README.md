@@ -24,7 +24,7 @@ The CST (Confidentiality and Security Team) reporting feature can be configured 
 
 1. **Workspace-level configuration (recommended):**
    - Set `CST_ENDPOINT` as a repository/organization variable (base URL, e.g., `https://package.report.aligent.consulting`)
-   - Set `CST_PROJECT_KEY` as a repository/organization variable (your project identifier)
+   - Set `CST_PROJECT_KEY` as a repository/organization variable (your project identifier, defaults to the repository name if not set)
    - Set `CST_REPORTING_TOKEN` as a repository/organization secret
    - The workflow will automatically use these when available
 

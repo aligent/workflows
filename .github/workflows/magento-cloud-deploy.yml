@@ -28,7 +28,7 @@ on:
         required: false
         default: ""
       cst-project-key:
-        description: "CST project key (optional, overrides workspace variable)"
+        description: "CST project key (optional, overrides workspace variable. Defaults to repository name)"
         type: string
         required: false
         default: ""
@@ -261,10 +261,13 @@ jobs:
             CST_ENDPOINT="${{ vars.CST_ENDPOINT }}"
           fi
 
-          # Determine CST project key - input overrides workspace variable
+          # Determine CST project key - input overrides workspace variable, defaults to repo name
           CST_PROJECT_KEY="${{ inputs.cst-project-key }}"
           if [ -z "$CST_PROJECT_KEY" ]; then
             CST_PROJECT_KEY="${{ vars.CST_PROJECT_KEY }}"
+          fi
+          if [ -z "$CST_PROJECT_KEY" ]; then
+            CST_PROJECT_KEY="${{ github.event.repository.name }}"
           fi
 
           # Determine CST reporting key - input overrides workspace secret
