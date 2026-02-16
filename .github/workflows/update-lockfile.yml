@@ -1,0 +1,121 @@
+name: Update Lockfile
+
+on:
+  workflow_call:
+    inputs:
+      package-manager:
+        description: "Node package manager to use"
+        default: yarn
+        type: string
+      is-yarn-classic:
+        description: "If Yarn (pre-Berry) should be used"
+        default: false
+        type: boolean
+      pre-install-commands:
+        description: "Commands to run before lockfile update (e.g., configure registries, auth tokens)"
+        default: ""
+        type: string
+      lockfile:
+        description: "Name of the lockfile to update and commit"
+        default: "yarn.lock"
+        type: string
+      update-command:
+        description: "Command to regenerate the lockfile without a full install"
+        default: "yarn install --mode update-lockfile"
+        type: string
+      commit-message:
+        description: "Commit message for lockfile update"
+        default: "chore: update lockfile after version bumps"
+        type: string
+      branch-pattern:
+        description: "Branch name pattern to match for version PRs (checked with 'contains' on github.head_ref)"
+        default: "changeset-release/"
+        type: string
+      pr-title-pattern:
+        description: "PR title pattern to match for version PRs (checked with 'contains' on PR title)"
+        default: "chore: release packages"
+        type: string
+      debug:
+        description: "If debug flags should be set"
+        default: false
+        type: boolean
+    secrets:
+      NPM_TOKEN:
+        description: "NPM authentication token for private registries"
+        required: false
+      GITHUB_PAT:
+        description: "GitHub PAT for pushing commits (uses GITHUB_TOKEN by default)"
+        required: false
+
+jobs:
+  update-lockfile:
+    name: Update Lockfile
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.head_ref, 'changeset-release/') ||
+      contains(github.event.pull_request.title, 'chore: release packages')
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_PAT || github.token }}
+          ref: ${{ github.head_ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: |
+          if [ -f package.json ] && jq -e '.packageManager' package.json > /dev/null 2>&1; then
+            echo "packageManager field detected in package.json, enabling corepack"
+            corepack enable
+          fi
+
+      - name: Configure Dependency Cache
+        uses: actions/setup-node@v6
+        with:
+          cache: ${{ inputs.package-manager }}
+          node-version-file: .nvmrc
+
+      - name: Run pre-install commands
+        if: inputs.pre-install-commands != ''
+        run: |
+          echo "${{ inputs.pre-install-commands }}" | while IFS= read -r cmd; do
+            if [ -n "$cmd" ]; then
+              echo "Running: $cmd"
+              eval "$cmd"
+            fi
+          done
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Update Lockfile
+        run: |
+          ${{ inputs.update-command }}
+
+          if git diff --quiet ${{ inputs.lockfile }}; then
+            echo "No lockfile changes needed"
+            exit 0
+          fi
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Commit Lockfile Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet ${{ inputs.lockfile }}; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git add ${{ inputs.lockfile }}
+          git commit -m "${{ inputs.commit-message }}"
+          git push

@@ -1,0 +1,292 @@
+name: Changeset Check
+
+on:
+  workflow_call:
+    inputs:
+      package-manager:
+        description: "Node package manager to use"
+        default: yarn
+        type: string
+      is-yarn-classic:
+        description: "If Yarn (pre-Berry) should be used"
+        default: false
+        type: boolean
+      pre-install-commands:
+        description: "Commands to run before dependency installation (e.g., configure registries, auth tokens)"
+        default: ""
+        type: string
+      packages-path:
+        description: "Directory prefix containing publishable packages (e.g., 'modules/', 'packages/')"
+        default: "packages/"
+        type: string
+      changeset-command:
+        description: "Command developers should run to add a changeset (shown in PR comment)"
+        default: "yarn changeset"
+        type: string
+      changeset-status-command:
+        description: "Command to check changeset status (shown in PR comment tips)"
+        default: "yarn changeset status"
+        type: string
+      comment-header:
+        description: "Header text used to identify and update/delete the bot comment on PRs"
+        default: "No Changeset Detected"
+        type: string
+      debug:
+        description: "If debug flags should be set"
+        default: false
+        type: boolean
+    secrets:
+      NPM_TOKEN:
+        description: "NPM authentication token for private registries"
+        required: false
+
+jobs:
+  changeset-check:
+    name: Changeset Check
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: |
+          if [ -f package.json ] && jq -e '.packageManager' package.json > /dev/null 2>&1; then
+            echo "packageManager field detected in package.json, enabling corepack"
+            corepack enable
+          fi
+
+      - name: Configure Dependency Cache
+        uses: actions/setup-node@v6
+        with:
+          cache: ${{ inputs.package-manager }}
+          node-version-file: .nvmrc
+
+      - name: Run pre-install commands
+        if: inputs.pre-install-commands != ''
+        run: |
+          echo "${{ inputs.pre-install-commands }}" | while IFS= read -r cmd; do
+            if [ -n "$cmd" ]; then
+              echo "Running: $cmd"
+              eval "$cmd"
+            fi
+          done
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          debug=${{ inputs.debug && '--verbose' || '' }}
+          if [ "${{ inputs.package-manager }}" = "yarn" ]; then
+            lock_flag=${{ inputs.is-yarn-classic && '--frozen-lockfile' || '--immutable' }}
+            yarn install $lock_flag $debug
+          elif [ "${{ inputs.package-manager }}" = "pnpm" ]; then
+            pnpm install --frozen-lockfile $debug
+          else
+            npm ci $debug
+          fi
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Get Changed Files
+        id: changed-files
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 100,
+            });
+            return files.map(f => f.filename).join('\n');
+          result-encoding: string
+
+      - name: Check Affected Packages and Changesets
+        id: changeset-check
+        env:
+          CHANGED_FILES: ${{ steps.changed-files.outputs.result }}
+        run: |
+          set +e
+
+          PACKAGES_PATH="${{ inputs.packages-path }}"
+          PACKAGES_PREFIX="${PACKAGES_PATH%/}"
+
+          # Get changed directories under the packages path using GitHub API results
+          CHANGED_DIRS=$(echo "$CHANGED_FILES" \
+            | grep "^${PACKAGES_PREFIX}/" \
+            | cut -d'/' -f1-2 \
+            | sort | uniq)
+
+          # Map each changed directory to its package name via package.json
+          PUBLISHABLE_AFFECTED=""
+          for dir in $CHANGED_DIRS; do
+            if [ -f "$dir/package.json" ]; then
+              pkg_name=$(node -e "console.log(require('./$dir/package.json').name)")
+              if [ -n "$pkg_name" ]; then
+                if [ -z "$PUBLISHABLE_AFFECTED" ]; then
+                  PUBLISHABLE_AFFECTED="$pkg_name"
+                else
+                  PUBLISHABLE_AFFECTED="$PUBLISHABLE_AFFECTED
+          $pkg_name"
+                fi
+              fi
+            fi
+          done
+
+          echo "Affected publishable packages:"
+          echo "$PUBLISHABLE_AFFECTED"
+
+          echo "affected_packages<<EOF" >> $GITHUB_OUTPUT
+          echo "$PUBLISHABLE_AFFECTED" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Check if there are changesets present
+          CHANGESET_FILES=$(find .changeset -name "*.md" -not -name "README.md" | wc -l)
+
+          if [ "$CHANGESET_FILES" -gt 0 ]; then
+            echo "needs_changeset=false" >> $GITHUB_OUTPUT
+            echo "Changesets detected: $CHANGESET_FILES"
+            exit 0
+          fi
+
+          # If no changesets and no affected packages, no changeset needed
+          if [ -z "$PUBLISHABLE_AFFECTED" ] || [ "$PUBLISHABLE_AFFECTED" = "" ]; then
+            echo "needs_changeset=false" >> $GITHUB_OUTPUT
+            echo "No publishable packages affected and no changesets present"
+            exit 0
+          fi
+
+          # Check changeset status for detailed coverage
+          CHANGESET_STATUS=$(${{ inputs.package-manager }} changeset status --output=json 2>/dev/null)
+          CHANGESET_EXIT_CODE=$?
+
+          if [ $CHANGESET_EXIT_CODE -ne 0 ]; then
+            echo "needs_changeset=true" >> $GITHUB_OUTPUT
+            echo "Affected packages found but no changesets detected"
+          else
+            PACKAGES_WITH_CHANGESETS=$(echo "$CHANGESET_STATUS" | jq -r '.releases[] | select(.changesets | length > 0) | .name' 2>/dev/null || echo "")
+
+            ALL_COVERED=true
+            for pkg in $PUBLISHABLE_AFFECTED; do
+              if ! echo "$PACKAGES_WITH_CHANGESETS" | grep -q "$pkg"; then
+                ALL_COVERED=false
+                break
+              fi
+            done
+
+            if [ "$ALL_COVERED" = "true" ]; then
+              echo "needs_changeset=false" >> $GITHUB_OUTPUT
+              echo "All affected packages have changesets"
+            else
+              echo "needs_changeset=true" >> $GITHUB_OUTPUT
+              echo "Some affected packages missing changesets"
+            fi
+          fi
+
+      - name: Comment on PR if no changeset
+        if: steps.changeset-check.outputs.needs_changeset == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo, number } = context.issue;
+            const commentHeader = `${{ inputs.comment-header }}`;
+            const changesetCmd = `${{ inputs.changeset-command }}`;
+            const statusCmd = `${{ inputs.changeset-status-command }}`;
+
+            const comments = await github.rest.issues.listComments({
+              owner, repo, issue_number: number,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes(commentHeader)
+            );
+
+            const affectedPackages = `${{ steps.changeset-check.outputs.affected_packages }}`.trim();
+            const packageList = affectedPackages ? affectedPackages.split('\n').filter(p => p.trim()) : [];
+
+            const commentBody = [
+              `## ${commentHeader}`,
+              '',
+              'This pull request modifies code that affects the following packages:',
+              '',
+              ...(packageList.length > 0 ? [
+                '**Affected Packages:**',
+                ...packageList.map(pkg => `- \`${pkg}\``),
+                ''
+              ] : ['*No specific packages detected*', '']),
+              '**If this PR should trigger a release:**',
+              '```bash',
+              changesetCmd,
+              '```',
+              'Follow the prompts to select the affected packages and describe your changes.',
+              '',
+              '**If this PR should NOT trigger a release:**',
+              '- Documentation-only changes',
+              '- Internal refactoring with no API changes',
+              '- Test updates',
+              '- Build/CI configuration changes',
+              '',
+              'In this case, no action is needed. This comment is just a reminder for reviewers.',
+              '',
+              '<details>',
+              '<summary>Commands and Tips</summary>',
+              '',
+              '```bash',
+              `# Add a changeset for your changes`,
+              changesetCmd,
+              '',
+              `# Check current changeset status`,
+              statusCmd,
+              '',
+              `# Add an empty changeset if no release needed`,
+              `${changesetCmd} --empty`,
+              '```',
+              '',
+              `**Tip:** When running \`${changesetCmd}\`, select only the packages listed above that you actually changed the public API of.`,
+              '',
+              '</details>'
+            ].join('\n');
+
+            if (!botComment) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: number, body: commentBody
+              });
+            } else {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: botComment.id, body: commentBody
+              });
+            }
+
+      - name: Remove changeset comment if changeset exists
+        if: steps.changeset-check.outputs.needs_changeset == 'false'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo, number } = context.issue;
+            const commentHeader = `${{ inputs.comment-header }}`;
+
+            const comments = await github.rest.issues.listComments({
+              owner, repo, issue_number: number,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes(commentHeader)
+            );
+
+            if (botComment) {
+              await github.rest.issues.deleteComment({
+                owner, repo, comment_id: botComment.id
+              });
+            }
