@@ -13,6 +13,7 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 | [Nx Serverless Deployment](docs/nx-serverless-deployment.md) | Serverless deployment workflow for Nx monorepos |
 | [PHP Quality Checks](docs/php-quality-checks.md) | Static analysis, coding standards validation, and testing with coverage reporting |
 | [S3 Deployment](docs/s3-deploy.md) | Deploy assets to S3 buckets |
+| [Uptime Kuma](docs/uptime-kuma.md) | Pause and resume Uptime Kuma monitors during deployments |
 
 ## Test Github Workflows Locally using Act
 

@@ -1,0 +1,63 @@
+name: Uptime Kuma Pause/Resume
+
+on:
+  workflow_call:
+    inputs:
+      action:
+        description: "Action to perform: 'pause' or 'resume'"
+        required: true
+        type: string
+      kuma-url:
+        description: "Uptime Kuma base URL (e.g., https://status.aligent.cloud). Recommended: store in vars.KUMA_URL."
+        required: true
+        type: string
+      monitor-ids:
+        description: "Comma-separated monitor IDs (e.g., 12,15,18). Recommended: store in vars.KUMA_MONITOR_IDS."
+        required: true
+        type: string
+      timeout:
+        description: "Seconds to wait for Socket.IO connection and operations"
+        default: 30
+        type: number
+      debug:
+        description: "Enable verbose logging"
+        default: false
+        type: boolean
+    secrets:
+      KUMA_USERNAME:
+        description: "Uptime Kuma login username"
+        required: true
+      KUMA_PASSWORD:
+        description: "Uptime Kuma login password"
+        required: true
+
+jobs:
+  uptime-kuma:
+    name: ${{ inputs.action == 'pause' && 'Pause' || 'Resume' }} Monitoring
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout workflows repo
+        uses: actions/checkout@v6
+        with:
+          repository: aligent/workflows
+          sparse-checkout: scripts/uptime-kuma.js
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install socket.io-client
+
+      - name: ${{ inputs.action == 'pause' && 'Pause' || 'Resume' }} monitors
+        run: node scripts/uptime-kuma.js
+        env:
+          INPUT_ACTION: ${{ inputs.action }}
+          INPUT_KUMA_URL: ${{ inputs.kuma-url }}
+          INPUT_MONITOR_IDS: ${{ inputs.monitor-ids }}
+          INPUT_KUMA_USERNAME: ${{ secrets.KUMA_USERNAME }}
+          INPUT_KUMA_PASSWORD: ${{ secrets.KUMA_PASSWORD }}
+          INPUT_TIMEOUT: ${{ inputs.timeout }}
+          INPUT_DEBUG: ${{ inputs.debug }}
