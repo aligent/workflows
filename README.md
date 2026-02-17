@@ -7,12 +7,23 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 | Workflow | Description |
 |----------|-------------|
 | [AWS CDK](docs/aws-cdk.md) | Multi-environment infrastructure synthesis, diffs and deployments with automatic package manager detection |
+| [Changeset Check](docs/changeset-check.md) | Advisory PR comments when changesets are missing for affected packages |
+| [Changeset Release](docs/changeset-release.md) | Automated package versioning and publishing with Changesets |
 | [Gadget App Deployment](docs/gadget-deploy.md) | Gadget app deployment with push, test, and production deployment stages |
 | [Magento Cloud Deployment](docs/magento-cloud-deploy.md) | Magento Cloud deployment with optional NewRelic monitoring and CST reporting |
 | [Node Pull Request Checks](docs/node-pr.md) | Pull request quality checks for Node.js projects |
 | [Nx Serverless Deployment](docs/nx-serverless-deployment.md) | Serverless deployment workflow for Nx monorepos |
 | [PHP Quality Checks](docs/php-quality-checks.md) | Static analysis, coding standards validation, and testing with coverage reporting |
 | [S3 Deployment](docs/s3-deploy.md) | Deploy assets to S3 buckets |
+| [Update Lockfile](docs/update-lockfile.md) | Auto-commit lockfile updates on changeset version PRs |
+
+## Adopting the Changeset Workflows
+
+The three changeset workflows work together to automate package versioning, publishing, and PR hygiene. Each workflow's documentation includes inputs, secrets, setup instructions, and example caller YAML:
+
+- [Changeset Release](docs/changeset-release.md) - creates version PRs and publishes packages
+- [Changeset Check](docs/changeset-check.md) - advisory PR comments for missing changesets
+- [Update Lockfile](docs/update-lockfile.md) - auto-commits lockfile updates on version PRs
 
 ## Test Github Workflows Locally using Act
 

@@ -1,0 +1,169 @@
+name: Changeset Release
+
+on:
+  workflow_call:
+    inputs:
+      package-manager:
+        description: "Node package manager to use"
+        default: yarn
+        type: string
+      is-yarn-classic:
+        description: "If Yarn (pre-Berry) should be used"
+        default: false
+        type: boolean
+      pre-install-commands:
+        description: "Commands to run before dependency installation (e.g., configure registries, auth tokens)"
+        default: ""
+        type: string
+      pre-publish-commands:
+        description: "Commands to run after install but before the changesets action (e.g., build, generate-types, run tests)"
+        default: ""
+        type: string
+      publish-command:
+        description: "Command to publish packages (passed to changesets/action 'publish' input)"
+        default: "yarn changeset publish"
+        type: string
+      version-command:
+        description: "Command to version packages (passed to changesets/action 'version' input)"
+        default: "yarn changeset version"
+        type: string
+      pr-title:
+        description: "Title for the version PR created by changesets"
+        default: "chore: release packages"
+        type: string
+      commit-message:
+        description: "Commit message used by changesets when versioning"
+        default: "chore: release packages"
+        type: string
+      create-github-releases:
+        description: "Whether to create GitHub Releases when publishing"
+        default: true
+        type: boolean
+      npm-registry-url:
+        description: "npm registry URL for setup-node (used for OIDC/token-based npm publishing). Leave empty if not needed."
+        default: ""
+        type: string
+      post-publish-commands:
+        description: "Commands to run after a successful publish (e.g., notifications, cache invalidation)"
+        default: ""
+        type: string
+      debug:
+        description: "If debug flags should be set"
+        default: false
+        type: boolean
+    secrets:
+      NPM_TOKEN:
+        description: "NPM authentication token for private registries (used during install and publishing)"
+        required: false
+      GITHUB_PAT:
+        description: "GitHub PAT if the default GITHUB_TOKEN is insufficient (e.g., for triggering other workflows from changeset commits)"
+        required: false
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_PAT || github.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: |
+          if [ -f package.json ] && jq -e '.packageManager' package.json > /dev/null 2>&1; then
+            echo "packageManager field detected in package.json, enabling corepack"
+            corepack enable
+          fi
+
+      - name: Configure Dependency Cache
+        uses: actions/setup-node@v6
+        with:
+          cache: ${{ inputs.package-manager }}
+          node-version-file: .nvmrc
+          registry-url: ${{ inputs.npm-registry-url || '' }}
+
+      - name: Run pre-install commands
+        if: inputs.pre-install-commands != ''
+        run: |
+          echo "${{ inputs.pre-install-commands }}" | while IFS= read -r cmd; do
+            if [ -n "$cmd" ]; then
+              echo "Running: $cmd"
+              eval "$cmd"
+            fi
+          done
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          debug=${{ inputs.debug && '--verbose' || '' }}
+          if [ "${{ inputs.package-manager }}" = "yarn" ]; then
+            lock_flag=${{ inputs.is-yarn-classic && '--frozen-lockfile' || '--immutable' }}
+            yarn install $lock_flag $debug
+          elif [ "${{ inputs.package-manager }}" = "pnpm" ]; then
+            pnpm install --frozen-lockfile $debug
+          else
+            npm ci $debug
+          fi
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Run pre-publish commands
+        if: inputs.pre-publish-commands != ''
+        run: |
+          echo "${{ inputs.pre-publish-commands }}" | while IFS= read -r cmd; do
+            if [ -n "$cmd" ]; then
+              echo "Running: $cmd"
+              eval "$cmd"
+            fi
+          done
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@c48e67d110a68bc90ccf1098e9646092baacaa87 # v1.6.0
+        with:
+          publish: ${{ inputs.publish-command }}
+          version: ${{ inputs.version-command }}
+          title: ${{ inputs.pr-title }}
+          commit: ${{ inputs.commit-message }}
+          createGithubReleases: ${{ inputs.create-github-releases }}
+          setupGitUser: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_PAT || github.token }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish Release Info
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          echo "Published packages:"
+          echo '${{ steps.changesets.outputs.publishedPackages }}' | jq -r '.[] | "- \(.name)@\(.version)"'
+
+      - name: Run post-publish commands
+        if: steps.changesets.outputs.published == 'true' && inputs.post-publish-commands != ''
+        run: |
+          echo "${{ inputs.post-publish-commands }}" | while IFS= read -r cmd; do
+            if [ -n "$cmd" ]; then
+              echo "Running: $cmd"
+              eval "$cmd"
+            fi
+          done
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
