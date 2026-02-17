@@ -44,6 +44,64 @@ It operates in two phases:
 8. Prints published package names and versions if a publish occurred.
 9. Runs any `post-publish-commands` after a successful publish.
 
+#### Prerequisites
+
+Your project needs Changesets configured before using this workflow:
+
+1. Install the CLI and changelog plugin:
+   ```bash
+   yarn add -D @changesets/cli @changesets/changelog-github
+   ```
+
+2. Initialise Changesets (if not already done):
+   ```bash
+   npx changeset init
+   ```
+
+3. Configure `.changeset/config.json`:
+   ```json
+   {
+     "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
+     "changelog": [
+       "@changesets/changelog-github",
+       { "repo": "aligent/your-repo-name" }
+     ],
+     "commit": false,
+     "fixed": [],
+     "linked": [],
+     "access": "restricted",
+     "baseBranch": "main",
+     "updateInternalDependencies": "patch",
+     "ignore": []
+   }
+   ```
+   Set `"access": "public"` if publishing to the public npm registry.
+
+4. Add convenience scripts to your root `package.json`:
+   ```json
+   {
+     "scripts": {
+       "changeset": "changeset",
+       "changeset:version-and-install": "changeset version && yarn install --mode update-lockfile",
+       "release": "your-publish-command"
+     }
+   }
+   ```
+
+#### How the Release Flow Works
+
+The three changeset workflows (`changeset-release`, [changeset-check](changeset-check.md), [update-lockfile](update-lockfile.md)) work together:
+
+1. A developer opens a PR and adds a changeset via `yarn changeset`.
+2. `changeset-check` verifies that affected packages have changesets and removes its advisory comment.
+3. The PR is reviewed and merged to `main`.
+4. `changeset-release` detects changeset files and creates (or updates) a **version PR** with bumped versions and updated changelogs.
+5. `update-lockfile` regenerates the lockfile on the version PR so CI passes.
+6. A maintainer reviews and merges the version PR.
+7. `changeset-release` runs again, finds no changeset files, and **publishes** the packages.
+
+No packages are published until the version PR is explicitly merged. This gives the team a chance to review version bumps and changelog entries before anything goes out.
+
 #### Example Usage
 
 **Basic usage (public npm, default commands):**
