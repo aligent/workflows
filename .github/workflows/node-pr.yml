@@ -2,11 +2,22 @@ name: 🕵️ Node Pull Request Checks
 
 on:
   workflow_call:
+    secrets:
+      NPM_TOKEN:
+        description: "NPM authentication token for private registries"
+        required: false
+      ENV_VARS:
+        description: "Additional environment variables as key=value pairs (one per line)"
+        required: false
     inputs:
       package-manager:
         description: "Node package manager to use"
         default: yarn
         type: string
+      has-env-vars:
+        description: "Whether environment variables are provided"
+        default: false
+        type: boolean
       is-yarn-classic:
         description: "If Yarn (pre-Berry) should be used"
         default: false
@@ -27,6 +38,14 @@ on:
         description: "Command to override the format command"
         default: format
         type: string
+      test-storybook-command:
+        description: "Command to override the test-storybook command"
+        default: test-storybook
+        type: string
+      check-types-command:
+        description: "Command to override the check-types command"
+        default: check-types
+        type: string
       skip-build:
         description: "If the build step should skipped"
         default: false
@@ -43,26 +62,84 @@ on:
         description: "If the format step should skipped"
         default: false
         type: boolean
+      skip-test-storybook:
+        description: "If the test-storybook step should skipped"
+        default: false
+        type: boolean
+      skip-check-types:
+        description: "If the check-types step should skipped"
+        default: false
+        type: boolean
       skip-cache:
         description: "If the cache should be skipped when installing dependencies"
         default: false
         type: boolean
+      pre-install-commands:
+        description: "Commands to run before dependency installation (e.g., configure registries, auth tokens)"
+        default: ""
+        type: string
       debug:
         description: "If debug flags should be set"
         default: false
         type: boolean
+      fetch-depth:
+        description: "Number of commits to fetch. 0 indicates all history for all branches and tags"
+        default: 1
+        type: number
 
 jobs:
   install:
     name: 🧶 Install
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
         with:
+          fetch-depth: ${{ inputs.fetch-depth }}
+      - name: Install Node.js
+        uses: actions/setup-node@v5
+        with:
+          package-manager-cache: false
           node-version-file: .nvmrc
+      - name: Enable Corepack
+        run: |
+          # Enable corepack if packageManager is specified in package.json
+          if [ -f package.json ] && jq -e '.packageManager' package.json > /dev/null 2>&1; then
+            echo "packageManager field detected in package.json, enabling corepack"
+            corepack enable
+          fi
+      - name: Configure Dependency Cache
+        uses: actions/setup-node@v5
+        with:
           cache: ${{ inputs.package-manager }}
-
+          node-version-file: .nvmrc
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+      - name: Run pre-install commands
+        if: inputs.pre-install-commands != ''
+        run: |
+          # Execute pre-install commands line by line
+          echo "${{ inputs.pre-install-commands }}" | while IFS= read -r cmd; do
+            if [ -n "$cmd" ]; then
+              echo "Running: $cmd"
+              eval "$cmd"
+            fi
+          done
+      - name: Setup additional environment variables
+        if: inputs.has-env-vars
+        run: |
+          # Parse and set additional environment variables securely
+          while IFS= read -r line || [ -n "$line" ]; do
+            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
+              key="${line%%=*}"
+              value="${line#*=}"
+              # Mask the value in logs
+              echo "::add-mask::${value}"
+              echo "Setting environment variable: ${key}"
+              echo "${key}=${value}" >> $GITHUB_ENV
+            fi
+          done <<< "${{ secrets.ENV_VARS }}"
       - name: Install dependencies
         run: |
           debug=${{ inputs.debug && '--verbose' || '' }}
@@ -83,151 +160,185 @@ jobs:
         with:
           name: node_modules
           path: node_modules.tar.gz
-
-  check-commands:
-    name: 📝 Check Commands
-    runs-on: ubuntu-latest
-    outputs:
-      has-build: ${{ steps.check.outputs.has-build }}
-      has-test: ${{ steps.check.outputs.has-test }}
-      has-lint: ${{ steps.check.outputs.has-lint }}
-      has-format: ${{ steps.check.outputs.has-format }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: check
-        run: |
-          scripts=$(jq -r '.scripts | keys[]' package.json)
-
-          check_command() {
-            if echo "$scripts" | grep -q "^$1$"; then
-              echo "$1 script found"
-              echo "has-$1=true" >> $GITHUB_OUTPUT
-            else
-              echo "$1 script not found"
-              echo "has-$1=false" >> $GITHUB_OUTPUT
-            fi
-          }
-
-          check_command "${{ inputs.build-command }}"
-          check_command "${{ inputs.test-command }}"
-          check_command "${{ inputs.lint-command }}"
-          check_command "${{ inputs.format-command }}"
+          retention-days: 1
 
   build:
     name: 🏗️ Build
-    needs: [install, check-commands]
-    if: inputs.skip-build == false && needs.check-commands.outputs.has-build == 'true'
+    needs: [install]
+    if: inputs.skip-build == false
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
       - name: Fetch Origin
         run: git fetch origin
-      - uses: actions/setup-node@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Enable Corepack
+        run: |
+          # Enable corepack if packageManager is specified in package.json
+          if [ -f package.json ] && jq -e '.packageManager' package.json > /dev/null 2>&1; then
+            echo "packageManager field detected in package.json, enabling corepack"
+            corepack enable
+          fi
+      - name: Configure Dependency Cache
+        uses: actions/setup-node@v5
+        with:
           cache: ${{ inputs.package-manager }}
       - uses: actions/download-artifact@v4
         with:
           name: node_modules
       - name: Extract node_modules with tar
         run: tar -xvzf node_modules.tar.gz -C .
+      - name: Setup additional environment variables
+        if: inputs.has-env-vars
+        run: |
+          # Parse and set additional environment variables securely
+          while IFS= read -r line || [ -n "$line" ]; do
+            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
+              key="${line%%=*}"
+              value="${line#*=}"
+              # Mask the value in logs
+              echo "::add-mask::${value}"
+              echo "Setting environment variable: ${key}"
+              echo "${key}=${value}" >> $GITHUB_ENV
+            fi
+          done <<< "${{ secrets.ENV_VARS }}"
 
-      - name: Build
+      - name: Check build command exists
+        id: check-build
+        uses: aligent/workflows/.github/actions/command-exists@main
+        with:
+          command: ${{ inputs.build-command }}
+
+      - name: Build (script)
+        if: steps.check-build.outputs.exists-script == 'true'
         run: ${{ inputs.package-manager }} run ${{ inputs.build-command }} ${{ inputs.debug && '--verbose' || '' }}
 
+      - name: Build (nx)
+        if: steps.check-build.outputs.exists-script != 'true' && steps.check-build.outputs.exists-nx-target == 'true'
+        run: npx nx run-many -t ${{ inputs.build-command }} ${{ inputs.debug && '--verbose' || '' }}
+
+      - name: Skip build (command not found)
+        if: steps.check-build.outputs.exists-script != 'true' && steps.check-build.outputs.exists-nx-target != 'true'
+        run: echo "Build command '${{ inputs.build-command }}' not found, skipping"
+
   test:
-    name: 🧪 Test
-    needs: [install, check-commands]
-    if: inputs.skip-test == false && needs.check-commands.outputs.has-test == 'true'
+    name: 🧪 Pull Request Checks
+    needs: [install]
+    if: inputs.skip-test == false || inputs.skip-lint == false || inputs.skip-format == false || inputs.skip-test-storybook == false || inputs.skip-check-types == false
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
       - name: Fetch Origin
         run: git fetch origin
-      - uses: actions/setup-node@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Enable Corepack
+        run: |
+          # Enable corepack if packageManager is specified in package.json
+          if [ -f package.json ] && jq -e '.packageManager' package.json > /dev/null 2>&1; then
+            echo "packageManager field detected in package.json, enabling corepack"
+            corepack enable
+          fi
+      - name: Configure Dependency Cache
+        uses: actions/setup-node@v5
+        with:
           cache: ${{ inputs.package-manager }}
       - uses: actions/download-artifact@v4
         with:
           name: node_modules
       - name: Extract node_modules with tar
         run: tar -xvzf node_modules.tar.gz -C .
+      - name: Setup additional environment variables
+        if: inputs.has-env-vars
+        run: |
+          # Parse and set additional environment variables securely
+          while IFS= read -r line || [ -n "$line" ]; do
+            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
+              key="${line%%=*}"
+              value="${line#*=}"
+              # Mask the value in logs
+              echo "::add-mask::${value}"
+              echo "Setting environment variable: ${key}"
+              echo "${key}=${value}" >> $GITHUB_ENV
+            fi
+          done <<< "${{ secrets.ENV_VARS }}"
 
-      - name: Test
-        run: ${{ inputs.package-manager }} run ${{ inputs.test-command }} ${{ inputs.debug && '--verbose' || '' }}
-
-  lint:
-    name: 🛞 Lint
-    needs: [install, check-commands]
-    if: inputs.skip-lint == false && needs.check-commands.outputs.has-lint == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Fetch Origin
-        run: git fetch origin
-      - uses: actions/setup-node@v4
+      - name: Check test command exists
+        id: check-test
+        if: inputs.skip-test == false
+        uses: aligent/workflows/.github/actions/command-exists@main
         with:
-          node-version-file: .nvmrc
-          cache: ${{ inputs.package-manager }}
-      - uses: actions/download-artifact@v4
+          command: ${{ inputs.test-command }}
+
+      - name: Check lint command exists
+        id: check-lint
+        if: inputs.skip-lint == false
+        uses: aligent/workflows/.github/actions/command-exists@main
         with:
-          name: node_modules
-      - name: Extract node_modules with tar
-        run: tar -xvzf node_modules.tar.gz -C .
+          command: ${{ inputs.lint-command }}
 
-      - name: Lint
-        run: ${{ inputs.package-manager }} run ${{ inputs.lint-command }} ${{ inputs.debug && '--verbose' || '' }}
-
-  format:
-    name: 🖌️ Format
-    needs: [install, check-commands]
-    if: inputs.skip-format == false && needs.check-commands.outputs.has-format == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Fetch Origin
-        run: git fetch origin
-      - uses: actions/setup-node@v4
+      - name: Check format command exists
+        id: check-format
+        if: inputs.skip-format == false
+        uses: aligent/workflows/.github/actions/command-exists@main
         with:
-          node-version-file: .nvmrc
-          cache: ${{ inputs.package-manager }}
-      - uses: actions/download-artifact@v4
+          command: ${{ inputs.format-command }}
+
+      - name: Check test-storybook command exists
+        id: check-test-storybook
+        if: inputs.skip-test-storybook == false
+        uses: aligent/workflows/.github/actions/command-exists@main
         with:
-          name: node_modules
-      - name: Extract node_modules with tar
-        run: tar -xvzf node_modules.tar.gz -C .
+          command: ${{ inputs.test-storybook-command }}
 
-      - name: Format
-        run: ${{ inputs.package-manager }} run ${{ inputs.format-command }} ${{ inputs.debug && '--verbose' || '' }}
-
-  cleanup:
-    name: 🧹 Cleanup
-    runs-on: ubuntu-latest
-    needs: [install, build, test, lint, format]
-    if: always() # Run this step regardless of success of other steps
-    permissions: 
-      actions: write
-    steps:
-      - name: Delete 'node_modules' artifact from this run
-        uses: actions/github-script@v7
+      - name: Check check-types command exists
+        id: check-check-types
+        if: inputs.skip-check-types == false
+        uses: aligent/workflows/.github/actions/command-exists@main
         with:
-          script: |
-            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: process.env.GITHUB_RUN_ID,
-            });
+          command: ${{ inputs.check-types-command }}
 
-            const artifact = artifacts.data.artifacts.find(a => a.name === 'node_modules');
+      - name: Build commands list
+        id: build-commands
+        run: |
+          commands=()
+          if [ "${{ inputs.skip-test }}" != "true" ] && [ "${{ steps.check-test.outputs.exists }}" == "true" ]; then
+            commands+=("${{ inputs.test-command }}")
+          fi
+          if [ "${{ inputs.skip-lint }}" != "true" ] && [ "${{ steps.check-lint.outputs.exists }}" == "true" ]; then
+            commands+=("${{ inputs.lint-command }}")
+          fi
+          if [ "${{ inputs.skip-format }}" != "true" ] && [ "${{ steps.check-format.outputs.exists }}" == "true" ]; then
+            commands+=("${{ inputs.format-command }}")
+          fi
+          if [ "${{ inputs.skip-test-storybook }}" != "true" ] && [ "${{ steps.check-test-storybook.outputs.exists }}" == "true" ]; then
+            commands+=("${{ inputs.test-storybook-command }}")
+          fi
+          if [ "${{ inputs.skip-check-types }}" != "true" ] && [ "${{ steps.check-check-types.outputs.exists }}" == "true" ]; then
+            commands+=("${{ inputs.check-types-command }}")
+          fi
+          # Convert to JSON array
+          json=$(printf '%s\n' "${commands[@]}" | jq -R . | jq -s -c .)
+          echo "commands=$json" >> $GITHUB_OUTPUT
 
-            if (!artifact) {
-              core.info("No 'node_modules' artifact found for this run.");
-            } else {
-              await github.rest.actions.deleteArtifact({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                artifact_id: artifact.id
-              });
-              core.info(`Deleted artifact 'node_modules' with ID ${artifact.id}`);
-            }
+      - name: Run checks concurrently
+        uses: aligent/workflows/.github/actions/run-checks@main
+        with:
+          package-manager: ${{ inputs.package-manager }}
+          debug: ${{ inputs.debug }}
+          commands: ${{ steps.build-commands.outputs.commands }}

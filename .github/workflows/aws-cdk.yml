@@ -1,0 +1,546 @@
+name: ☁️ AWS CDK Deployment
+
+on:
+  workflow_call:
+    inputs:
+      # Core Configuration
+      stack-name:
+        description: "CDK stack name (overrides STACK_NAME variable if provided)"
+        type: string
+        required: false
+        default: ""
+      aws-region:
+        description: "AWS region for deployment"
+        type: string
+        required: false
+        default: "ap-southeast-2"
+      github-environment:
+        description: "GitHub Environment name for secrets/variables (e.g. Staging, Production)"
+        type: string
+        required: false
+        default: ""
+
+      # Deployment Control
+      bootstrap:
+        description: "Bootstrap CDK environment before deployment"
+        type: boolean
+        required: false
+        default: false
+      deploy:
+        description: "Boolean for CDK deploy"
+        type: boolean
+        required: false
+        default: false
+      diff:
+        description: "Boolean for CDK diff"
+        type: boolean
+        required: false
+        default: false
+      synth:
+        description: "Boolean for CDK synth"
+        type: boolean
+        required: false
+        default: false
+
+      # Advanced Configuration
+      context-values:
+        description: "CDK context values as JSON object"
+        type: string
+        required: false
+        default: "{}"
+      environment-target:
+        description: "Target environment for CDK context (stg/prd/dev)"
+        type: string
+        required: false
+        default: ""
+      extra-arguments:
+        description: "Extra arguments"
+        type: string
+        required: false
+      debug:
+        description: "Enable verbose logging and debug output"
+        type: boolean
+        required: false
+        default: false
+      lfs:
+        description: "Enable Git LFS support for checkout"
+        type: boolean
+        required: false
+        default: false
+
+      # Custom CDK Commands
+      bootstrap-command:
+        description: "Custom bootstrap command"
+        type: string
+        required: false
+        default: "npx cdk bootstrap"
+      synth-command:
+        description: "Custom synth command"
+        type: string
+        required: false
+        default: "npx cdk synth"
+      diff-command:
+        description: "Custom diff command"
+        type: string
+        required: false
+        default: "npx cdk diff"
+      deploy-command:
+        description: "Custom deploy command"
+        type: string
+        required: false
+        default: "npx cdk deploy"
+
+    outputs:
+      stack-outputs:
+        description: "CloudFormation stack outputs as JSON"
+        value: ${{ jobs.cdk.outputs.stack-outputs }}
+      deployment-status:
+        description: "Deployment status (success/failed)"
+        value: ${{ jobs.cdk.outputs.deployment-status }}
+
+jobs:
+  prepare:
+    name: 🔍 Prepare CDK Deployment
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-environment }}
+    outputs:
+      node-version: ${{ steps.node-version.outputs.version }}
+      package-manager: ${{ steps.detect-package-manager.outputs.manager }}
+      context-args: ${{ steps.context-config.outputs.args }}
+      stack-name: ${{ steps.resolve-stack-name.outputs.stack-name }}
+      sanitised-cdk-stack-name: ${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
+      cdk-bootstrap-cmd: ${{ steps.parse-cdk-config.outputs.bootstrap-cmd }}
+      cdk-synth-cmd: ${{ steps.parse-cdk-config.outputs.synth-cmd }}
+      cdk-diff-cmd: ${{ steps.parse-cdk-config.outputs.diff-cmd }}
+      cdk-deploy-cmd: ${{ steps.parse-cdk-config.outputs.deploy-cmd }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: ${{ inputs.lfs }}
+
+      - name: Detect Node.js version
+        id: node-version
+        run: |
+          if [ -f ".nvmrc" ]; then
+            NODE_VERSION=$(cat .nvmrc | tr -d '\n' | tr -d 'v')
+            echo "version=$NODE_VERSION" >> $GITHUB_OUTPUT
+            echo "✅ Using Node.js version from .nvmrc: $NODE_VERSION"
+          else
+            echo "❌ Error: No .nvmrc file found. Please create an .nvmrc file with the required Node.js version."
+            exit 1
+          fi
+
+      - name: Detect package manager
+        id: detect-package-manager
+        run: |
+          if [ -f "yarn.lock" ]; then
+            if [ -f ".yarnrc.yml" ] || [ -f ".yarnrc" ]; then
+              echo "manager=yarn-berry" >> $GITHUB_OUTPUT
+              echo "✅ Detected Yarn Berry (v2+)"
+            else
+              echo "manager=yarn-classic" >> $GITHUB_OUTPUT
+              echo "✅ Detected Yarn Classic (v1)"
+            fi
+          elif [ -f "pnpm-lock.yaml" ]; then
+            echo "manager=pnpm" >> $GITHUB_OUTPUT
+            echo "✅ Detected pnpm"
+          else
+            echo "manager=npm" >> $GITHUB_OUTPUT
+            echo "✅ Detected npm"
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ steps.node-version.outputs.version }}
+
+      - name: Enable Corepack
+        if: steps.detect-package-manager.outputs.manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
+
+          # Initialise yarn and ensure cache directory exists for post-job cache step
+          yarn --version
+          CACHE_DIR=$(yarn config get cacheFolder)
+          mkdir -p "$CACHE_DIR"
+          echo "✅ Corepack enabled and cache directory created: $CACHE_DIR"
+
+      - name: Configure dependency cache
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ steps.node-version.outputs.version }}
+          cache: ${{ steps.detect-package-manager.outputs.manager == 'yarn-berry' && 'yarn' || (steps.detect-package-manager.outputs.manager == 'yarn-classic' && 'yarn' || steps.detect-package-manager.outputs.manager) }}
+
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+
+      - name: Install dependencies
+        run: |
+          echo "📦 Installing dependencies with ${{ steps.detect-package-manager.outputs.manager }}..."
+
+          verbose=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            verbose="--verbose"
+          fi
+
+          case "${{ steps.detect-package-manager.outputs.manager }}" in
+            "npm")
+              npm ci $verbose
+              ;;
+            "yarn-classic")
+              yarn install --frozen-lockfile $verbose
+              ;;
+            "yarn-berry")
+              yarn install --immutable $verbose
+              ;;
+            "pnpm")
+              pnpm install --frozen-lockfile $verbose
+              ;;
+          esac
+
+      - name: Set CDK commands
+        id: parse-cdk-config
+        run: |
+          echo "✅ CDK commands:"
+          echo "  bootstrap: ${{ inputs.bootstrap-command }}"
+          echo "  synth: ${{ inputs.synth-command }}"
+          echo "  diff: ${{ inputs.diff-command }}"
+          echo "  deploy: ${{ inputs.deploy-command }}"
+
+          echo "bootstrap-cmd=${{ inputs.bootstrap-command }}" >> $GITHUB_OUTPUT
+          echo "synth-cmd=${{ inputs.synth-command }}" >> $GITHUB_OUTPUT
+          echo "diff-cmd=${{ inputs.diff-command }}" >> $GITHUB_OUTPUT
+          echo "deploy-cmd=${{ inputs.deploy-command }}" >> $GITHUB_OUTPUT
+
+      - name: Resolve stack name
+        id: resolve-stack-name
+        run: |
+          # Input takes priority over variable
+          if [ -n "${{ inputs.stack-name }}" ]; then
+            STACK_NAME="${{ inputs.stack-name }}"
+          else
+            STACK_NAME="${{ vars.STACK_NAME }}"
+          fi
+          echo "stack-name=$STACK_NAME" >> $GITHUB_OUTPUT
+
+      - name: Validate required inputs
+        run: |
+          echo "🔍 Validating deployment configuration..."
+
+          ENVIRONMENT="${{ inputs.github-environment }}"
+          STACK_NAME="${{ steps.resolve-stack-name.outputs.stack-name }}"
+          AWS_ACCESS_KEY_ID="${{ vars.AWS_ACCESS_KEY_ID }}"
+          AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+
+          if [ -z "$ENVIRONMENT" ]; then
+            ENVIRONMENT="Repository"
+          fi
+
+          echo "ℹ️ Using variables from $ENVIRONMENT environment"
+
+          if [ -z "$STACK_NAME" ]; then
+            echo "❌ Error: STACK_NAME must be provided via input or as a variable in your $ENVIRONMENT environment"
+            exit 1
+          fi
+
+          echo "✅ STACK_NAME: $STACK_NAME"
+
+          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
+            echo "❌ Error: AWS_ACCESS_KEY_ID is not defined as a variable in your $ENVIRONMENT environment"
+            exit 1
+          fi
+
+          echo "ℹ️ AWS_ACCESS_KEY_ID set from variable: $AWS_ACCESS_KEY_ID"
+
+          if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "❌ Error: AWS_SECRET_ACCESS_KEY is not defined as a secret in your $ENVIRONMENT environment"
+            exit 1
+          fi
+
+          echo "✅ AWS_SECRET_ACCESS_KEY secret is configured"
+
+          # Validate environment target
+          case "${{ inputs.environment-target }}" in
+            stg|prd|dev)
+              echo "✅ Environment target: ${{ inputs.environment-target }}"
+              ;;
+            "")
+              echo "ℹ️ Environment target is empty"
+              ;;
+            *)
+              echo "❌ Error: environment-target must be one of: stg, prd, dev or empty"
+              exit 1
+              ;;
+          esac
+
+          # Validate context JSON if provided
+          if [ "${{ inputs.context-values }}" != "{}" ]; then
+            echo '${{ inputs.context-values }}' | jq . > /dev/null
+            if [ $? -ne 0 ]; then
+              echo "❌ Error: context-values must be valid JSON"
+              exit 1
+            fi
+          fi
+
+          # Validate that at least one of synth, diff or deploy is true
+          if [ "${{ inputs.synth }}" != "true" ] && [ "${{ inputs.diff }}" != "true" ] && [ "${{ inputs.deploy }}" != "true" ]; then
+            echo "❌ Error: At least one of synth, diff, or deploy must be true"
+            exit 1
+          fi
+
+          echo "✅ All inputs validated successfully"
+
+      - name: Configure CDK context
+        id: context-config
+        run: |
+          echo "⚙️ Configuring CDK context..."
+
+          context_args=""
+
+          # Add environment-specific context
+          context_args="$context_args --context environment=${{ inputs.environment-target }}"
+
+          # Add custom context values (using process substitution to avoid subshell)
+          if [ "${{ inputs.context-values }}" != "{}" ]; then
+            while read -r ctx; do
+              context_args="$context_args $ctx"
+            done < <(echo '${{ inputs.context-values }}' | jq -r 'to_entries[] | "--context \(.key)=\(.value)"')
+          fi
+
+          echo "args=$context_args" >> $GITHUB_OUTPUT
+          echo "✅ Context arguments configured"
+
+      - name: Sanitise stack name
+        id: sanitise
+        run: |
+          sanitised_cdk_stack_name=$(echo "${{ steps.resolve-stack-name.outputs.stack-name }}" | tr -cd '[:alnum:]-_')
+          echo "sanitised-cdk-stack-name=$sanitised_cdk_stack_name" >> $GITHUB_OUTPUT
+
+      - name: Package node_modules for artifact
+        run: |
+          echo "📦 Packaging node_modules..."
+          tar -czf node_modules.tar.gz node_modules/
+          echo "✅ node_modules packaged ($(du -h node_modules.tar.gz | cut -f1))"
+
+      - name: Upload node_modules artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: node_modules-${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
+          path: node_modules.tar.gz
+          retention-days: 1
+
+  cdk:
+    name: ☁️ CDK Operations
+    runs-on: ubuntu-latest
+    needs: [prepare]
+    environment: ${{ inputs.github-environment }}
+    outputs:
+      stack-outputs: ${{ steps.deploy.outputs.stack-outputs }}
+      deployment-status: ${{ steps.deploy.outputs.status }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: ${{ inputs.lfs }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ needs.prepare.outputs.node-version }}
+
+      - name: Enable Corepack
+        if: needs.prepare.outputs.package-manager == 'yarn-berry'
+        run: |
+          echo "🔧 Enabling Corepack for Yarn Berry..."
+          corepack enable
+
+          # If no packageManager field, default to stable Berry
+          if ! grep -q '"packageManager"' package.json; then
+            echo "📦 No packageManager found, preparing stable Yarn..."
+            corepack prepare yarn@stable --activate
+          fi
+          echo "✅ Corepack enabled"
+
+      - name: Download node_modules artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: node_modules-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
+
+      - name: Extract node_modules
+        run: |
+          echo "📦 Extracting node_modules..."
+          tar -xzf node_modules.tar.gz
+          rm node_modules.tar.gz
+          echo "✅ node_modules extracted"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ vars.CFN_EXECUTION_ROLE || secrets.CFN_EXECUTION_ROLE }}
+
+      - name: Bootstrap CDK environment
+        if: inputs.bootstrap == true
+        run: |
+          echo "🥾 Bootstrapping CDK environment..."
+
+          verbose=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            verbose="--verbose"
+          fi
+
+          BOOTSTRAP_CMD="${{ needs.prepare.outputs.cdk-bootstrap-cmd }}"
+
+          # Check if using custom command from config or default
+          if [ "$BOOTSTRAP_CMD" = "npx cdk bootstrap" ]; then
+            # Default command - add AWS-specific arguments
+            role_args=""
+            if [ -n "${{ secrets.CFN_EXECUTION_ROLE }}" ]; then
+              role_args="--cloudformation-execution-policies ${{ secrets.CFN_EXECUTION_ROLE }}"
+            fi
+
+            $BOOTSTRAP_CMD \
+              aws://$(aws sts get-caller-identity --query Account --output text)/${{ inputs.aws-region }} \
+              $role_args \
+              $verbose
+          else
+            $BOOTSTRAP_CMD ${{ inputs.extra-arguments }} $verbose
+          fi
+
+          echo "✅ CDK environment bootstrapped successfully"
+
+      - name: Synthesize CDK application
+        if: inputs.synth == true
+        run: |
+          echo "🔨 Synthesizing CDK application..."
+
+          verbose=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            verbose="--verbose"
+          fi
+
+          SYNTH_CMD="${{ needs.prepare.outputs.cdk-synth-cmd }}"
+
+          $SYNTH_CMD ${{ needs.prepare.outputs.stack-name }} \
+            ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }} \
+            $verbose
+
+          echo "✅ CDK synthesis completed successfully"
+
+      - name: Upload synthesis artifacts
+        if: inputs.synth == true
+        uses: actions/upload-artifact@v6
+        with:
+          name: cdk-synthesis-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
+          path: cdk.out/
+          retention-days: 7
+
+      - name: Generate deployment diff
+        if: inputs.diff == true
+        id: diff-analysis
+        run: |
+          echo "📊 Analysing deployment changes..."
+
+          DIFF_CMD="${{ needs.prepare.outputs.cdk-diff-cmd }}"
+
+          diff_output=$($DIFF_CMD ${{ needs.prepare.outputs.stack-name }} \
+            ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }} \
+            --no-color 2>&1 || true)
+
+          # Save diff to file for analysis
+          echo "$diff_output" > deployment-diff.txt
+
+          # Analyse diff for changes
+          if echo "$diff_output" | grep -q "There were no differences"; then
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "summary=No infrastructure changes detected" >> $GITHUB_OUTPUT
+            echo "ℹ️ No changes detected in infrastructure"
+          else
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+
+            # Create summary
+            summary="Infrastructure changes detected"
+            if echo "$diff_output" | grep -q "Resources"; then
+              summary="$summary - Resource modifications found"
+            fi
+
+            echo "summary=$summary" >> $GITHUB_OUTPUT
+            echo "⚠️ Infrastructure changes detected!"
+            echo "$diff_output"
+          fi
+
+      - name: Upload diff analysis
+        if: inputs.diff == true
+        uses: actions/upload-artifact@v6
+        with:
+          name: deployment-diff-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
+          path: deployment-diff.txt
+          retention-days: 7
+
+      - name: Execute CDK deployment
+        if: inputs.deploy == true
+        id: deploy
+        run: |
+          verbose=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            verbose="--verbose"
+          fi
+
+          echo "🚀 Deploying CDK stack: ${{ needs.prepare.outputs.stack-name }}"
+
+          DEPLOY_CMD="${{ needs.prepare.outputs.cdk-deploy-cmd }}"
+
+          $DEPLOY_CMD ${{ needs.prepare.outputs.stack-name }} \
+            ${{ needs.prepare.outputs.context-args }} \
+            ${{ inputs.extra-arguments }} \
+            --require-approval never \
+            --outputs-file stack-outputs.json \
+            $verbose
+
+          # Extract stack outputs
+          if [ -f "stack-outputs.json" ]; then
+            # Compact JSON to single line to avoid multiline output issues
+            outputs=$(jq -c '.' stack-outputs.json)
+            echo "stack-outputs=$outputs" >> $GITHUB_OUTPUT
+          else
+            echo "stack-outputs={}" >> $GITHUB_OUTPUT
+          fi
+
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "✅ Stack deployed successfully"
+
+      - name: Upload deployment artifacts
+        if: inputs.deploy == true && steps.deploy.outputs.status == 'success'
+        uses: actions/upload-artifact@v6
+        with:
+          name: deployment-outputs-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
+          path: stack-outputs.json
+          retention-days: 7
+
+      - name: Display deployment summary
+        if: inputs.deploy == true && steps.deploy.outputs.status == 'success'
+        run: |
+          echo "📋 Deployment Summary"
+          echo "===================="
+          echo "Stack Pattern: ${{ needs.prepare.outputs.stack-name }}"
+
+          echo "Environment: ${{ inputs.github-environment }}"
+          echo "Region: ${{ inputs.aws-region }}"
+          echo "Status: ${{ steps.deploy.outputs.status }}"
+          echo "Node Version: ${{ needs.prepare.outputs.node-version }}"
+          echo "Package Manager: ${{ needs.prepare.outputs.package-manager }}"
+
+          echo ""
+          echo "🎉 Deployment completed successfully!"

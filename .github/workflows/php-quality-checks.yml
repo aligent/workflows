@@ -1,0 +1,1010 @@
+name: 🐘 PHP Quality Checks
+
+on:
+  workflow_call:
+    secrets:
+      composer-auth:
+        description: "JSON string for Composer authentication (e.g., for private repositories)"
+        required: false
+    inputs:
+      # PHP Configuration
+      php-version:
+        description: "PHP version to use (8.1, 8.2, 8.3)"
+        type: string
+        required: true
+
+      php-extensions:
+        description: "PHP Extensions to use redis, exif, etc"
+        type: string
+        required: false
+        default: "bcmath bz2 calendar exif gd gettext intl mysqli opcache pdo_mysql redis soap sockets sodium sysvmsg sysvsem sysvshm xsl zip pcntl"
+
+      skip-composer-validate:
+        description: "Skip Validation of the composer.json"
+        type: boolean
+        required: false
+        default: false
+
+      # PHPStan Configuration
+      phpstan-level:
+        description: "PHPStan analysis level (1-9)"
+        type: string
+        required: false
+        default: "6"
+      skip-phpstan:
+        description: "Skip PHPStan static analysis"
+        type: boolean
+        required: false
+        default: false
+
+      # PHP CodeSniffer Configuration
+      coding-standard:
+        description: "Coding standard to use (Magento2, PSR12, PSR2)"
+        type: string
+        required: false
+        default: "Magento2"
+      skip-phpcs:
+        description: "Skip PHP CodeSniffer checks"
+        type: boolean
+        required: false
+        default: false
+
+      # Testing Configuration
+      coverage-threshold:
+        description: "Code coverage threshold percentage (0-100)"
+        type: string
+        required: false
+        default: "80"
+      skip-tests:
+        description: "Skip PHP unit testing"
+        type: boolean
+        required: false
+        default: false
+      skip-integration-tests:
+        description: "Skip integration tests"
+        type: boolean
+        required: false
+        default: false
+      skip-rest-api-tests:
+        description: "Skip REST API functional tests"
+        type: boolean
+        required: false
+        default: false
+      skip-graphql-tests:
+        description: "Skip GraphQL API functional tests"
+        type: boolean
+        required: false
+        default: false
+
+      # Composer Configuration
+      composer-args:
+        description: "Additional composer install arguments"
+        type: string
+        required: false
+        default: ""
+
+      # System Configuration
+      memory-limit:
+        description: "PHP memory limit for analysis tools"
+        type: string
+        required: false
+        default: "512M"
+
+      # Debug Configuration
+      debug:
+        description: "Enable verbose logging and debug output"
+        type: boolean
+        required: false
+        default: false
+
+      # Service Version Configuration
+      mariadb-version:
+        description: "MariaDB Docker image version (e.g., 10.6, 11.4)"
+        type: string
+        required: false
+        default: "11.4"
+
+      rabbitmq-version:
+        description: "RabbitMQ Docker image version (e.g., 3.12-management, 4.1-management)"
+        type: string
+        required: false
+        default: "4.1-management"
+
+      opensearch-version:
+        description: "OpenSearch Docker image version (e.g., 1, 2)"
+        type: string
+        required: false
+        default: "2"
+
+jobs:
+  # Install Composer dependencies with caching and detect available tools
+  install:
+    name: 📦 Install Dependencies
+    runs-on: ubuntu-latest
+    outputs:
+      has-composer: ${{ steps.check-files.outputs.has-composer }}
+      has-phpstan-config: ${{ steps.check-tools.outputs.has-phpstan-config }}
+      has-phpcs-config: ${{ steps.check-tools.outputs.has-phpcs-config }}
+      has-unit-tests: ${{ steps.check-tests.outputs.has-unit-tests }}
+      has-integration-tests: ${{ steps.check-tests.outputs.has-integration-tests }}
+      has-rest-api-tests: ${{ steps.check-tests.outputs.has-rest-api-tests }}
+      has-graphql-tests: ${{ steps.check-tests.outputs.has-graphql-tests }}
+    env:
+      COMPOSER_AUTH: ${{ secrets.composer-auth }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check for required files
+        id: check-files
+        run: |
+          if [ -f "composer.json" ]; then
+            echo "✅ composer.json found"
+            echo "has-composer=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ composer.json not found"
+            echo "has-composer=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for analysis tool configurations
+        id: check-tools
+        run: |
+          # Check for PHPStan
+          if [ -f "phpstan.neon" ] || [ -f "phpstan.neon.dist" ] || [ -f "phpstan.dist.neon" ]; then
+            echo "✅ PHPStan configuration found"
+            echo "has-phpstan-config=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No PHPStan configuration found, will use defaults"
+            echo "has-phpstan-config=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Check for PHPCS
+          if [ -f "phpcs.xml" ] || [ -f "phpcs.xml.dist" ] || [ -f "phpcs.dist.xml" ] || [ -f ".phpcs.xml" ]; then
+            echo "✅ PHPCS configuration found"
+            echo "has-phpcs-config=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No PHPCS configuration found, will use standard"
+            echo "has-phpcs-config=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for test configurations
+        id: check-tests
+        run: |
+          # Check for Unit tests
+          if [ -f "dev/tests/unit/phpunit.xml" ]; then
+            echo "✅ PHPUnit configuration found"
+            echo "has-unit-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No PHPUnit configuration found"
+            echo "has-unit-tests=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Check for Integration tests
+          if [ -f "dev/tests/integration/phpunit.xml" ]; then
+            echo "✅ Integration test configuration found"
+            echo "has-integration-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No integration test configuration found"
+            echo "has-integration-tests=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Check for REST API tests
+          if [ -f "dev/tests/api-functional/phpunit_rest.xml" ]; then
+            echo "✅ REST API test configuration found"
+            echo "has-rest-api-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No REST API test configuration found"
+            echo "has-rest-api-tests=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Check for GraphQL tests
+          if [ -f "dev/tests/api-functional/phpunit_graphql.xml" ]; then
+            echo "✅ GraphQL test configuration found"
+            echo "has-graphql-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No GraphQL test configuration found"
+            echo "has-graphql-tests=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup PHP
+        if: steps.check-files.outputs.has-composer == 'true'
+        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Get composer cache directory
+        if: steps.check-files.outputs.has-composer == 'true'
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        if: steps.check-files.outputs.has-composer == 'true'
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Validate composer.json and composer.lock
+        if: steps.check-files.outputs.has-composer == 'true' && inputs.skip-composer-validate != true
+        run: composer validate ${{ inputs.debug && '--verbose' || '' }}
+
+      - name: Install Composer Dependencies
+        if: steps.check-files.outputs.has-composer == 'true'
+        run: |
+          composer install \
+            --dev \
+            --no-progress \
+            --no-interaction \
+            ${{ inputs.composer-args }} \
+            ${{ inputs.debug && '--verbose' || '' }}
+
+      - name: Run Magento setup if needed
+        if: steps.check-files.outputs.has-composer == 'true'
+        run: |
+          # Apply patches if ece-patches is available
+          if [ -f "vendor/bin/ece-patches" ]; then
+            echo "Applying Magento patches..."
+            vendor/bin/ece-patches apply || true
+          fi
+
+          # Run DI compilation if Magento is detected
+          if [ -f "bin/magento" ]; then
+            echo "Running Magento DI compilation..."
+            php -d memory_limit=-1 bin/magento setup:di:compile || true
+          fi
+
+      # Archive directories for other jobs (matching Bitbucket artifacts)
+      - name: Archive dependencies and generated files
+        if: steps.check-files.outputs.has-composer == 'true'
+        run: |
+          echo "📦 Preparing archive of dependencies and generated files..."
+
+          # List of directories to archive (based on Bitbucket pipeline)
+          dirs=""
+
+          # Check and add each directory
+          for dir in vendor bin app generated dev setup pub phpserver; do
+            if [ -d "$dir" ]; then
+              dirs="$dirs $dir"
+              echo "  ✅ Including: $dir"
+            else
+              echo "  ⏭️  Skipping: $dir (not found)"
+            fi
+          done
+
+          if [ -n "$dirs" ]; then
+            echo "Creating archive with: $dirs"
+            # Use --warning=no-file-changed to suppress warnings about files changing during archive
+            tar --warning=no-file-changed -czf dependencies.tar.gz $dirs
+
+            # Show archive size for debugging
+            echo "Archive size: $(du -h dependencies.tar.gz | cut -f1)"
+
+            # List first few files in archive for verification
+            echo "Sample of archived files:"
+            tar -tzf dependencies.tar.gz | head -20
+          else
+            echo "⚠️ No directories found to archive"
+            tar -czf dependencies.tar.gz --files-from /dev/null
+          fi
+
+      - uses: actions/upload-artifact@v6
+        if: steps.check-files.outputs.has-composer == 'true'
+        with:
+          name: vendor-php${{ inputs.php-version }}
+          path: dependencies.tar.gz
+          retention-days: 1
+
+  # PHPStan static analysis
+  phpstan:
+    name: 🔍 PHPStan Analysis
+    needs: install
+    if: |
+      inputs.skip-phpstan == false &&
+      needs.install.outputs.has-composer == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract dependencies and generated files
+        run: |
+          echo "📦 Extracting dependencies archive..."
+          tar -xzf dependencies.tar.gz
+          echo "✅ Extraction complete"
+
+          # Verify critical directories exist
+          for dir in vendor bin; do
+            if [ -d "$dir" ]; then
+              echo "  ✅ $dir directory exists"
+            else
+              echo "  ❌ WARNING: $dir directory missing after extraction"
+            fi
+          done
+
+          # Check for Magento-specific directories if this is a Magento project
+          if [ -d "app" ] || [ -d "generated" ]; then
+            echo "Magento directories:"
+            [ -d "app" ] && echo "  ✅ app/"
+            [ -d "generated" ] && echo "  ✅ generated/"
+            [ -d "dev" ] && echo "  ✅ dev/"
+            [ -d "setup" ] && echo "  ✅ setup/"
+            [ -d "pub" ] && echo "  ✅ pub/"
+          fi
+
+      - name: Cache PHPStan results
+        uses: actions/cache@v5
+        with:
+          path: /tmp/phpstan
+          key: phpstan-php${{ inputs.php-version }}-${{ inputs.phpstan-level }}-${{ hashFiles('**/*.php') }}
+          restore-keys: |
+            phpstan-php${{ inputs.php-version }}-${{ inputs.phpstan-level }}-
+            phpstan-php${{ inputs.php-version }}-
+
+      - name: Run PHPStan analysis
+        run: |
+          echo "🔍 Running PHPStan analysis (Level ${{ inputs.phpstan-level }})..."
+
+          # Check for custom phpstan script first
+          if composer run-script --list | grep -q "phpstan"; then
+            echo "✅ Using composer phpstan script"
+            composer run-script phpstan
+          elif [ -f "phpstan.sh" ]; then
+            echo "✅ Using phpstan.sh script"
+            chmod +x phpstan.sh
+            ./phpstan.sh
+          elif [ -f "vendor/bin/phpstan" ]; then
+            echo "✅ Using vendor PHPStan"
+            phpstan_cmd="vendor/bin/phpstan"
+
+            # Build PHPStan command
+            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpstan_cmd analyse"
+
+            # Use existing config or set defaults
+            if [ "${{ needs.install.outputs.has-phpstan-config }}" = "true" ]; then
+              echo "✅ Using existing PHPStan configuration"
+            else
+              echo "ℹ️ Using default PHPStan configuration"
+              cmd="$cmd --level=${{ inputs.phpstan-level }} src/ app/"
+            fi
+
+            # Add debug flags if enabled
+            if [ "${{ inputs.debug }}" = "true" ]; then
+              cmd="$cmd --verbose --debug"
+            fi
+
+            # Execute PHPStan
+            eval $cmd
+          else
+            echo "Installing PHPStan globally..."
+            composer global require phpstan/phpstan:^1.0
+            phpstan_cmd="phpstan"
+
+            # Build PHPStan command
+            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpstan_cmd analyse"
+            cmd="$cmd --level=${{ inputs.phpstan-level }} src/ app/"
+
+            # Add debug flags if enabled
+            if [ "${{ inputs.debug }}" = "true" ]; then
+              cmd="$cmd --verbose --debug"
+            fi
+
+            # Execute PHPStan
+            eval $cmd
+          fi
+
+  # PHP CodeSniffer style checks
+  phpcs:
+    name: 🎨 Code Style Check
+    needs: install
+    if: |
+      inputs.skip-phpcs == false &&
+      needs.install.outputs.has-composer == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract dependencies and generated files
+        run: |
+          echo "📦 Extracting dependencies archive..."
+          tar -xzf dependencies.tar.gz
+          echo "✅ Extraction complete"
+
+          # Verify critical directories exist
+          for dir in vendor bin; do
+            if [ -d "$dir" ]; then
+              echo "  ✅ $dir directory exists"
+            else
+              echo "  ❌ WARNING: $dir directory missing after extraction"
+            fi
+          done
+
+          # Check for Magento-specific directories if this is a Magento project
+          if [ -d "app" ] || [ -d "generated" ]; then
+            echo "Magento directories:"
+            [ -d "app" ] && echo "  ✅ app/"
+            [ -d "generated" ] && echo "  ✅ generated/"
+            [ -d "dev" ] && echo "  ✅ dev/"
+            [ -d "setup" ] && echo "  ✅ setup/"
+            [ -d "pub" ] && echo "  ✅ pub/"
+          fi
+
+      - name: Run PHP CodeSniffer
+        run: |
+          echo "🎨 Running PHP CodeSniffer (${{ inputs.coding-standard }} standard)..."
+
+          # Check for custom check-style script first
+          if composer run-script --list | grep -q "check-style"; then
+            echo "✅ Using composer check-style script"
+            composer run-script check-style
+          elif [ "${{ needs.install.outputs.has-phpcs-config }}" = "true" ]; then
+            echo "✅ Using existing PHPCS configuration"
+            if [ -f "vendor/bin/phpcs" ]; then
+              phpcs_cmd="vendor/bin/phpcs"
+            else
+              echo "Installing PHP CodeSniffer globally..."
+              composer global require squizlabs/php_codesniffer:^3.0
+              phpcs_cmd="phpcs"
+            fi
+
+            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd --report=full --colors"
+            if [ "${{ inputs.debug }}" = "true" ]; then
+              cmd="$cmd --verbose"
+            fi
+            eval $cmd
+          elif [ -f "vendor/bin/phpcs" ]; then
+            echo "✅ Using vendor PHPCS with ${{ inputs.coding-standard }} standard"
+            phpcs_cmd="vendor/bin/phpcs"
+
+            # Build PHPCS command
+            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd"
+            cmd="$cmd --standard=${{ inputs.coding-standard }} src/ app/"
+            cmd="$cmd --report=full --colors"
+
+            if [ "${{ inputs.debug }}" = "true" ]; then
+              cmd="$cmd --verbose"
+            fi
+
+            eval $cmd
+          else
+            echo "Installing PHP CodeSniffer globally..."
+            composer global require squizlabs/php_codesniffer:^3.0
+            phpcs_cmd="phpcs"
+
+            # Install Magento2 standard if needed
+            if [ "${{ inputs.coding-standard }}" = "Magento2" ]; then
+              composer global require magento/magento-coding-standard:*
+            fi
+
+            # Build PHPCS command
+            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd"
+            cmd="$cmd --standard=${{ inputs.coding-standard }} src/ app/"
+            cmd="$cmd --report=full --colors"
+
+            if [ "${{ inputs.debug }}" = "true" ]; then
+              cmd="$cmd --verbose"
+            fi
+
+            eval $cmd
+          fi
+
+  # PHPUnit testing with coverage
+  test:
+    name: 🧪 Unit Tests
+    needs: install
+    if: |
+      inputs.skip-tests == false &&
+      needs.install.outputs.has-composer == 'true' &&
+      needs.install.outputs.has-unit-tests == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup PHP with Xdebug
+        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}, xdebug
+          coverage: xdebug
+          tools: composer:v2
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract dependencies and generated files
+        run: |
+          echo "📦 Extracting dependencies archive..."
+          tar -xzf dependencies.tar.gz
+          echo "✅ Extraction complete"
+
+          # Verify critical directories exist
+          for dir in vendor bin; do
+            if [ -d "$dir" ]; then
+              echo "  ✅ $dir directory exists"
+            else
+              echo "  ❌ WARNING: $dir directory missing after extraction"
+            fi
+          done
+
+          # Check for Magento-specific directories if this is a Magento project
+          if [ -d "app" ] || [ -d "generated" ]; then
+            echo "Magento directories:"
+            [ -d "app" ] && echo "  ✅ app/"
+            [ -d "generated" ] && echo "  ✅ generated/"
+            [ -d "dev" ] && echo "  ✅ dev/"
+            [ -d "setup" ] && echo "  ✅ setup/"
+            [ -d "pub" ] && echo "  ✅ pub/"
+          fi
+
+      - name: Run PHPUnit tests
+        run: |
+          echo "🧪 Running PHPUnit tests with coverage..."
+
+          # Check if PHPUnit is installed
+          if [ -f "vendor/bin/phpunit" ]; then
+            phpunit_cmd="$(pwd)/vendor/bin/phpunit"
+          else
+            echo "❌ PHPUnit not found in vendor/bin/"
+            exit 1
+          fi
+
+          # Unit tests need to be excuted from inside this directory
+          # or we have pathing issues
+          pushd dev/tests/unit
+
+          # Build PHPUnit command with coverage
+          cmd='php -d memory_limit=${{ inputs.memory-limit }} -d xdebug.mode=coverage $phpunit_cmd -c ./phpunit.xml --testsuite="Unit Tests" --log-junit ./test-results/report.xml'
+          cmd="$cmd --coverage-text --coverage-clover=coverage.xml"
+
+          # Add debug flags if enabled
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            cmd="$cmd --verbose"
+          fi
+
+          # Execute PHPUnit
+          eval $cmd
+
+      - name: Check coverage threshold
+        run: |
+          threshold=${{ inputs.coverage-threshold }}
+          if [ -f "coverage.xml" ] && [ "$threshold" != "0" ]; then
+            echo "📊 Checking coverage threshold ($threshold%)..."
+
+            # Extract coverage percentage from clover XML
+            coverage=$(php -r "
+              \$xml = simplexml_load_file('coverage.xml');
+              \$metrics = \$xml->project->metrics;
+              \$covered = (float)\$metrics['coveredstatements'];
+              \$total = (float)\$metrics['statements'];
+              \$percentage = \$total > 0 ? (\$covered / \$total) * 100 : 0;
+              echo round(\$percentage, 2);
+            ")
+
+            echo "📊 Current coverage: $coverage%"
+
+            # Compare with threshold
+            if (( $(echo "$coverage < $threshold" | bc -l) )); then
+              echo "❌ Coverage $coverage% is below threshold $threshold%"
+              exit 1
+            else
+              echo "✅ Coverage $coverage% meets threshold $threshold%"
+            fi
+          else
+            echo "ℹ️ Skipping coverage threshold check"
+          fi
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: coverage-php${{ inputs.php-version }}
+          path: coverage.xml
+          retention-days: 7
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: integration-test-results-php${{ inputs.php-version }}
+          path: test-results/
+          retention-days: 7
+
+  # Integration Tests
+  integration-tests:
+    name: 🔗 Integration Tests
+    needs: install
+    if: |
+      inputs.skip-integration-tests == false &&
+      needs.install.outputs.has-composer == 'true' &&
+      needs.install.outputs.has-integration-tests == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:${{ inputs.mariadb-version }}
+        env:
+          MYSQL_DATABASE: magento_integration_tests
+          MYSQL_USER: magento2
+          MYSQL_PASSWORD: magento2
+          MYSQL_ROOT_PASSWORD: magento2
+        ports:
+          - 3306:3306
+        options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      search:
+        image: opensearchproject/opensearch:${{ inputs.opensearch-version }}
+        env:
+          discovery.type: single-node
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+          DISABLE_SECURITY_PLUGIN: true
+        ports:
+          - 9200:9200
+        options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      rabbitmq:
+        image: rabbitmq:${{ inputs.rabbitmq-version }}
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: --health-cmd="rabbitmq-diagnostics -q ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract dependencies and generated files
+        run: |
+          echo "📦 Extracting dependencies archive..."
+          tar -xzf dependencies.tar.gz
+          echo "✅ Extraction complete"
+
+          # Verify critical directories exist
+          for dir in vendor bin; do
+            if [ -d "$dir" ]; then
+              echo "  ✅ $dir directory exists"
+            else
+              echo "  ❌ WARNING: $dir directory missing after extraction"
+            fi
+          done
+
+          # Check for Magento-specific directories if this is a Magento project
+          if [ -d "app" ] || [ -d "generated" ]; then
+            echo "Magento directories:"
+            [ -d "app" ] && echo "  ✅ app/"
+            [ -d "generated" ] && echo "  ✅ generated/"
+            [ -d "dev" ] && echo "  ✅ dev/"
+            [ -d "setup" ] && echo "  ✅ setup/"
+            [ -d "pub" ] && echo "  ✅ pub/"
+          fi
+
+      - name: Run Integration Tests
+        run: |
+          echo "🔗 Running integration tests..."
+
+          # Create database if script exists
+          if [ -f "dev/tests/createDatabase.sh" ]; then
+            ./dev/tests/createDatabase.sh magento_integration_tests
+          fi
+
+          # Run integration tests
+          if [ -f "vendor/bin/phpunit" ]; then
+            php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit \
+              -c $(pwd)/dev/tests/integration/phpunit.xml \
+              --log-junit ./test-results/integration-report.xml \
+              --testsuite="Integration Tests" \
+              ${{ inputs.debug && '--verbose' || '' }}
+          else
+            echo "❌ PHPUnit not found in vendor/bin/"
+            exit 1
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: integration-test-results-php${{ inputs.php-version }}
+          path: test-results/
+          retention-days: 7
+
+  # REST API Functional Tests
+  rest-api-tests:
+    name: 🔌 REST API Tests
+    needs: install
+    if: |
+      inputs.skip-rest-api-tests == false &&
+      needs.install.outputs.has-composer == 'true' &&
+      needs.install.outputs.has-rest-api-tests == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:${{ inputs.mariadb-version }}
+        env:
+          MYSQL_DATABASE: magento_functional_tests
+          MYSQL_USER: magento2
+          MYSQL_PASSWORD: magento2
+          MYSQL_ROOT_PASSWORD: magento2
+        ports:
+          - 3306:3306
+        options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      search:
+        image: opensearchproject/opensearch:${{ inputs.opensearch-version }}
+        env:
+          discovery.type: single-node
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+          DISABLE_SECURITY_PLUGIN: true
+        ports:
+          - 9200:9200
+        options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      rabbitmq:
+        image: rabbitmq:${{ inputs.rabbitmq-version }}
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: --health-cmd="rabbitmq-diagnostics -q ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract dependencies and generated files
+        run: |
+          echo "📦 Extracting dependencies archive..."
+          tar -xzf dependencies.tar.gz
+          echo "✅ Extraction complete"
+
+          # Verify critical directories exist
+          for dir in vendor bin; do
+            if [ -d "$dir" ]; then
+              echo "  ✅ $dir directory exists"
+            else
+              echo "  ❌ WARNING: $dir directory missing after extraction"
+            fi
+          done
+
+          # Check for Magento-specific directories if this is a Magento project
+          if [ -d "app" ] || [ -d "generated" ]; then
+            echo "Magento directories:"
+            [ -d "app" ] && echo "  ✅ app/"
+            [ -d "generated" ] && echo "  ✅ generated/"
+            [ -d "dev" ] && echo "  ✅ dev/"
+            [ -d "setup" ] && echo "  ✅ setup/"
+            [ -d "pub" ] && echo "  ✅ pub/"
+          fi
+
+      - name: Run REST API Tests
+        run: |
+          echo "🔌 Running REST API functional tests..."
+
+          # Create database if script exists
+          if [ -f "dev/tests/createDatabase.sh" ]; then
+            ./dev/tests/createDatabase.sh magento_functional_tests
+          fi
+
+          # Start PHP built-in web server for API tests
+          if [ -d "pub" ] && [ -f "phpserver/router.php" ]; then
+            echo "Starting PHP built-in server on port 8082..."
+            php -S 127.0.0.1:8082 -t ./pub/ ./phpserver/router.php &
+            SERVER_PID=$!
+            sleep 5
+
+            # Check if server is running
+            if curl http://127.0.0.1:8082 > /dev/null 2>&1; then
+              echo "✅ PHP server is running"
+            else
+              echo "❌ Failed to start PHP server"
+              exit 1
+            fi
+          fi
+
+          # Run REST API tests
+          if [ -f "vendor/bin/phpunit" ]; then
+            php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit \
+              -c $(pwd)/dev/tests/api-functional/phpunit_rest.xml \
+              --log-junit ./test-results/rest-api-report.xml \
+              --testsuite="REST API Tests" \
+              ${{ inputs.debug && '--verbose' || '' }}
+          else
+            echo "❌ PHPUnit not found in vendor/bin/"
+            exit 1
+          fi
+
+          # Kill the PHP server if it was started
+          if [ ! -z "$SERVER_PID" ]; then
+            kill $SERVER_PID || true
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: rest-api-test-results-php${{ inputs.php-version }}
+          path: test-results/
+          retention-days: 7
+
+  # GraphQL API Functional Tests
+  graphql-tests:
+    name: 📊 GraphQL API Tests
+    needs: install
+    if: |
+      inputs.skip-graphql-tests == false &&
+      needs.install.outputs.has-composer == 'true' &&
+      needs.install.outputs.has-graphql-tests == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:${{ inputs.mariadb-version }}
+        env:
+          MYSQL_DATABASE: magento_graphql_tests
+          MYSQL_USER: magento2
+          MYSQL_PASSWORD: magento2
+          MYSQL_ROOT_PASSWORD: magento2
+        ports:
+          - 3306:3306
+        options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      search:
+        image: opensearchproject/opensearch:${{ inputs.opensearch-version }}
+        env:
+          discovery.type: single-node
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+          DISABLE_SECURITY_PLUGIN: true
+        ports:
+          - 9200:9200
+        options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      rabbitmq:
+        image: rabbitmq:${{ inputs.rabbitmq-version }}
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: --health-cmd="rabbitmq-diagnostics -q ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: vendor-php${{ inputs.php-version }}
+
+      - name: Extract dependencies and generated files
+        run: |
+          echo "📦 Extracting dependencies archive..."
+          tar -xzf dependencies.tar.gz
+          echo "✅ Extraction complete"
+
+          # Verify critical directories exist
+          for dir in vendor bin; do
+            if [ -d "$dir" ]; then
+              echo "  ✅ $dir directory exists"
+            else
+              echo "  ❌ WARNING: $dir directory missing after extraction"
+            fi
+          done
+
+          # Check for Magento-specific directories if this is a Magento project
+          if [ -d "app" ] || [ -d "generated" ]; then
+            echo "Magento directories:"
+            [ -d "app" ] && echo "  ✅ app/"
+            [ -d "generated" ] && echo "  ✅ generated/"
+            [ -d "dev" ] && echo "  ✅ dev/"
+            [ -d "setup" ] && echo "  ✅ setup/"
+            [ -d "pub" ] && echo "  ✅ pub/"
+          fi
+
+      - name: Run GraphQL API Tests
+        run: |
+          echo "📊 Running GraphQL API functional tests..."
+
+          # Create database if script exists
+          if [ -f "dev/tests/createDatabase.sh" ]; then
+            ./dev/tests/createDatabase.sh magento_graphql_tests
+          fi
+
+          # Start PHP built-in web server for API tests
+          if [ -d "pub" ] && [ -f "phpserver/router.php" ]; then
+            echo "Starting PHP built-in server on port 8083..."
+            php -S 127.0.0.1:8083 -t ./pub/ ./phpserver/router.php &
+            SERVER_PID=$!
+            sleep 5
+
+            # Check if server is running
+            if curl http://127.0.0.1:8083 > /dev/null 2>&1; then
+              echo "✅ PHP server is running"
+            else
+              echo "❌ Failed to start PHP server"
+              exit 1
+            fi
+          fi
+
+          # Run GraphQL tests
+          if [ -f "vendor/bin/phpunit" ]; then
+            php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit \
+              -c $(pwd)/dev/tests/api-functional/phpunit_graphql.xml \
+              --log-junit ./test-results/graphql-report.xml \
+              --testsuite="GraphQL API Tests" \
+              ${{ inputs.debug && '--verbose' || '' }}
+          else
+            echo "❌ PHPUnit not found in vendor/bin/"
+            exit 1
+          fi
+
+          # Kill the PHP server if it was started
+          if [ ! -z "$SERVER_PID" ]; then
+            kill $SERVER_PID || true
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: graphql-test-results-php${{ inputs.php-version }}
+          path: test-results/
+          retention-days: 7

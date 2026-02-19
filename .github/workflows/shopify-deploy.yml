@@ -1,0 +1,86 @@
+name: Deploy to Shopify
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: 'Working directory for the app'
+        required: false
+        type: string
+        default: '.'
+      development-toml-name:
+        description: 'Name of development.toml'
+        required: false
+        type: string
+        default: 'shopify.app.development.toml'
+      production-toml-name:
+        description: 'Name of .toml'
+        required: false
+        type: string
+        default: 'shopify.app.toml'
+
+      # Deployment Control
+      deploy-staging:
+        description: "Boolean to check if deploy to staging"
+        type: boolean
+        default: false
+      deploy-production:
+        description: "Boolean to check if deploy to production"
+        type: boolean
+        default: false
+
+    secrets:
+      shopify_cli_token:
+        description: 'Shopify CLI authentication token'
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to Shopify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check deployment selection
+        if: ${{ inputs.deploy-staging == false && inputs.deploy-production == false }}
+        run: |
+          echo "Error: Neither 'deploy-staging' nor 'deploy-production' is selected."
+          echo "Please select at least one deployment target."
+          exit 1
+          
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'yarn'
+          cache-dependency-path: ${{ inputs.working-directory }}/yarn.lock
+
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: yarn install --frozen-lockfile
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: build-artifacts
+          path: ${{ inputs.working-directory }}
+
+      - name: Configure Shopify CLI
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          if [ "${{ inputs.deploy-production }}" = "true" ]; then
+            yarn shopify app config use ${{ inputs.production-toml-name }}
+          else
+            yarn shopify app config use ${{ inputs.development-toml-name }}
+          fi
+
+      - name: Deploy to Shopify
+        working-directory: ${{ inputs.working-directory }}
+        run: yarn shopify app deploy --allow-updates
+        env:
+          SHOPIFY_CLI_TOKEN: ${{ secrets.shopify_cli_token }}
+          SHOPIFY_FLAG_PATH: ${{ inputs.working-directory }}

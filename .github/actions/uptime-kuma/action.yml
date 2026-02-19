@@ -1,0 +1,47 @@
+name: "Uptime Kuma Pause/Resume"
+description: "Pauses or resumes Uptime Kuma monitors during deployments to prevent false downtime alerts"
+
+inputs:
+  action:
+    description: "Action to perform: 'pause' or 'resume'"
+    required: true
+  kuma-url:
+    description: "Uptime Kuma base URL (e.g., https://status.aligent.cloud)"
+    required: true
+  monitor-ids:
+    description: "Comma-separated monitor IDs (e.g., 12,15,18)"
+    required: true
+  kuma-username:
+    description: "Uptime Kuma login username"
+    required: true
+  kuma-password:
+    description: "Uptime Kuma login password"
+    required: true
+  timeout:
+    description: "Seconds to wait for Socket.IO connection and operations"
+    required: false
+    default: "30"
+  debug:
+    description: "Enable verbose logging"
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Install socket.io-client
+      shell: bash
+      run: npm install --no-save socket.io-client
+      working-directory: ${{ github.action_path }}
+
+    - name: ${{ inputs.action == 'pause' && 'Pause' || 'Resume' }} monitors
+      shell: bash
+      run: node ${{ github.action_path }}/uptime-kuma.js
+      env:
+        INPUT_ACTION: ${{ inputs.action }}
+        INPUT_KUMA_URL: ${{ inputs.kuma-url }}
+        INPUT_MONITOR_IDS: ${{ inputs.monitor-ids }}
+        INPUT_KUMA_USERNAME: ${{ inputs.kuma-username }}
+        INPUT_KUMA_PASSWORD: ${{ inputs.kuma-password }}
+        INPUT_TIMEOUT: ${{ inputs.timeout }}
+        INPUT_DEBUG: ${{ inputs.debug }}

@@ -1,0 +1,86 @@
+name: "Check Command Exists"
+description: "Checks if a script/command exists in package.json, workspaces, or Nx targets"
+
+inputs:
+  command:
+    description: "The command/script name to check"
+    required: true
+
+outputs:
+  exists-script:
+    description: "Whether the command exists in package.json scripts (true/false)"
+    value: ${{ steps.check-script.outputs.exists }}
+  exists-nx-target:
+    description: "Whether the command exists as an Nx target (true/false)"
+    value: ${{ steps.check-nx.outputs.exists }}
+
+runs:
+  using: composite
+  steps:
+    - id: check-script
+      shell: bash
+      run: |
+        cmd="${{ inputs.command }}"
+
+        # Check root package.json scripts
+        if jq -e --arg cmd "$cmd" '.scripts[$cmd]' package.json > /dev/null 2>&1; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Check workspace package.json files using workspaces field
+        # Handles both array format and object format (yarn/npm/pnpm)
+        workspaces=$(jq -r '
+          if .workspaces | type == "array" then .workspaces[]
+          elif .workspaces.packages | type == "array" then .workspaces.packages[]
+          else empty
+          end
+        ' package.json 2>/dev/null)
+
+        if [ -n "$workspaces" ]; then
+          for pattern in $workspaces; do
+            # Expand glob pattern and check each matching directory
+            for pkg_dir in $pattern; do
+              if [ -f "$pkg_dir/package.json" ]; then
+                if jq -e --arg cmd "$cmd" '.scripts[$cmd]' "$pkg_dir/package.json" > /dev/null 2>&1; then
+                  echo "exists=true" >> $GITHUB_OUTPUT
+                  exit 0
+                fi
+              fi
+            done
+          done
+        fi
+
+        # Check pnpm-workspace.yaml if it exists
+        if [ -f "pnpm-workspace.yaml" ]; then
+          # Extract package paths from YAML list items, stripping optional quotes
+          # Matches: "  - packages/*", "  - 'apps/*'", '  - "libs/*"' -> packages/*, apps/*, libs/*
+          pnpm_packages=$(grep -E '^\s*-\s+' pnpm-workspace.yaml | sed "s/.*-\s*['\"]\\{0,1\\}\([^'\"]*\\)['\"]\\{0,1\\}/\1/" 2>/dev/null)
+          for pattern in $pnpm_packages; do
+            for pkg_dir in $pattern; do
+              if [ -f "$pkg_dir/package.json" ]; then
+                if jq -e --arg cmd "$cmd" '.scripts[$cmd]' "$pkg_dir/package.json" > /dev/null 2>&1; then
+                  echo "exists=true" >> $GITHUB_OUTPUT
+                  exit 0
+                fi
+              fi
+            done
+          done
+        fi
+
+        echo "exists=false" >> $GITHUB_OUTPUT
+
+    - id: check-nx
+      shell: bash
+      run: |
+        cmd="${{ inputs.command }}"
+
+        # Check Nx targets if this is an Nx workspace
+        if [ -f "nx.json" ]; then
+          if npx nx show projects --with-target "$cmd" 2>/dev/null | grep -q .; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+        fi
+
+        echo "exists=false" >> $GITHUB_OUTPUT
