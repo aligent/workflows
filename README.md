@@ -11,6 +11,7 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 | [Magento Cloud Deployment](docs/magento-cloud-deploy.md) | Magento Cloud deployment with optional NewRelic monitoring and CST reporting |
 | [Node Pull Request Checks](docs/node-pr.md) | Pull request quality checks for Node.js projects |
 | [Nx Serverless Deployment](docs/nx-serverless-deployment.md) | Serverless deployment workflow for Nx monorepos |
+| [PWA Deployment](docs/pwa-deployment.md) | Progressive Web Application deployment with S3 hosting, CloudFront CDN, multi-environment and multi-brand support |
 | [PHP Quality Checks](docs/php-quality-checks.md) | Static analysis, coding standards validation, and testing with coverage reporting |
 | [S3 Deployment](docs/s3-deploy.md) | Deploy assets to S3 buckets |
 | [Uptime Kuma](docs/uptime-kuma.md) | Pause and resume Uptime Kuma monitors during deployments |
