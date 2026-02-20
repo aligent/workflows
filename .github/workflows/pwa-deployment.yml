@@ -91,16 +91,6 @@ on:
         type: boolean
         required: false
         default: false
-      skip-build:
-        description: "Skip the build step (use pre-built assets)"
-        type: boolean
-        required: false
-        default: false
-      skip-tests:
-        description: "Skip test execution"
-        type: boolean
-        required: false
-        default: true
 
     secrets:
       aws-access-key-id:
@@ -113,10 +103,10 @@ on:
     outputs:
       deployment-url:
         description: "URL of the deployed application"
-        value: ${{ jobs.deploy.outputs.deployment-url }}
+        value: ${{ jobs.build-and-deploy.outputs.deployment-url }}
       preview-url:
         description: "Preview URL for PR deployments"
-        value: ${{ jobs.deploy.outputs.preview-url }}
+        value: ${{ jobs.build-and-deploy.outputs.preview-url }}
 
 jobs:
   # Validate inputs and prepare deployment configuration
@@ -145,6 +135,10 @@ jobs:
               # Force revalidation for all assets
               echo "cache-control-static=no-cache, no-store, must-revalidate" >> $GITHUB_OUTPUT
               echo "cache-control-html=no-cache, no-store, must-revalidate" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "❌ Invalid cache-strategy: '${{ inputs.cache-strategy }}'. Must be 'immutable' or 'no-cache'."
+              exit 1
               ;;
           esac
 
@@ -208,8 +202,13 @@ jobs:
   build-and-deploy:
     name: 🚀 Build Application and Deploy to AWS
     runs-on: ubuntu-latest
-    if: inputs.skip-build == false
     needs: [prepare]
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ needs.prepare.outputs.deployment-url }}
+    outputs:
+      deployment-url: ${{ needs.prepare.outputs.deployment-url }}
+      preview-url: ${{ needs.prepare.outputs.deployment-url }}
     strategy:
       matrix: ${{ fromJSON(needs.prepare.outputs.brand-matrix) }}
     steps:
@@ -245,22 +244,6 @@ jobs:
               exit 1
               ;;
           esac
-
-      - name: Run tests
-        if: inputs.skip-tests == false
-        run: |
-          debug=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
-            debug="--verbose"
-          fi
-
-          # Check if test script exists
-          if ${{ inputs.package-manager }} run | grep -q "test"; then
-            echo "🧪 Running tests..."
-            ${{ inputs.package-manager }} run test $debug
-          else
-            echo "ℹ️ No test script found, skipping tests"
-          fi
 
       - name: Build application
         run: |
@@ -314,25 +297,25 @@ jobs:
         run: |
           echo "🚀 Deploying static assets..."
 
-          # Deploy static assets with immutable cache headers
+          # Deploy static assets with immutable cache headers (exclude HTML and service-worker.js)
           aws s3 sync "${{ inputs.build-directory }}" "s3://${{ inputs.s3-bucket }}/${{ steps.s3-config.outputs.s3-path }}" \
             --exclude "*.html" \
+            --exclude "service-worker.js" \
             --cache-control "${{ needs.prepare.outputs.cache-control-static }}" \
             --delete \
-            ${{ inputs.extra-sync-args }} \
-            ${{ inputs.debug == true && '--cli-read-timeout 120 --cli-connect-timeout 60' || '' }}
+            ${{ inputs.extra-sync-args }}
 
-      - name: Deploy HTML files to S3
+      - name: Deploy HTML and service worker to S3
         run: |
-          echo "📄 Deploying HTML files..."
+          echo "📄 Deploying HTML files and service worker..."
 
-          # Deploy HTML files with revalidation cache headers
+          # Deploy HTML and service-worker.js with revalidation cache headers
           aws s3 sync "${{ inputs.build-directory }}" "s3://${{ inputs.s3-bucket }}/${{ steps.s3-config.outputs.s3-path }}" \
+            --exclude "*" \
             --include "*.html" \
+            --include "service-worker.js" \
             --cache-control "${{ needs.prepare.outputs.cache-control-html }}" \
-            --delete \
-            ${{ inputs.extra-sync-args }} \
-            ${{ inputs.debug == true && '--cli-read-timeout 120 --cli-connect-timeout 60' || '' }}
+            ${{ inputs.extra-sync-args }}
 
       - name: Invalidate CloudFront cache
         run: |
@@ -400,4 +383,3 @@ jobs:
             echo "Application deployed to ${{ inputs.environment }} environment:" >> $GITHUB_STEP_SUMMARY
             echo "**[${{ needs.prepare.outputs.deployment-url }}](${{ needs.prepare.outputs.deployment-url }})**" >> $GITHUB_STEP_SUMMARY
           fi
-
