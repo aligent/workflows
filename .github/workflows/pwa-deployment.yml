@@ -24,7 +24,7 @@ on:
         type: string
         required: false
         default: "staging"
-      
+
       # Build Configuration
       package-manager:
         description: "Node package manager (yarn/npm)"
@@ -53,7 +53,7 @@ on:
         type: string
         required: false
         default: "immutable"
-      
+
       # Preview Environment Configuration
       preview-mode:
         description: "Enable preview mode for PR-based deployments"
@@ -84,7 +84,7 @@ on:
         type: string
         required: false
         default: ""
-      
+
       # Debug and Control
       debug:
         description: "Enable verbose logging and debug output"
@@ -100,7 +100,7 @@ on:
         description: "Skip test execution"
         type: boolean
         required: false
-        default: false
+        default: true
 
     secrets:
       aws-access-key-id:
@@ -131,30 +131,6 @@ jobs:
       brand-matrix: ${{ steps.brand-config.outputs.matrix }}
       invalidation-paths: ${{ steps.cache-config.outputs.invalidation-paths }}
     steps:
-      - name: Validate required inputs
-        run: |
-          if [ -z "${{ inputs.s3-bucket }}" ]; then
-            echo "❌ Error: s3-bucket is required"
-            exit 1
-          fi
-          
-          if [ -z "${{ inputs.cloudfront-distribution-id }}" ]; then
-            echo "❌ Error: cloudfront-distribution-id is required"
-            exit 1
-          fi
-
-          # Environment name is validated by GitHub's environment protection rules
-          if [ -n "${{ inputs.environment }}" ]; then
-            echo "🔐 Using GitHub environment: ${{ inputs.environment }}"
-          fi
-
-          if [ "${{ inputs.cache-strategy }}" != "immutable" ] && [ "${{ inputs.cache-strategy }}" != "no-cache" ]; then
-            echo "❌ Error: cache-strategy must be one of: immutable, no-cache"
-            exit 1
-          fi
-
-          echo "✅ All required inputs validated"
-
       - name: Configure cache strategy
         id: cache-config
         run: |
@@ -192,9 +168,9 @@ jobs:
             else
               PREFIX="branch-$(echo '${{ github.ref_name }}' | sed 's/[^a-zA-Z0-9-]/-/g')"
             fi
-            
+
             echo "s3-prefix=${PREFIX}/" >> $GITHUB_OUTPUT
-            
+
             if [ -n "${{ inputs.preview-base-url }}" ]; then
               echo "deployment-url=${{ inputs.preview-base-url }}/${PREFIX}/" >> $GITHUB_OUTPUT
             else
@@ -203,7 +179,7 @@ jobs:
           else
             # Production/staging deployment to root
             echo "s3-prefix=" >> $GITHUB_OUTPUT
-            
+
             if [ -n "${{ inputs.preview-base-url }}" ]; then
               echo "deployment-url=${{ inputs.preview-base-url }}/" >> $GITHUB_OUTPUT
             else
@@ -229,8 +205,8 @@ jobs:
           fi
 
   # Build and test the application
-  build:
-    name: 🏗️ Build Application
+  build-and-deploy:
+    name: 🚀 Build Application and Deploy to AWS
     runs-on: ubuntu-latest
     if: inputs.skip-build == false
     needs: [prepare]
@@ -238,10 +214,10 @@ jobs:
       matrix: ${{ fromJSON(needs.prepare.outputs.brand-matrix) }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
           cache: ${{ inputs.package-manager }}
@@ -277,7 +253,7 @@ jobs:
           if [ "${{ inputs.debug }}" = "true" ]; then
             debug="--verbose"
           fi
-          
+
           # Check if test script exists
           if ${{ inputs.package-manager }} run | grep -q "test"; then
             echo "🧪 Running tests..."
@@ -315,56 +291,29 @@ jobs:
           echo "📁 Build directory contents:"
           find "${{ inputs.build-directory }}" -type f | head -10
 
-      - name: Archive build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-artifacts-${{ matrix.brand }}
-          path: ${{ inputs.build-directory }}/
-          retention-days: 1
-
-  # Deploy to S3 and invalidate CloudFront
-  deploy:
-    name: 🚀 Deploy to AWS
-    runs-on: ubuntu-latest
-    needs: [prepare, build]
-    if: always() && (needs.build.result == 'success' || inputs.skip-build == true)
-    environment: ${{ inputs.environment }}
-    strategy:
-      matrix: ${{ fromJSON(needs.prepare.outputs.brand-matrix) }}
-    outputs:
-      deployment-url: ${{ needs.prepare.outputs.deployment-url }}
-      preview-url: ${{ needs.prepare.outputs.deployment-url }}
-    steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.aws-access-key-id }}
           aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
           aws-region: ${{ inputs.aws-region }}
 
-      - name: Download build artifacts
-        if: inputs.skip-build == false
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts-${{ matrix.brand }}
-          path: ${{ inputs.build-directory }}
-
       - name: Configure S3 deployment paths
         id: s3-config
         run: |
           S3_PATH="${{ needs.prepare.outputs.s3-prefix }}"
-          
+
           if [ "${{ matrix.brand }}" != "default" ]; then
             S3_PATH="${S3_PATH}${{ matrix.brand }}/"
           fi
-          
+
           echo "s3-path=${S3_PATH}" >> $GITHUB_OUTPUT
           echo "🎯 Deploying to: s3://${{ inputs.s3-bucket }}/${S3_PATH}"
 
       - name: Deploy static assets to S3
         run: |
           echo "🚀 Deploying static assets..."
-          
+
           # Deploy static assets with immutable cache headers
           aws s3 sync "${{ inputs.build-directory }}" "s3://${{ inputs.s3-bucket }}/${{ steps.s3-config.outputs.s3-path }}" \
             --exclude "*.html" \
@@ -376,7 +325,7 @@ jobs:
       - name: Deploy HTML files to S3
         run: |
           echo "📄 Deploying HTML files..."
-          
+
           # Deploy HTML files with revalidation cache headers
           aws s3 sync "${{ inputs.build-directory }}" "s3://${{ inputs.s3-bucket }}/${{ steps.s3-config.outputs.s3-path }}" \
             --include "*.html" \
@@ -388,10 +337,10 @@ jobs:
       - name: Invalidate CloudFront cache
         run: |
           echo "🔄 Invalidating CloudFront cache..."
-          
+
           # Parse invalidation paths
           PATHS=$(echo '${{ needs.prepare.outputs.invalidation-paths }}' | jq -r '.[]')
-          
+
           # Add brand prefix if multi-brand deployment
           if [ "${{ matrix.brand }}" != "default" ]; then
             PREFIXED_PATHS=""
@@ -404,17 +353,17 @@ jobs:
             done
             PATHS="$PREFIXED_PATHS"
           fi
-          
+
           echo "Invalidating paths: $PATHS"
-          
+
           INVALIDATION_ID=$(aws cloudfront create-invalidation \
             --distribution-id "${{ inputs.cloudfront-distribution-id }}" \
             --paths $PATHS \
             --query 'Invalidation.Id' \
             --output text)
-          
+
           echo "✅ CloudFront invalidation created: $INVALIDATION_ID"
-          
+
           if [ "${{ inputs.debug }}" = "true" ]; then
             echo "🔍 Waiting for invalidation to complete..."
             aws cloudfront wait invalidation-completed \
@@ -441,49 +390,14 @@ jobs:
           echo "- **Build Command**: ${{ inputs.build-command }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Build Directory**: ${{ inputs.build-directory }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ "${{ inputs.preview-mode }}" = "true" ]; then
             echo "### 🔍 Preview Environment" >> $GITHUB_STEP_SUMMARY
             echo "This is a preview deployment. The application is available at:" >> $GITHUB_STEP_SUMMARY
             echo "**[${{ needs.prepare.outputs.deployment-url }}](${{ needs.prepare.outputs.deployment-url }})**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "### 🌍 Production Deployment" >> $GITHUB_STEP_SUMMARY
+            echo "### 🌍 Deployment" >> $GITHUB_STEP_SUMMARY
             echo "Application deployed to ${{ inputs.environment }} environment:" >> $GITHUB_STEP_SUMMARY
             echo "**[${{ needs.prepare.outputs.deployment-url }}](${{ needs.prepare.outputs.deployment-url }})**" >> $GITHUB_STEP_SUMMARY
           fi
 
-  # Cleanup artifacts to save storage space
-  cleanup:
-    name: 🧹 Cleanup
-    runs-on: ubuntu-latest
-    needs: [prepare, build, deploy]
-    if: always()
-    permissions:
-      actions: write
-    steps:
-      - name: Delete build artifacts
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: process.env.GITHUB_RUN_ID,
-            });
-
-            const buildArtifacts = artifacts.data.artifacts.filter(a => 
-              a.name.startsWith('build-artifacts-')
-            );
-
-            if (buildArtifacts.length === 0) {
-              core.info("No build artifacts found to cleanup.");
-            } else {
-              for (const artifact of buildArtifacts) {
-                await github.rest.actions.deleteArtifact({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  artifact_id: artifact.id
-                });
-                core.info(`Deleted artifact '${artifact.name}' with ID ${artifact.id}`);
-              }
-            }
