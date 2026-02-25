@@ -16,11 +16,11 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 | [PHP Quality Checks](docs/php-quality-checks.md) | Static analysis, coding standards validation, and testing with coverage reporting |
 | [S3 Deployment](docs/s3-deploy.md) | Deploy assets to S3 buckets |
 | [Update Lockfile](docs/update-lockfile.md) | Auto-commit lockfile updates on changeset version PRs |
+| [Uptime Kuma](docs/uptime-kuma.md) | Pause and resume Uptime Kuma monitors during deployments |
 
 ## Adopting the Changeset Workflows
 
 The three changeset workflows work together to automate package versioning, publishing, and PR hygiene. Each workflow's documentation includes inputs, secrets, setup instructions, and example caller YAML:
-
 - [Changeset Release](docs/changeset-release.md) - creates version PRs and publishes packages
 - [Changeset Check](docs/changeset-check.md) - advisory PR comments for missing changesets
 - [Update Lockfile](docs/update-lockfile.md) - auto-commits lockfile updates on version PRs

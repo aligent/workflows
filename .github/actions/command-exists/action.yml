@@ -7,6 +7,9 @@ inputs:
     required: true
 
 outputs:
+  exists:
+    description: "Whether the command exists as a package.json script or Nx target (true/false)"
+    value: ${{ steps.check-script.outputs.exists == 'true' || steps.check-nx.outputs.exists == 'true' }}
   exists-script:
     description: "Whether the command exists in package.json scripts (true/false)"
     value: ${{ steps.check-script.outputs.exists }}
