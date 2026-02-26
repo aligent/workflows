@@ -329,11 +329,11 @@ jobs:
           if [ "${{ inputs.skip-test-storybook }}" != "true" ] && [ "${{ steps.check-test-storybook.outputs.exists }}" == "true" ]; then
             # Ensure playwright dependencies are installed before story blok test execution begins 
             if [ "${{ inputs.package-manager }}" = "yarn" ]; then
-              INSTALL_COMMAND=("yarn playwright install --with-deps")
+              yarn playwright install --with-deps
             else
-              INSTALL_COMMAND=("npx playwright install --with-deps")
+              npx playwright install --with-deps
             fi
-            commands+=("$INSTALL_COMMAND && ${{ inputs.test-storybook-command }}")
+            commands+=("${{ inputs.test-storybook-command }}")
           fi
           if [ "${{ inputs.skip-check-types }}" != "true" ] && [ "${{ steps.check-check-types.outputs.exists }}" == "true" ]; then
             commands+=("${{ inputs.check-types-command }}")
