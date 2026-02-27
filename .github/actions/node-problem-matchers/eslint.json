@@ -1,0 +1,22 @@
+{
+  "problemMatcher": [
+    {
+      "owner": "eslint",
+      "pattern": [
+        {
+          "regexp": "(\\S+\\.(?:[cm]?[jt]sx?|json|html?|vue|svelte))\\s*$",
+          "file": 1
+        },
+        {
+          "regexp": "(\\d+):(\\d+)\\s+(error|warning)\\s+(.+?)\\s\\s+(.+?)\\s*$",
+          "line": 1,
+          "column": 2,
+          "severity": 3,
+          "message": 4,
+          "code": 5,
+          "loop": true
+        }
+      ]
+    }
+  ]
+}

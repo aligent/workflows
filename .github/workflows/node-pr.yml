@@ -211,6 +211,9 @@ jobs:
             fi
           done <<< "${{ secrets.ENV_VARS }}"
 
+      - name: Register problem matchers
+        uses: aligent/workflows/.github/actions/node-problem-matchers@main
+
       - name: Check build command exists
         id: check-build
         uses: aligent/workflows/.github/actions/command-exists@main
@@ -228,6 +231,12 @@ jobs:
       - name: Skip build (command not found)
         if: steps.check-build.outputs.exists-script != 'true' && steps.check-build.outputs.exists-nx-target != 'true'
         run: echo "Build command '${{ inputs.build-command }}' not found, skipping"
+
+      - name: Remove problem matchers
+        if: always()
+        uses: aligent/workflows/.github/actions/node-problem-matchers@main
+        with:
+          action: remove
 
   test:
     name: 🧪 Pull Request Checks
