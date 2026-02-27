@@ -1,7 +1,7 @@
 {
   "problemMatcher": [
     {
-      "owner": "eslint-stylish",
+      "owner": "eslint",
       "pattern": [
         {
           "regexp": "(\\S+\\.(?:[cm]?[jt]sx?|json|html?|vue|svelte))\\s*$",
