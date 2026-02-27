@@ -28,13 +28,13 @@ A comprehensive PHP quality assurance workflow supporting static analysis, codin
 | skip-tests | ❌ | boolean | false | Skip PHP unit testing |
 | **Composer Configuration** |
 | composer-args | ❌ | string |  | Additional composer install arguments |
-| **Service Version Configuration** |
-| mariadb-version | ❌ | string | 11.4 | MariaDB Docker image version. Ignored if `mariadb-image` is set. |
-| mariadb-image | ❌ | string | | Full MariaDB Docker image. Overrides `mariadb-version` when set. |
-| rabbitmq-version | ❌ | string | 4.1-management | RabbitMQ Docker image version. Ignored if `rabbitmq-image` is set. |
-| rabbitmq-image | ❌ | string | | Full RabbitMQ Docker image. Overrides `rabbitmq-version` when set. |
-| opensearch-version | ❌ | string | 2 | OpenSearch Docker image version. Ignored if `opensearch-image` is set. |
-| opensearch-image | ❌ | string | | Full OpenSearch Docker image. Overrides `opensearch-version` when set. |
+| **Service Configuration** |
+| mariadb-image | ❌ | string | mariadb | MariaDB Docker image name, combined with `mariadb-version` as the tag. |
+| mariadb-version | ❌ | string | 11.4 | MariaDB Docker image tag. |
+| rabbitmq-image | ❌ | string | rabbitmq | RabbitMQ Docker image name, combined with `rabbitmq-version` as the tag. |
+| rabbitmq-version | ❌ | string | 4.1-management | RabbitMQ Docker image tag. |
+| opensearch-image | ❌ | string | opensearchproject/opensearch | OpenSearch Docker image name, combined with `opensearch-version` as the tag. |
+| opensearch-version | ❌ | string | 2 | OpenSearch Docker image tag. |
 | **Advanced Configuration** |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 
@@ -83,9 +83,8 @@ jobs:
     uses: aligent/workflows/.github/workflows/php-quality-checks.yml@main
     with:
       php-version: "8.4"
-      opensearch-image: "aligent/bitbucket-opensearch:3.1.0"
-      mariadb-version: "11.4"
-      rabbitmq-version: "4-management"
+      opensearch-image: "aligent/bitbucket-opensearch"
+      opensearch-version: "3.1.0"
 ```
 
 **PSR Standards with High Coverage:**

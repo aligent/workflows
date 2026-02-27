@@ -99,40 +99,40 @@ on:
 
       # Service Version Configuration
       mariadb-version:
-        description: "MariaDB Docker image version (e.g., 10.6, 11.4). Ignored if mariadb-image is set."
+        description: "MariaDB Docker image tag (e.g., 10.6, 11.4)"
         type: string
         required: false
         default: "11.4"
 
       mariadb-image:
-        description: "Full MariaDB Docker image (e.g., custom/mariadb:11.4). Overrides mariadb-version when set."
+        description: "MariaDB Docker image name, combined with mariadb-version as the tag (e.g., custom/mariadb)"
         type: string
         required: false
-        default: ""
+        default: "mariadb"
 
       rabbitmq-version:
-        description: "RabbitMQ Docker image version (e.g., 3.12-management, 4.1-management). Ignored if rabbitmq-image is set."
+        description: "RabbitMQ Docker image tag (e.g., 3.12-management, 4-management)"
         type: string
         required: false
         default: "4.1-management"
 
       rabbitmq-image:
-        description: "Full RabbitMQ Docker image (e.g., custom/rabbitmq:4-management). Overrides rabbitmq-version when set."
+        description: "RabbitMQ Docker image name, combined with rabbitmq-version as the tag (e.g., custom/rabbitmq)"
         type: string
         required: false
-        default: ""
+        default: "rabbitmq"
 
       opensearch-version:
-        description: "OpenSearch Docker image version (e.g., 1, 2). Ignored if opensearch-image is set."
+        description: "OpenSearch Docker image tag (e.g., 1, 2, 3.1.0)"
         type: string
         required: false
         default: "2"
 
       opensearch-image:
-        description: "Full OpenSearch Docker image (e.g., aligent/bitbucket-opensearch:3.1.0). Overrides opensearch-version when set."
+        description: "OpenSearch Docker image name, combined with opensearch-version as the tag (e.g., aligent/bitbucket-opensearch)"
         type: string
         required: false
-        default: ""
+        default: "opensearchproject/opensearch"
 
 jobs:
   # Install Composer dependencies with caching and detect available tools
@@ -666,7 +666,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mariadb:
-        image: ${{ inputs.mariadb-image || format('mariadb:{0}', inputs.mariadb-version) }}
+        image: ${{ inputs.mariadb-image }}:${{ inputs.mariadb-version }}
         env:
           MYSQL_DATABASE: magento_integration_tests
           MYSQL_USER: magento2
@@ -677,7 +677,7 @@ jobs:
         options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
       search:
-        image: ${{ inputs.opensearch-image || format('opensearchproject/opensearch:{0}', inputs.opensearch-version) }}
+        image: ${{ inputs.opensearch-image }}:${{ inputs.opensearch-version }}
         env:
           discovery.type: single-node
           OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
@@ -687,7 +687,7 @@ jobs:
         options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
 
       rabbitmq:
-        image: ${{ inputs.rabbitmq-image || format('rabbitmq:{0}', inputs.rabbitmq-version) }}
+        image: ${{ inputs.rabbitmq-image }}:${{ inputs.rabbitmq-version }}
         env:
           RABBITMQ_DEFAULT_USER: guest
           RABBITMQ_DEFAULT_PASS: guest
@@ -776,7 +776,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mariadb:
-        image: ${{ inputs.mariadb-image || format('mariadb:{0}', inputs.mariadb-version) }}
+        image: ${{ inputs.mariadb-image }}:${{ inputs.mariadb-version }}
         env:
           MYSQL_DATABASE: magento_functional_tests
           MYSQL_USER: magento2
@@ -787,7 +787,7 @@ jobs:
         options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
       search:
-        image: ${{ inputs.opensearch-image || format('opensearchproject/opensearch:{0}', inputs.opensearch-version) }}
+        image: ${{ inputs.opensearch-image }}:${{ inputs.opensearch-version }}
         env:
           discovery.type: single-node
           OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
@@ -797,7 +797,7 @@ jobs:
         options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
 
       rabbitmq:
-        image: ${{ inputs.rabbitmq-image || format('rabbitmq:{0}', inputs.rabbitmq-version) }}
+        image: ${{ inputs.rabbitmq-image }}:${{ inputs.rabbitmq-version }}
         env:
           RABBITMQ_DEFAULT_USER: guest
           RABBITMQ_DEFAULT_PASS: guest
@@ -907,7 +907,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mariadb:
-        image: ${{ inputs.mariadb-image || format('mariadb:{0}', inputs.mariadb-version) }}
+        image: ${{ inputs.mariadb-image }}:${{ inputs.mariadb-version }}
         env:
           MYSQL_DATABASE: magento_graphql_tests
           MYSQL_USER: magento2
@@ -918,7 +918,7 @@ jobs:
         options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
       search:
-        image: ${{ inputs.opensearch-image || format('opensearchproject/opensearch:{0}', inputs.opensearch-version) }}
+        image: ${{ inputs.opensearch-image }}:${{ inputs.opensearch-version }}
         env:
           discovery.type: single-node
           OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
@@ -928,7 +928,7 @@ jobs:
         options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
 
       rabbitmq:
-        image: ${{ inputs.rabbitmq-image || format('rabbitmq:{0}', inputs.rabbitmq-version) }}
+        image: ${{ inputs.rabbitmq-image }}:${{ inputs.rabbitmq-version }}
         env:
           RABBITMQ_DEFAULT_USER: guest
           RABBITMQ_DEFAULT_PASS: guest
