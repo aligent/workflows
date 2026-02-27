@@ -28,6 +28,13 @@ A comprehensive PHP quality assurance workflow supporting static analysis, codin
 | skip-tests | ❌ | boolean | false | Skip PHP unit testing |
 | **Composer Configuration** |
 | composer-args | ❌ | string |  | Additional composer install arguments |
+| **Service Configuration** |
+| mariadb-image | ❌ | string | mariadb | MariaDB Docker image name, combined with `mariadb-version` as the tag. |
+| mariadb-version | ❌ | string | 11.4 | MariaDB Docker image tag. |
+| rabbitmq-image | ❌ | string | rabbitmq | RabbitMQ Docker image name, combined with `rabbitmq-version` as the tag. |
+| rabbitmq-version | ❌ | string | 4.1-management | RabbitMQ Docker image tag. |
+| opensearch-image | ❌ | string | opensearchproject/opensearch | OpenSearch Docker image name, combined with `opensearch-version` as the tag. |
+| opensearch-version | ❌ | string | 2 | OpenSearch Docker image tag. |
 | **Advanced Configuration** |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 
@@ -67,6 +74,17 @@ jobs:
       skip-phpcs: true
       skip-tests: true
       phpstan-level: "9"
+```
+
+**Custom Service Images (e.g., OpenSearch with plugins):**
+```yaml
+jobs:
+  magento-quality:
+    uses: aligent/workflows/.github/workflows/php-quality-checks.yml@main
+    with:
+      php-version: "8.4"
+      opensearch-image: "aligent/bitbucket-opensearch"
+      opensearch-version: "3.1.0"
 ```
 
 **PSR Standards with High Coverage:**
