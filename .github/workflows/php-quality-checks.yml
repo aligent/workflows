@@ -666,7 +666,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mariadb:
-        image: ${{ inputs.mariadb-image }}:${{ inputs.mariadb-version }}
+        image: ${{ inputs.mariadb-image }}${{ inputs.mariadb-version && format(':{0}', inputs.mariadb-version) || '' }}
         env:
           MYSQL_DATABASE: magento_integration_tests
           MYSQL_USER: magento2
@@ -677,7 +677,7 @@ jobs:
         options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
       search:
-        image: ${{ inputs.opensearch-image }}:${{ inputs.opensearch-version }}
+        image: ${{ inputs.opensearch-image }}${{ inputs.opensearch-version && format(':{0}', inputs.opensearch-version) || '' }}
         env:
           discovery.type: single-node
           OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
@@ -687,7 +687,7 @@ jobs:
         options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
 
       rabbitmq:
-        image: ${{ inputs.rabbitmq-image }}:${{ inputs.rabbitmq-version }}
+        image: ${{ inputs.rabbitmq-image }}${{ inputs.rabbitmq-version && format(':{0}', inputs.rabbitmq-version) || '' }}
         env:
           RABBITMQ_DEFAULT_USER: guest
           RABBITMQ_DEFAULT_PASS: guest
@@ -776,7 +776,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mariadb:
-        image: ${{ inputs.mariadb-image }}:${{ inputs.mariadb-version }}
+        image: ${{ inputs.mariadb-image }}${{ inputs.mariadb-version && format(':{0}', inputs.mariadb-version) || '' }}
         env:
           MYSQL_DATABASE: magento_functional_tests
           MYSQL_USER: magento2
@@ -787,7 +787,7 @@ jobs:
         options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
       search:
-        image: ${{ inputs.opensearch-image }}:${{ inputs.opensearch-version }}
+        image: ${{ inputs.opensearch-image }}${{ inputs.opensearch-version && format(':{0}', inputs.opensearch-version) || '' }}
         env:
           discovery.type: single-node
           OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
@@ -797,7 +797,7 @@ jobs:
         options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
 
       rabbitmq:
-        image: ${{ inputs.rabbitmq-image }}:${{ inputs.rabbitmq-version }}
+        image: ${{ inputs.rabbitmq-image }}${{ inputs.rabbitmq-version && format(':{0}', inputs.rabbitmq-version) || '' }}
         env:
           RABBITMQ_DEFAULT_USER: guest
           RABBITMQ_DEFAULT_PASS: guest
@@ -907,7 +907,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mariadb:
-        image: ${{ inputs.mariadb-image }}:${{ inputs.mariadb-version }}
+        image: ${{ inputs.mariadb-image }}${{ inputs.mariadb-version && format(':{0}', inputs.mariadb-version) || '' }}
         env:
           MYSQL_DATABASE: magento_graphql_tests
           MYSQL_USER: magento2
@@ -918,7 +918,7 @@ jobs:
         options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
       search:
-        image: ${{ inputs.opensearch-image }}:${{ inputs.opensearch-version }}
+        image: ${{ inputs.opensearch-image }}${{ inputs.opensearch-version && format(':{0}', inputs.opensearch-version) || '' }}
         env:
           discovery.type: single-node
           OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
@@ -928,7 +928,7 @@ jobs:
         options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
 
       rabbitmq:
-        image: ${{ inputs.rabbitmq-image }}:${{ inputs.rabbitmq-version }}
+        image: ${{ inputs.rabbitmq-image }}${{ inputs.rabbitmq-version && format(':{0}', inputs.rabbitmq-version) || '' }}
         env:
           RABBITMQ_DEFAULT_USER: guest
           RABBITMQ_DEFAULT_PASS: guest
