@@ -1,4 +1,4 @@
-name: "Register Problem Matchers"
+name: "Register Node Problem Matchers"
 description: "Registers or removes problem matchers for common Node.js tools (Prettier, ESLint, TypeScript)"
 
 inputs:

@@ -17,7 +17,7 @@ runs:
   using: composite
   steps:
     - id: add-matchers
-      uses: aligent/workflows/.github/actions/problem-matchers@main
+      uses: aligent/workflows/.github/actions/node-problem-matchers@main
     - id: run
       shell: bash
       run: |
@@ -41,6 +41,6 @@ runs:
         fi
     - id: remove-matchers
       if: always()
-      uses: aligent/workflows/.github/actions/problem-matchers@main
+      uses: aligent/workflows/.github/actions/node-problem-matchers@main
       with:
         action: remove

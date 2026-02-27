@@ -212,7 +212,7 @@ jobs:
           done <<< "${{ secrets.ENV_VARS }}"
 
       - name: Register problem matchers
-        uses: aligent/workflows/.github/actions/problem-matchers@main
+        uses: aligent/workflows/.github/actions/node-problem-matchers@main
 
       - name: Check build command exists
         id: check-build
@@ -234,7 +234,7 @@ jobs:
 
       - name: Remove problem matchers
         if: always()
-        uses: aligent/workflows/.github/actions/problem-matchers@main
+        uses: aligent/workflows/.github/actions/node-problem-matchers@main
         with:
           action: remove
 
