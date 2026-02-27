@@ -17,11 +17,7 @@ runs:
   using: composite
   steps:
     - id: add-matchers
-      shell: bash
-      run: |
-        echo "::add-matcher::${{ github.action_path }}/problem-matchers/prettier.json"
-        echo "::add-matcher::${{ github.action_path }}/problem-matchers/eslint-stylish.json"
-        echo "::add-matcher::${{ github.action_path }}/problem-matchers/tsc.json"
+      uses: aligent/workflows/.github/actions/problem-matchers@main
     - id: run
       shell: bash
       run: |
@@ -45,9 +41,6 @@ runs:
         fi
     - id: remove-matchers
       if: always()
-      shell: bash
-      run: |
-        echo "::remove-matcher owner=prettier-warn::"
-        echo "::remove-matcher owner=prettier-error::"
-        echo "::remove-matcher owner=eslint-stylish::"
-        echo "::remove-matcher owner=tsc::"
+      uses: aligent/workflows/.github/actions/problem-matchers@main
+      with:
+        action: remove

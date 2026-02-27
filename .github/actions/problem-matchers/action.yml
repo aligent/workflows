@@ -1,0 +1,25 @@
+name: "Register Problem Matchers"
+description: "Registers or removes problem matchers for common Node.js tools (Prettier, ESLint, TypeScript)"
+
+inputs:
+  action:
+    description: "Whether to add or remove matchers"
+    required: false
+    default: "add"
+
+runs:
+  using: composite
+  steps:
+    - if: inputs.action == 'add'
+      shell: bash
+      run: |
+        echo "::add-matcher::${{ github.action_path }}/prettier.json"
+        echo "::add-matcher::${{ github.action_path }}/eslint-stylish.json"
+        echo "::add-matcher::${{ github.action_path }}/tsc.json"
+    - if: inputs.action == 'remove'
+      shell: bash
+      run: |
+        echo "::remove-matcher owner=prettier-warn::"
+        echo "::remove-matcher owner=prettier-error::"
+        echo "::remove-matcher owner=eslint-stylish::"
+        echo "::remove-matcher owner=tsc::"
