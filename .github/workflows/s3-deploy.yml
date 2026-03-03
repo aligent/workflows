@@ -36,7 +36,15 @@ on:
         type: string
         required: false
         default: ""
-
+      aws-access-key-id:
+        description: "AWS Access Key ID"
+        type: string
+        required: true
+    secrets:
+      aws-secret-access-key:
+        description: "AWS Secret Access Key"
+        type: string
+        required: true
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -47,7 +55,7 @@ jobs:
       - name: Configure AWS creds
         uses: aws-actions/configure-aws-credentials@latest
         with:
-          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-access-key-id: ${{ inputs.aws-access-key-id }}
           aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
           aws-region: ${{ inputs.aws-region }}
 
