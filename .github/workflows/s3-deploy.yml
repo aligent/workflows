@@ -43,7 +43,6 @@ on:
     secrets:
       aws-secret-access-key:
         description: "AWS Secret Access Key"
-        type: string
         required: true
 jobs:
   deploy:
