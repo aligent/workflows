@@ -3,21 +3,23 @@
 #### **Inputs**
 | Name                 | Required | Type    | Default         | Description                                |
 |--------------------- |----------|---------|-----------------|--------------------------------------------|
-| aws-access-key-id    | ✅       | string  |                 | AWS Access Key                             |
-| cfn-role             | ✅       | string  |                 | AWS CFN Role to assume                     |
-| aws-profile          | ✅       | string  |                 | AWS Profile                                |
-| aws-region           | ❌       | string  | ap-southeast-2  | AWS Region to deploy to                    |
-| stage                | ✅       | string  |                 | Stage to deploy to                         |
 | environment          | ✅       | string  |                 | The GitHub environment to run in           |
 | command              | ❌       | string  | build           | Command to run during the deploy step      |
 | package-manager      | ❌       | string  | yarn            | Node package manager to use                |
 | build-command        | ❌       | string  | build           | Command to override the build command      |
 | debug                | ❌       | boolean | false           | If verbose logging should be enabled       |
 
-#### **Secrets**
-| Name | Required | Description |
-|------|----------|-------------|
-| aws-secret-access-key | ✅ | AWS secret access key |
+#### **Variables and Secrets**
+
+These should be configured in your GitHub Environment (or at the repository level if not using environments).
+
+| Name | Required | Type | Description |
+|------|----------|------|-------------|
+| `STAGE` |  ✅ | Variable | The Stage name to deploy |
+| `AWS_ACCESS_KEY_ID` | ✅ | Variable | AWS Access Key ID for authentication |
+| `AWS_SECRET_ACCESS_KEY` | ✅ | Secret | AWS Secret Access Key for authentication |
+| `CFN_ROLE` | ✅ | Secret | CloudFormation role ARN to assume |
+| `AWS_REGION` | ❌ | Variable | AWS Region to deploy to (defaults to ap-southeast-2) |
 
 #### Example Usage
 
