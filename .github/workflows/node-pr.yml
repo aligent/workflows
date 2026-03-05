@@ -86,6 +86,14 @@ on:
         description: "Number of commits to fetch. 0 indicates all history for all branches and tags"
         default: 1
         type: number
+      pre-test-command:
+        description: "A script to run before the test checks (e.g., generate:types for code generation). Runs as: <package-manager> run <command>"
+        default: ""
+        type: string
+      node-options:
+        description: "Value for NODE_OPTIONS environment variable (e.g., --max-old-space-size=4096)"
+        default: ""
+        type: string
 
 jobs:
   install:
@@ -169,6 +177,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NODE_OPTIONS: ${{ inputs.node-options }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -245,6 +254,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NODE_OPTIONS: ${{ inputs.node-options }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -286,6 +296,10 @@ jobs:
               echo "${key}=${value}" >> $GITHUB_ENV
             fi
           done <<< "${{ secrets.ENV_VARS }}"
+
+      - name: Run pre-test command
+        if: inputs.pre-test-command != ''
+        run: ${{ inputs.package-manager }} run ${{ inputs.pre-test-command }}
 
       - name: Check test command exists
         id: check-test

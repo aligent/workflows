@@ -22,6 +22,8 @@
 | skip-check-types | ❌ | boolean | false | If the check-types step should be skipped |
 | debug           | ❌      | boolean  | false            | If debug flags should be set |
 | fetch-depth     | ❌      | number   | 1                | Number of commits to fetch. 0 indicates all history for all branches and tags |
+| pre-test-command | ❌     | string   |                  | A script to run before the test checks (e.g., `generate:types`). Runs as: `<package-manager> run <command>` |
+| node-options    | ❌      | string   |                  | Value for `NODE_OPTIONS` env var (e.g., `--max-old-space-size=4096`) |
 
 #### **Nx Workspace Support**
 
@@ -94,4 +96,25 @@ jobs:
         BACKEND_URL=${{ secrets.BACKEND_URL }}
         API_KEY=${{ secrets.API_KEY }}
         NODE_ENV=test
+```
+
+**BigCommerce Catalyst (requires code generation before checks):**
+```yaml
+jobs:
+  pr-checks:
+    uses: aligent/workflows/.github/workflows/node-pr.yml@main
+    with:
+      package-manager: yarn
+      has-env-vars: true
+      pre-test-command: generate:types
+      node-options: "--max-old-space-size=4096"
+      check-types-command: typecheck
+      skip-test: true
+      skip-format: true
+      skip-test-storybook: true
+    secrets:
+      ENV_VARS: |
+        BIGCOMMERCE_STORE_HASH=${{ vars.BIGCOMMERCE_STORE_HASH }}
+        BIGCOMMERCE_CHANNEL_ID=${{ vars.BIGCOMMERCE_CHANNEL_ID }}
+        BIGCOMMERCE_STOREFRONT_TOKEN=${{ secrets.BIGCOMMERCE_STOREFRONT_TOKEN }}
 ```
