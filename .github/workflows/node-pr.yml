@@ -86,10 +86,10 @@ on:
         description: "Number of commits to fetch. 0 indicates all history for all branches and tags"
         default: 1
         type: number
-      test-needs-build:
-        description: "If the test job should wait for the build job to complete first (e.g., when checks depend on generated build artifacts)"
-        default: false
-        type: boolean
+      pre-test-command:
+        description: "A script to run before the test checks (e.g., generate:types for code generation). Runs as: <package-manager> run <command>"
+        default: ""
+        type: string
       node-options:
         description: "Value for NODE_OPTIONS environment variable (e.g., --max-old-space-size=4096)"
         default: ""
@@ -249,8 +249,8 @@ jobs:
 
   test:
     name: 🧪 Pull Request Checks
-    needs: ${{ inputs.test-needs-build && fromJSON('["install","build"]') || fromJSON('["install"]') }}
-    if: ${{ always() && (inputs.skip-test == false || inputs.skip-lint == false || inputs.skip-format == false || inputs.skip-test-storybook == false || inputs.skip-check-types == false) && (!inputs.test-needs-build || needs.build.result == 'success') }}
+    needs: [install]
+    if: inputs.skip-test == false || inputs.skip-lint == false || inputs.skip-format == false || inputs.skip-test-storybook == false || inputs.skip-check-types == false
     runs-on: ubuntu-latest
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -296,6 +296,10 @@ jobs:
               echo "${key}=${value}" >> $GITHUB_ENV
             fi
           done <<< "${{ secrets.ENV_VARS }}"
+
+      - name: Run pre-test command
+        if: inputs.pre-test-command != ''
+        run: ${{ inputs.package-manager }} run ${{ inputs.pre-test-command }}
 
       - name: Check test command exists
         id: check-test
