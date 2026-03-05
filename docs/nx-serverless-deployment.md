@@ -28,11 +28,23 @@ jobs:
   deploy-serverless:
     uses: aligent/workflows/.github/workflows/nx-serverless-deployment.yml@main
     with:
-      aws-profile: my-profile
-      stage: dev
       environment: development
       debug: true
-      aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
-    secrets:
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+```yaml
+name: 🚀 Deploy
+
+on:
+  push:
+    branches:
+      - staging
+      - production
+
+jobs:
+  deploy:
+    uses: aligent/workflows/.github/workflows/nx-serverless-deployment.yml@main
+    with:
+      environment: ${{ github.ref_name == 'production' && 'Production' || 'Staging' }}
+      package-manager: npm
 ```
