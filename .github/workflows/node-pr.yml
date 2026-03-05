@@ -86,6 +86,14 @@ on:
         description: "Number of commits to fetch. 0 indicates all history for all branches and tags"
         default: 1
         type: number
+      test-needs-build:
+        description: "If the test job should wait for the build job to complete first (e.g., when checks depend on generated build artifacts)"
+        default: false
+        type: boolean
+      node-options:
+        description: "Value for NODE_OPTIONS environment variable (e.g., --max-old-space-size=4096)"
+        default: ""
+        type: string
 
 jobs:
   install:
@@ -169,6 +177,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NODE_OPTIONS: ${{ inputs.node-options }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -240,11 +249,12 @@ jobs:
 
   test:
     name: 🧪 Pull Request Checks
-    needs: [install]
-    if: inputs.skip-test == false || inputs.skip-lint == false || inputs.skip-format == false || inputs.skip-test-storybook == false || inputs.skip-check-types == false
+    needs: ${{ inputs.test-needs-build && fromJSON('["install","build"]') || fromJSON('["install"]') }}
+    if: ${{ always() && (inputs.skip-test == false || inputs.skip-lint == false || inputs.skip-format == false || inputs.skip-test-storybook == false || inputs.skip-check-types == false) && (!inputs.test-needs-build || needs.build.result == 'success') }}
     runs-on: ubuntu-latest
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NODE_OPTIONS: ${{ inputs.node-options }}
     steps:
       - uses: actions/checkout@v4
         with:
