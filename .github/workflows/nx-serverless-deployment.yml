@@ -88,6 +88,8 @@ jobs:
 
           echo "ℹ️ Using variables from $ENVIRONMENT environment"
 
+          echo "✅ AWS_REGION: $AWS_REGION"
+
           if [ -z "$STAGE" ]; then
             echo "❌ Error: STAGE must be provided via input or as a variable in your $ENVIRONMENT environment"
             exit 1
@@ -107,7 +109,7 @@ jobs:
             exit 1
           fi
 
-          echo "ℹ️ AWS_ACCESS_KEY_ID set from variable: $AWS_ACCESS_KEY_ID"
+          echo "✅ AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID"
 
           if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
             echo "❌ Error: AWS_SECRET_ACCESS_KEY is not defined as a secret in your $ENVIRONMENT environment"
