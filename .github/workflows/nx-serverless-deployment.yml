@@ -118,6 +118,8 @@ jobs:
 
           echo "✅ AWS_SECRET_ACCESS_KEY secret is configured"
           echo "✅ All inputs validated successfully"
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
 
       - name: 🚧 Configure Serverless
         run: |
