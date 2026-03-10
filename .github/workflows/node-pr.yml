@@ -124,16 +124,6 @@ jobs:
           node-version-file: .nvmrc
       - name: Install safe-chain
         run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
-      - name: Run pre-install commands
-        if: inputs.pre-install-commands != ''
-        run: |
-          # Execute pre-install commands line by line
-          echo "${{ inputs.pre-install-commands }}" | while IFS= read -r cmd; do
-            if [ -n "$cmd" ]; then
-              echo "Running: $cmd"
-              eval "$cmd"
-            fi
-          done
       - name: Setup additional environment variables
         if: inputs.has-env-vars
         run: |
@@ -148,6 +138,16 @@ jobs:
               echo "${key}=${value}" >> $GITHUB_ENV
             fi
           done <<< "${{ secrets.ENV_VARS }}"
+      - name: Run pre-install commands
+        if: inputs.pre-install-commands != ''
+        run: |
+          # Execute pre-install commands line by line
+          echo "${{ inputs.pre-install-commands }}" | while IFS= read -r cmd; do
+            if [ -n "$cmd" ]; then
+              echo "Running: $cmd"
+              eval "$cmd"
+            fi
+          done
       - name: Install dependencies
         run: |
           debug=${{ inputs.debug && '--verbose' || '' }}
