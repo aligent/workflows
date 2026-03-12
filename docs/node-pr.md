@@ -39,7 +39,7 @@ This allows Nx monorepos to work seamlessly without needing custom build command
 | Name          | Required | Description                        |
 |---------------|----------|-------------------------------------|
 | NPM_TOKEN     | ❌      | NPM authentication token for private registries |
-| ENV_VARS      | ❌      | Additional environment variables as key=value pairs (one per line) |
+| ENV_VARS      | ❌      | Additional environment variables as key=value pairs (supports multiline values like SSH keys) |
 
 #### Example Usage
 
@@ -96,6 +96,24 @@ jobs:
         BACKEND_URL=${{ secrets.BACKEND_URL }}
         API_KEY=${{ secrets.API_KEY }}
         NODE_ENV=test
+```
+
+**With private Git dependency via SSH key (e.g., private GitHub/Bitbucket packages):**
+```yaml
+jobs:
+  pr-checks:
+    uses: aligent/workflows/.github/workflows/node-pr.yml@main
+    with:
+      package-manager: npm
+      has-env-vars: true
+      pre-install-commands: |
+        mkdir -p ~/.ssh
+        printenv DEPLOY_SSH_KEY > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+    secrets:
+      ENV_VARS: |
+        DEPLOY_SSH_KEY=${{ secrets.DEPLOY_SSH_KEY }}
 ```
 
 **BigCommerce Catalyst (requires code generation before checks):**

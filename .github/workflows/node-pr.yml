@@ -7,7 +7,7 @@ on:
         description: "NPM authentication token for private registries"
         required: false
       ENV_VARS:
-        description: "Additional environment variables as key=value pairs (one per line)"
+        description: "Additional environment variables as key=value pairs (supports multiline values like SSH keys)"
         required: false
     inputs:
       package-manager:
@@ -128,16 +128,30 @@ jobs:
         if: inputs.has-env-vars
         run: |
           # Parse and set additional environment variables securely
+          # Supports multiline values (e.g., SSH keys)
+          current_key=""
+          current_value=""
+          flush_var() {
+            if [ -n "$current_key" ]; then
+              while IFS= read -r mask_line; do
+                [ -n "$mask_line" ] && echo "::add-mask::${mask_line}"
+              done <<< "${current_value}"
+              echo "Setting environment variable: ${current_key}"
+              echo "${current_key}<<GHENV_EOF" >> $GITHUB_ENV
+              echo "${current_value}" >> $GITHUB_ENV
+              echo "GHENV_EOF" >> $GITHUB_ENV
+            fi
+          }
           while IFS= read -r line || [ -n "$line" ]; do
-            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
-              key="${line%%=*}"
-              value="${line#*=}"
-              # Mask the value in logs
-              echo "::add-mask::${value}"
-              echo "Setting environment variable: ${key}"
-              echo "${key}=${value}" >> $GITHUB_ENV
+            if [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+              flush_var
+              current_key="${line%%=*}"
+              current_value="${line#*=}"
+            elif [ -n "$current_key" ]; then
+              current_value="$(printf '%s\n%s' "${current_value}" "${line}")"
             fi
           done <<< "${{ secrets.ENV_VARS }}"
+          flush_var
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''
         run: |
@@ -209,16 +223,30 @@ jobs:
         if: inputs.has-env-vars
         run: |
           # Parse and set additional environment variables securely
+          # Supports multiline values (e.g., SSH keys)
+          current_key=""
+          current_value=""
+          flush_var() {
+            if [ -n "$current_key" ]; then
+              while IFS= read -r mask_line; do
+                [ -n "$mask_line" ] && echo "::add-mask::${mask_line}"
+              done <<< "${current_value}"
+              echo "Setting environment variable: ${current_key}"
+              echo "${current_key}<<GHENV_EOF" >> $GITHUB_ENV
+              echo "${current_value}" >> $GITHUB_ENV
+              echo "GHENV_EOF" >> $GITHUB_ENV
+            fi
+          }
           while IFS= read -r line || [ -n "$line" ]; do
-            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
-              key="${line%%=*}"
-              value="${line#*=}"
-              # Mask the value in logs
-              echo "::add-mask::${value}"
-              echo "Setting environment variable: ${key}"
-              echo "${key}=${value}" >> $GITHUB_ENV
+            if [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+              flush_var
+              current_key="${line%%=*}"
+              current_value="${line#*=}"
+            elif [ -n "$current_key" ]; then
+              current_value="$(printf '%s\n%s' "${current_value}" "${line}")"
             fi
           done <<< "${{ secrets.ENV_VARS }}"
+          flush_var
 
       - name: Register problem matchers
         uses: aligent/workflows/.github/actions/node-problem-matchers@main
@@ -286,16 +314,30 @@ jobs:
         if: inputs.has-env-vars
         run: |
           # Parse and set additional environment variables securely
+          # Supports multiline values (e.g., SSH keys)
+          current_key=""
+          current_value=""
+          flush_var() {
+            if [ -n "$current_key" ]; then
+              while IFS= read -r mask_line; do
+                [ -n "$mask_line" ] && echo "::add-mask::${mask_line}"
+              done <<< "${current_value}"
+              echo "Setting environment variable: ${current_key}"
+              echo "${current_key}<<GHENV_EOF" >> $GITHUB_ENV
+              echo "${current_value}" >> $GITHUB_ENV
+              echo "GHENV_EOF" >> $GITHUB_ENV
+            fi
+          }
           while IFS= read -r line || [ -n "$line" ]; do
-            if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
-              key="${line%%=*}"
-              value="${line#*=}"
-              # Mask the value in logs
-              echo "::add-mask::${value}"
-              echo "Setting environment variable: ${key}"
-              echo "${key}=${value}" >> $GITHUB_ENV
+            if [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+              flush_var
+              current_key="${line%%=*}"
+              current_value="${line#*=}"
+            elif [ -n "$current_key" ]; then
+              current_value="$(printf '%s\n%s' "${current_value}" "${line}")"
             fi
           done <<< "${{ secrets.ENV_VARS }}"
+          flush_var
 
       - name: Run pre-test command
         if: inputs.pre-test-command != ''
