@@ -21,7 +21,6 @@ on:
         description: "Path to deploy"
         type: string
         required: true
-        default: ""
       delete-flag:
         description: "Enable --delete flag"
         type: boolean
@@ -68,14 +67,11 @@ jobs:
               cache_control="--cache-control \"${{inputs.cache-control}}\""
           fi
 
-          command="aws s3 sync ${{inputs.local-path}} s3://${{inputs.s3-bucket}}${{inputs.s3-path}} ${cache_control} ${{inputs.extra-args}}"
+          command="aws s3 sync ${{inputs.local-path}}"
+          command="$command s3://${{inputs.s3-bucket}}${{inputs.s3-path}} ${cache_control} ${{inputs.extra-args}}"
 
           if [ "${{inputs.delete-flag}}" = "true" ]; then
             command="$command --delete"
           fi
 
           $command
-
-
-    
-

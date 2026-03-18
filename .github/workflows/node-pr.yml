@@ -87,7 +87,9 @@ on:
         default: 1
         type: number
       pre-test-command:
-        description: "A script to run before the test checks (e.g., generate:types for code generation). Runs as: <package-manager> run <command>"
+        description: >-
+          A script to run before the test checks (e.g., generate:types for code generation).
+          Runs as: <package-manager> run <command>
         default: ""
         type: string
       node-options:
@@ -123,7 +125,9 @@ jobs:
           cache: ${{ inputs.package-manager }}
           node-version-file: .nvmrc
       - name: Install safe-chain
-        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+        run: |
+          SAFE_CHAIN_URL="https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh"
+          curl -fsSL "$SAFE_CHAIN_URL" | sh -s -- --ci
       - name: Setup additional environment variables
         if: inputs.has-env-vars
         run: |
@@ -278,7 +282,12 @@ jobs:
   test:
     name: 🧪 Pull Request Checks
     needs: [install]
-    if: inputs.skip-test == false || inputs.skip-lint == false || inputs.skip-format == false || inputs.skip-test-storybook == false || inputs.skip-check-types == false
+    if: >-
+      inputs.skip-test == false ||
+      inputs.skip-lint == false ||
+      inputs.skip-format == false ||
+      inputs.skip-test-storybook == false ||
+      inputs.skip-check-types == false
     runs-on: ubuntu-latest
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -391,7 +400,8 @@ jobs:
           if [ "${{ inputs.skip-format }}" != "true" ] && [ "${{ steps.check-format.outputs.exists }}" == "true" ]; then
             commands+=("${{ inputs.format-command }}")
           fi
-          if [ "${{ inputs.skip-test-storybook }}" != "true" ] && [ "${{ steps.check-test-storybook.outputs.exists }}" == "true" ]; then
+          if [ "${{ inputs.skip-test-storybook }}" != "true" ] && \
+             [ "${{ steps.check-test-storybook.outputs.exists }}" == "true" ]; then
             # Ensure playwright dependencies are installed before story blok test execution begins 
             if [ "${{ inputs.package-manager }}" = "yarn" ]; then
               yarn playwright install --with-deps
@@ -400,7 +410,8 @@ jobs:
             fi
             commands+=("${{ inputs.test-storybook-command }}")
           fi
-          if [ "${{ inputs.skip-check-types }}" != "true" ] && [ "${{ steps.check-check-types.outputs.exists }}" == "true" ]; then
+          if [ "${{ inputs.skip-check-types }}" != "true" ] && \
+             [ "${{ steps.check-check-types.outputs.exists }}" == "true" ]; then
             commands+=("${{ inputs.check-types-command }}")
           fi
           # Convert to JSON array

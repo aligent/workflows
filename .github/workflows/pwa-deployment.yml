@@ -168,7 +168,8 @@ jobs:
             if [ -n "${{ inputs.preview-base-url }}" ]; then
               echo "deployment-url=${{ inputs.preview-base-url }}/${PREFIX}/" >> $GITHUB_OUTPUT
             else
-              echo "deployment-url=https://${{ inputs.s3-bucket }}.s3.amazonaws.com/${PREFIX}/index.html" >> $GITHUB_OUTPUT
+              DEPLOY_URL="https://${{ inputs.s3-bucket }}.s3.amazonaws.com/${PREFIX}/index.html"
+              echo "deployment-url=$DEPLOY_URL" >> $GITHUB_OUTPUT
             fi
           else
             # Production/staging deployment to root
@@ -298,7 +299,9 @@ jobs:
           echo "🚀 Deploying static assets..."
 
           # Deploy static assets with immutable cache headers (exclude HTML and service-worker.js)
-          aws s3 sync "${{ inputs.build-directory }}" "s3://${{ inputs.s3-bucket }}/${{ steps.s3-config.outputs.s3-path }}" \
+          aws s3 sync \
+            "${{ inputs.build-directory }}" \
+            "s3://${{ inputs.s3-bucket }}/${{ steps.s3-config.outputs.s3-path }}" \
             --exclude "*.html" \
             --exclude "service-worker.js" \
             --cache-control "${{ needs.prepare.outputs.cache-control-static }}" \
@@ -310,7 +313,9 @@ jobs:
           echo "📄 Deploying HTML files and service worker..."
 
           # Deploy HTML and service-worker.js with revalidation cache headers
-          aws s3 sync "${{ inputs.build-directory }}" "s3://${{ inputs.s3-bucket }}/${{ steps.s3-config.outputs.s3-path }}" \
+          aws s3 sync \
+            "${{ inputs.build-directory }}" \
+            "s3://${{ inputs.s3-bucket }}/${{ steps.s3-config.outputs.s3-path }}" \
             --exclude "*" \
             --include "*.html" \
             --include "service-worker.js" \
@@ -374,12 +379,13 @@ jobs:
           echo "- **Build Directory**: ${{ inputs.build-directory }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
+          DEPLOY_URL="${{ needs.prepare.outputs.deployment-url }}"
           if [ "${{ inputs.preview-mode }}" = "true" ]; then
             echo "### 🔍 Preview Environment" >> $GITHUB_STEP_SUMMARY
             echo "This is a preview deployment. The application is available at:" >> $GITHUB_STEP_SUMMARY
-            echo "**[${{ needs.prepare.outputs.deployment-url }}](${{ needs.prepare.outputs.deployment-url }})**" >> $GITHUB_STEP_SUMMARY
+            echo "**[$DEPLOY_URL]($DEPLOY_URL)**" >> $GITHUB_STEP_SUMMARY
           else
             echo "### 🌍 Deployment" >> $GITHUB_STEP_SUMMARY
             echo "Application deployed to ${{ inputs.environment }} environment:" >> $GITHUB_STEP_SUMMARY
-            echo "**[${{ needs.prepare.outputs.deployment-url }}](${{ needs.prepare.outputs.deployment-url }})**" >> $GITHUB_STEP_SUMMARY
+            echo "**[$DEPLOY_URL]($DEPLOY_URL)**" >> $GITHUB_STEP_SUMMARY
           fi

@@ -16,7 +16,9 @@ on:
         default: ""
         type: string
       pre-publish-commands:
-        description: "Commands to run after install but before the changesets action (e.g., build, generate-types, run tests)"
+        description: >-
+          Commands to run after install but before the changesets action
+          (e.g., build, generate-types, run tests)
         default: ""
         type: string
       publish-command:
@@ -40,7 +42,9 @@ on:
         default: true
         type: boolean
       npm-registry-url:
-        description: "npm registry URL for setup-node (used for OIDC/token-based npm publishing). Leave empty if not needed."
+        description: >-
+          npm registry URL for setup-node (used for OIDC/token-based npm publishing).
+          Leave empty if not needed.
         default: ""
         type: string
       post-publish-commands:
@@ -56,7 +60,9 @@ on:
         description: "NPM authentication token for private registries (used during install and publishing)"
         required: false
       GITHUB_PAT:
-        description: "GitHub PAT if the default GITHUB_TOKEN is insufficient (e.g., for triggering other workflows from changeset commits)"
+        description: >-
+          GitHub PAT if the default GITHUB_TOKEN is insufficient
+          (e.g., for triggering other workflows from changeset commits)
         required: false
 
 jobs:

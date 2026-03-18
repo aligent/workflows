@@ -36,7 +36,6 @@ on:
         description: "Path to deploy"
         type: string
         required: true
-        default: ""
       DELETE_FLAG:
         description: "Enable __delete flag"
         type: string

@@ -1,4 +1,3 @@
-
 name: 🤖 Gadget Deploy
 on:
   workflow_call:
@@ -40,7 +39,6 @@ on:
         description: "Gadget Test API key for running tests"
         required: false
 
-
 jobs:
   push:
     name: 🫸 Push to Gadget
@@ -48,7 +46,7 @@ jobs:
     env:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
     outputs:
-        push-environment-status: ${{ steps.push-environment.outcome }}
+      push-environment-status: ${{ steps.push-environment.outcome }}
     if: inputs.push-staging == true
     steps:
       - uses: actions/checkout@v6
@@ -92,7 +90,9 @@ jobs:
           cache-dependency-path: ${{ inputs.working-directory }}/yarn.lock
 
       - name: Install safe-chain
-        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+        run: |
+          SAFE_CHAIN_URL="https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh"
+          curl -fsSL "$SAFE_CHAIN_URL" | sh -s -- --ci
 
       - name: Install dependencies
         working-directory: ${{ inputs.working-directory }}
@@ -122,4 +122,7 @@ jobs:
       - name: Deploy (promote) to Production environment in Gadget
         working-directory: ${{ inputs.working-directory }}
         run: |
-          ggt deploy --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory --allow-problems
+          ggt deploy \
+            --app=${{ inputs.app-name }} \
+            --env=${{ inputs.environment-name }} \
+            --force --allow-unknown-directory --allow-problems

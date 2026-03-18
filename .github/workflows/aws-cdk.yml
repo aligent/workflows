@@ -177,10 +177,14 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ steps.node-version.outputs.version }}
+          # yamllint disable rule:line-length
           cache: ${{ steps.detect-package-manager.outputs.manager == 'yarn-berry' && 'yarn' || (steps.detect-package-manager.outputs.manager == 'yarn-classic' && 'yarn' || steps.detect-package-manager.outputs.manager) }}
+          # yamllint enable rule:line-length
 
       - name: Install safe-chain
-        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+        run: |
+          SAFE_CHAIN_URL="https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh"
+          curl -fsSL "$SAFE_CHAIN_URL" | sh -s -- --ci
 
       - name: Install dependencies
         run: |
@@ -291,7 +295,9 @@ jobs:
           fi
 
           # Validate that at least one of synth, diff or deploy is true
-          if [ "${{ inputs.synth }}" != "true" ] && [ "${{ inputs.diff }}" != "true" ] && [ "${{ inputs.deploy }}" != "true" ]; then
+          if [ "${{ inputs.synth }}" != "true" ] && \
+             [ "${{ inputs.diff }}" != "true" ] && \
+             [ "${{ inputs.deploy }}" != "true" ]; then
             echo "❌ Error: At least one of synth, diff, or deploy must be true"
             exit 1
           fi

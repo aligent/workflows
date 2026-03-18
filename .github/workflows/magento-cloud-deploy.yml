@@ -82,7 +82,9 @@ jobs:
             exit 1
           fi
 
-          if [ "${{ inputs.environment }}" != "integration" ] && [ "${{ inputs.environment }}" != "staging" ] && [ "${{ inputs.environment }}" != "production" ]; then
+          if [ "${{ inputs.environment }}" != "integration" ] && \
+             [ "${{ inputs.environment }}" != "staging" ] && \
+             [ "${{ inputs.environment }}" != "production" ]; then
             echo "❌ Error: environment must be one of: integration, staging, production"
             exit 1
           fi
@@ -167,11 +169,17 @@ jobs:
           echo "📋 Retrieving deployment information..."
 
           # Get environment URL
-          URL=$(magento-cloud url --environment "${{ inputs.environment }}" --project "${{ inputs.magento-cloud-project-id }}" --pipe | tr -d '[:space:]')
+          URL=$(magento-cloud url \
+            --environment "${{ inputs.environment }}" \
+            --project "${{ inputs.magento-cloud-project-id }}" \
+            --pipe | tr -d '[:space:]')
           echo "url=$URL" >> "$GITHUB_OUTPUT"
 
           # Get deployment ID
-          DEPLOYMENT_ID=$(magento-cloud activity:list --environment "${{ inputs.environment }}" --type push --limit 1 --format csv --columns id --no-header | head -1)
+          DEPLOYMENT_ID=$(magento-cloud activity:list \
+            --environment "${{ inputs.environment }}" \
+            --type push --limit 1 --format csv \
+            --columns id --no-header | head -1)
           echo "id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
 
           if [ "${{ inputs.debug }}" = "true" ]; then
@@ -182,6 +190,8 @@ jobs:
 
       - name: Generate deployment summary
         run: |
+          DEPLOY_URL="${{ steps.deploy-info.outputs.url }}"
+
           echo "## 🛍️ Magento Cloud Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
@@ -189,7 +199,7 @@ jobs:
           echo "| **Project ID** | ${{ inputs.magento-cloud-project-id }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Environment** | ${{ inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Deployment ID** | ${{ steps.deploy-info.outputs.id }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Site URL** | [${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Site URL** | [$DEPLOY_URL]($DEPLOY_URL) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Git Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Deployed By** | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -198,17 +208,17 @@ jobs:
             "production")
               echo "### 🌍 Production Deployment" >> $GITHUB_STEP_SUMMARY
               echo "Your Magento store is now live at:" >> $GITHUB_STEP_SUMMARY
-              echo "**[${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }})**" >> $GITHUB_STEP_SUMMARY
+              echo "**[$DEPLOY_URL]($DEPLOY_URL)**" >> $GITHUB_STEP_SUMMARY
               ;;
             "staging")
               echo "### 🚀 Staging Environment" >> $GITHUB_STEP_SUMMARY
               echo "Staging environment updated successfully:" >> $GITHUB_STEP_SUMMARY
-              echo "**[${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }})**" >> $GITHUB_STEP_SUMMARY
+              echo "**[$DEPLOY_URL]($DEPLOY_URL)**" >> $GITHUB_STEP_SUMMARY
               ;;
             *)
               echo "### 🔧 Integration Environment" >> $GITHUB_STEP_SUMMARY
               echo "Integration environment deployed for testing:" >> $GITHUB_STEP_SUMMARY
-              echo "**[${{ steps.deploy-info.outputs.url }}](${{ steps.deploy-info.outputs.url }})**" >> $GITHUB_STEP_SUMMARY
+              echo "**[$DEPLOY_URL]($DEPLOY_URL)**" >> $GITHUB_STEP_SUMMARY
               ;;
           esac
 

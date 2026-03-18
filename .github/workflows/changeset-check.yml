@@ -174,7 +174,9 @@ jobs:
             echo "needs_changeset=true" >> $GITHUB_OUTPUT
             echo "Affected packages found but no changesets detected"
           else
-            PACKAGES_WITH_CHANGESETS=$(echo "$CHANGESET_STATUS" | jq -r '.releases[] | select(.changesets | length > 0) | .name' 2>/dev/null || echo "")
+            JQ_FILTER='.releases[] | select(.changesets | length > 0) | .name'
+            PACKAGES_WITH_CHANGESETS=$(echo "$CHANGESET_STATUS" \
+              | jq -r "$JQ_FILTER" 2>/dev/null || echo "")
 
             ALL_COVERED=true
             for pkg in $PUBLISHABLE_AFFECTED; do
@@ -253,7 +255,8 @@ jobs:
               `${changesetCmd} --empty`,
               '```',
               '',
-              `**Tip:** When running \`${changesetCmd}\`, select only the packages listed above that you actually changed the public API of.`,
+              `**Tip:** When running \`${changesetCmd}\`, select only the packages ` +
+              `listed above that you actually changed the public API of.`,
               '',
               '</details>'
             ].join('\n');

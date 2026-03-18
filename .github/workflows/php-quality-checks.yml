@@ -17,7 +17,9 @@ on:
         description: "PHP Extensions to use redis, exif, etc"
         type: string
         required: false
-        default: "bcmath bz2 calendar exif gd gettext intl mysqli opcache pdo_mysql redis soap sockets sodium sysvmsg sysvsem sysvshm xsl zip pcntl"
+        default: >-
+          bcmath bz2 calendar exif gd gettext intl mysqli opcache pdo_mysql
+          redis soap sockets sodium sysvmsg sysvsem sysvshm xsl zip pcntl
 
       skip-composer-validate:
         description: "Skip Validation of the composer.json"
@@ -129,7 +131,9 @@ on:
         default: "2"
 
       opensearch-image:
-        description: "OpenSearch Docker image name, combined with opensearch-version as the tag (e.g., aligent/bitbucket-opensearch)"
+        description: >-
+          OpenSearch Docker image name, combined with opensearch-version as the tag
+          (e.g., aligent/bitbucket-opensearch)
         type: string
         required: false
         default: "opensearchproject/opensearch"
@@ -599,7 +603,10 @@ jobs:
           pushd dev/tests/unit
 
           # Build PHPUnit command with coverage
-          cmd='php -d memory_limit=${{ inputs.memory-limit }} -d xdebug.mode=coverage $phpunit_cmd -c ./phpunit.xml --testsuite="Unit Tests" --log-junit ./test-results/report.xml'
+          cmd='php -d memory_limit=${{ inputs.memory-limit }}'
+          cmd+=' -d xdebug.mode=coverage $phpunit_cmd'
+          cmd+=' -c ./phpunit.xml --testsuite="Unit Tests"'
+          cmd+=' --log-junit ./test-results/report.xml'
           cmd="$cmd --coverage-text --coverage-clover=coverage.xml"
 
           # Add debug flags if enabled
@@ -677,24 +684,32 @@ jobs:
         options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
       search:
+        # yamllint disable rule:line-length
         image: ${{ inputs.opensearch-image }}${{ inputs.opensearch-version && format(':{0}', inputs.opensearch-version) || '' }}
+        # yamllint enable rule:line-length
         env:
           discovery.type: single-node
           OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
           DISABLE_SECURITY_PLUGIN: true
         ports:
           - 9200:9200
-        options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: >-
+          --health-cmd="curl -f http://localhost:9200/_cluster/health"
+          --health-interval=10s --health-timeout=5s --health-retries=5
 
       rabbitmq:
+        # yamllint disable rule:line-length
         image: ${{ inputs.rabbitmq-image }}${{ inputs.rabbitmq-version && format(':{0}', inputs.rabbitmq-version) || '' }}
+        # yamllint enable rule:line-length
         env:
           RABBITMQ_DEFAULT_USER: guest
           RABBITMQ_DEFAULT_PASS: guest
         ports:
           - 5672:5672
           - 15672:15672
-        options: --health-cmd="rabbitmq-diagnostics -q ping" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s --health-timeout=5s --health-retries=5
 
     steps:
       - uses: actions/checkout@v6
@@ -787,24 +802,32 @@ jobs:
         options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
       search:
+        # yamllint disable rule:line-length
         image: ${{ inputs.opensearch-image }}${{ inputs.opensearch-version && format(':{0}', inputs.opensearch-version) || '' }}
+        # yamllint enable rule:line-length
         env:
           discovery.type: single-node
           OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
           DISABLE_SECURITY_PLUGIN: true
         ports:
           - 9200:9200
-        options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: >-
+          --health-cmd="curl -f http://localhost:9200/_cluster/health"
+          --health-interval=10s --health-timeout=5s --health-retries=5
 
       rabbitmq:
+        # yamllint disable rule:line-length
         image: ${{ inputs.rabbitmq-image }}${{ inputs.rabbitmq-version && format(':{0}', inputs.rabbitmq-version) || '' }}
+        # yamllint enable rule:line-length
         env:
           RABBITMQ_DEFAULT_USER: guest
           RABBITMQ_DEFAULT_PASS: guest
         ports:
           - 5672:5672
           - 15672:15672
-        options: --health-cmd="rabbitmq-diagnostics -q ping" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s --health-timeout=5s --health-retries=5
 
     steps:
       - uses: actions/checkout@v6
@@ -918,24 +941,32 @@ jobs:
         options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
       search:
+        # yamllint disable rule:line-length
         image: ${{ inputs.opensearch-image }}${{ inputs.opensearch-version && format(':{0}', inputs.opensearch-version) || '' }}
+        # yamllint enable rule:line-length
         env:
           discovery.type: single-node
           OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
           DISABLE_SECURITY_PLUGIN: true
         ports:
           - 9200:9200
-        options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: >-
+          --health-cmd="curl -f http://localhost:9200/_cluster/health"
+          --health-interval=10s --health-timeout=5s --health-retries=5
 
       rabbitmq:
+        # yamllint disable rule:line-length
         image: ${{ inputs.rabbitmq-image }}${{ inputs.rabbitmq-version && format(':{0}', inputs.rabbitmq-version) || '' }}
+        # yamllint enable rule:line-length
         env:
           RABBITMQ_DEFAULT_USER: guest
           RABBITMQ_DEFAULT_PASS: guest
         ports:
           - 5672:5672
           - 15672:15672
-        options: --health-cmd="rabbitmq-diagnostics -q ping" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s --health-timeout=5s --health-retries=5
 
     steps:
       - uses: actions/checkout@v6

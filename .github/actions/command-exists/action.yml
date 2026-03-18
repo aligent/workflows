@@ -58,7 +58,8 @@ runs:
         if [ -f "pnpm-workspace.yaml" ]; then
           # Extract package paths from YAML list items, stripping optional quotes
           # Matches: "  - packages/*", "  - 'apps/*'", '  - "libs/*"' -> packages/*, apps/*, libs/*
-          pnpm_packages=$(grep -E '^\s*-\s+' pnpm-workspace.yaml | sed "s/.*-\s*['\"]\\{0,1\\}\([^'\"]*\\)['\"]\\{0,1\\}/\1/" 2>/dev/null)
+          pnpm_packages=$(grep -E '^\s*-\s+' pnpm-workspace.yaml \
+            | sed "s/.*-\s*['\"]\\{0,1\\}\([^'\"]*\\)['\"]\\{0,1\\}/\1/" 2>/dev/null)
           for pattern in $pnpm_packages; do
             for pkg_dir in $pattern; do
               if [ -f "$pkg_dir/package.json" ]; then
