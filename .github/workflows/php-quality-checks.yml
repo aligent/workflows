@@ -225,7 +225,7 @@ jobs:
 
       - name: Setup PHP
         if: steps.check-files.outputs.has-composer == 'true'
-        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
@@ -329,7 +329,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
@@ -438,7 +438,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
@@ -546,7 +546,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup PHP with Xdebug
-        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}, xdebug
@@ -700,7 +700,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
@@ -810,7 +810,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
@@ -941,7 +941,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@4cba65b8c5a7681c52ce219a59833167d4550fe0
+        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
