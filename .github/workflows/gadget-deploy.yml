@@ -85,7 +85,7 @@ jobs:
           ggt pull --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: ${{ inputs.working-directory }}/.nvmrc
           cache: yarn

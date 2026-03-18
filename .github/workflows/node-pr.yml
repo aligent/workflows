@@ -106,7 +106,7 @@ jobs:
         with:
           fetch-depth: ${{ inputs.fetch-depth }}
       - name: Install Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           package-manager-cache: false
           node-version-file: .nvmrc
@@ -118,7 +118,7 @@ jobs:
             corepack enable
           fi
       - name: Configure Dependency Cache
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           cache: ${{ inputs.package-manager }}
           node-version-file: .nvmrc
@@ -199,7 +199,7 @@ jobs:
       - name: Fetch Origin
         run: git fetch origin
       - name: Install Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
@@ -211,7 +211,7 @@ jobs:
             corepack enable
           fi
       - name: Configure Dependency Cache
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           cache: ${{ inputs.package-manager }}
       - uses: actions/download-artifact@v4
@@ -290,7 +290,7 @@ jobs:
       - name: Fetch Origin
         run: git fetch origin
       - name: Install Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
@@ -302,7 +302,7 @@ jobs:
             corepack enable
           fi
       - name: Configure Dependency Cache
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           cache: ${{ inputs.package-manager }}
       - uses: actions/download-artifact@v4
