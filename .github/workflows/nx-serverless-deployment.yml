@@ -34,48 +34,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Enable Corepack
-        if: ${{ inputs.package-manager == 'yarn' && !inputs.is-yarn-classic }}
-        run: corepack enable
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: .nvmrc
-          cache: ${{ inputs.package-manager }}
-
-      - name: Install safe-chain
-        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
-
-      - name: Install dependencies
-        run: |
-          debug=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
-            debug="--verbose"
-          fi
-
-          lock_dependencies="--immutable"
-          if [ "${{ inputs.is-yarn-classic }}" = "true" ]; then
-            lock_dependencies="--frozen-lockfile"
-          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            debug=""
-          fi
-
-          if [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            yarn config get nodeLinker
-            yarn install $lock_dependencies $debug
-          else
-            npm ci $debug
-          fi
-
       - name: Validate required inputs
         run: |
           echo "🔍 Validating deployment configuration..."
-
-          ENVIRONMENT="${{ inputs.github-environment }}"
-          STAGE="${{ vars.STAGE }}"
-          CFN_ROLE="${{ vars.CFN_ROLE }}"
-          AWS_ACCESS_KEY_ID="${{ vars.AWS_ACCESS_KEY_ID }}"
-          AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
 
           if [ -z "$ENVIRONMENT" ]; then
             ENVIRONMENT="Repository"
@@ -114,8 +75,45 @@ jobs:
           echo "✅ AWS_SECRET_ACCESS_KEY secret is configured"
           echo "✅ All inputs validated successfully"
         env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          STAGE: ${{ vars.STAGE }}
+          CFN_ROLE: ${{ vars.CFN_ROLE }}
+          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
 
+      - name: Enable Corepack
+        if: ${{ inputs.package-manager == 'yarn' && !inputs.is-yarn-classic }}
+        run: corepack enable
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: ${{ inputs.package-manager }}
+
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+
+      - name: Install dependencies
+        run: |
+          debug=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            debug="--verbose"
+          fi
+
+          lock_dependencies="--immutable"
+          if [ "${{ inputs.is-yarn-classic }}" = "true" ]; then
+            lock_dependencies="--frozen-lockfile"
+          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
+            debug=""
+          fi
+
+          if [ "${{ inputs.package-manager }}" = "yarn" ]; then
+            yarn config get nodeLinker
+            yarn install $lock_dependencies $debug
+          else
+            npm ci $debug
+          fi
       - name: 🚧 Configure Serverless
         run: |
           verbose=""
