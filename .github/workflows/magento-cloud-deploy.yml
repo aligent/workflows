@@ -116,7 +116,7 @@ jobs:
           echo "✅ NewRelic deployment start marker created"
 
       - name: Checkout code with full git history
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Full git history required for Magento Cloud
 

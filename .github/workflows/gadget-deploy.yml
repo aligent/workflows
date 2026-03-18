@@ -51,7 +51,7 @@ jobs:
         push-environment-status: ${{ steps.push-environment.outcome }}
     if: inputs.push-staging == true
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install ggt
         run: |
@@ -72,7 +72,7 @@ jobs:
     needs: push
     if: inputs.test == true
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install ggt
         run: |
@@ -112,7 +112,7 @@ jobs:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
     if: inputs.deploy-production == true
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install ggt
         run: |
