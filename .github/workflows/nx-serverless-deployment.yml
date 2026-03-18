@@ -171,7 +171,7 @@ jobs:
 
           if [ "${{ steps.repo-type.outputs.is_monorepo }}" = "true" ]; then
             echo "Deploying monorepo..."
-            npx nx run-many -t "$COMMAND" --stage "$STAGE" $verbose
+            npx nx run-many -t "$COMMAND" $verbose -- --stage "$STAGE"
           else
             npx serverless "$COMMAND" --stage "$STAGE" $verbose
           fi
