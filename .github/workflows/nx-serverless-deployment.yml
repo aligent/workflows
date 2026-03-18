@@ -21,11 +21,6 @@ on:
         description: "If Yarn (pre-Berry) should be used"
         default: false
         type: boolean
-      build-command:
-        description: "Build command"
-        type: string
-        required: false
-        default: "build"
       debug:
         description: "Debug mode - enable verbose logging"
         type: boolean
