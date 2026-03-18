@@ -104,7 +104,7 @@ jobs:
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: ${{ inputs.fetch-depth }}
           persist-credentials: false
@@ -203,7 +203,7 @@ jobs:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       NODE_OPTIONS: ${{ inputs.node-options }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: ${{ inputs.fetch-depth }}
           persist-credentials: false
@@ -307,7 +307,7 @@ jobs:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       NODE_OPTIONS: ${{ inputs.node-options }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: ${{ inputs.fetch-depth }}
           persist-credentials: false
