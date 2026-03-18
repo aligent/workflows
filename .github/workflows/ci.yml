@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  checks:
+    name: Lint & Static Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read # only needed for private or internal repos
+      actions: read # only needed for private or internal repos
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: yamllint
+        run: yamllint .
+
+      - name: actionlint
+        uses: rhysd/action-actionlint@393031adb9afb225ee52ae2ccd7a5af5525e03e8
+
+      - name: zizmor
+        uses: zizmorcore/zizmor-action@71321a20a9ded102f6e9ce5718a2fcec2c4f70d8
