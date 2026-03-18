@@ -63,12 +63,6 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         run: yarn install --frozen-lockfile
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v6
-        with:
-          name: build-artifacts
-          path: ${{ inputs.working-directory }}
-
       - name: Configure Shopify CLI
         working-directory: ${{ inputs.working-directory }}
         run: |
