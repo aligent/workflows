@@ -1,0 +1,5 @@
+# SC2086: Double quote to prevent globbing and word splitting
+# Suppressed globally — variables in these workflows are GitHub-set paths or
+# simple identifiers (package manager names, flags, env names) that cannot
+# contain spaces. Re-evaluate if user-controlled path inputs are introduced.
+disable=SC2086
