@@ -50,6 +50,8 @@ jobs:
     if: inputs.push-staging == true
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Install ggt
         run: |
@@ -60,7 +62,10 @@ jobs:
         id: push-environment
         working-directory: ${{ inputs.working-directory }}
         run: |
-          ggt push --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory 
+          ggt push --app=${INPUTS_APP_NAME} --env=${INPUTS_ENVIRONMENT_NAME} --force --allow-unknown-directory
+        env:
+          INPUTS_APP_NAME: ${{ inputs.app-name }}
+          INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }} 
 
   test:
     name: 🧪 Test from Gadget
@@ -71,6 +76,8 @@ jobs:
     if: inputs.test == true
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Install ggt
         run: |
@@ -80,7 +87,10 @@ jobs:
       - name: Pull client files into env # pull .gadget folder into test runner
         working-directory: ${{ inputs.working-directory }}
         run: |
-          ggt pull --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory
+          ggt pull --app=${INPUTS_APP_NAME} --env=${INPUTS_ENVIRONMENT_NAME} --force --allow-unknown-directory
+        env:
+          INPUTS_APP_NAME: ${{ inputs.app-name }}
+          INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -113,6 +123,8 @@ jobs:
     if: inputs.deploy-production == true
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Install ggt
         run: |
@@ -123,6 +135,10 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         run: |
           ggt deploy \
-            --app=${{ inputs.app-name }} \
-            --env=${{ inputs.environment-name }} \
+            --app=${INPUTS_APP_NAME} \
+            --env=${INPUTS_ENVIRONMENT_NAME} \
             --force --allow-unknown-directory --allow-problems
+
+        env:
+          INPUTS_APP_NAME: ${{ inputs.app-name }}
+          INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}

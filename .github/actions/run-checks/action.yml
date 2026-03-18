@@ -17,15 +17,15 @@ runs:
   using: composite
   steps:
     - id: add-matchers
-      uses: aligent/workflows/.github/actions/node-problem-matchers@main
+      uses: aligent/workflows/.github/actions/node-problem-matchers@main # zizmor: ignore[unpinned-uses] trusted source
     - id: run
       shell: bash
       run: |
         debug=${{ inputs.debug == 'true' && '--verbose' || '' }}
-        pm=${{ inputs.package-manager }}
+        pm=${INPUTS_PACKAGE_MANAGER}
 
         # Parse JSON array of commands
-        readarray -t commands < <(echo '${{ inputs.commands }}' | jq -r '.[]')
+        readarray -t commands < <(echo '${INPUTS_COMMANDS}' | jq -r '.[]')
 
         if [ ${#commands[@]} -gt 0 ]; then
           # Build the full command strings
@@ -39,8 +39,11 @@ runs:
         else
           echo "No commands to run"
         fi
+      env:
+        INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+        INPUTS_COMMANDS: ${{ inputs.commands }}
     - id: remove-matchers
       if: always()
-      uses: aligent/workflows/.github/actions/node-problem-matchers@main
+      uses: aligent/workflows/.github/actions/node-problem-matchers@main # zizmor: ignore[unpinned-uses] trusted source
       with:
         action: remove

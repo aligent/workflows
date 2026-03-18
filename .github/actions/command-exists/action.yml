@@ -23,7 +23,7 @@ runs:
     - id: check-script
       shell: bash
       run: |
-        cmd="${{ inputs.command }}"
+        cmd="${INPUTS_COMMAND}"
 
         # Check root package.json scripts
         if jq -e --arg cmd "$cmd" '.scripts[$cmd]' package.json > /dev/null 2>&1; then
@@ -73,11 +73,13 @@ runs:
         fi
 
         echo "exists=false" >> $GITHUB_OUTPUT
+      env:
+        INPUTS_COMMAND: ${{ inputs.command }}
 
     - id: check-nx
       shell: bash
       run: |
-        cmd="${{ inputs.command }}"
+        cmd="${INPUTS_COMMAND}"
 
         # Check Nx targets if this is an Nx workspace
         if [ -f "nx.json" ]; then
@@ -88,3 +90,5 @@ runs:
         fi
 
         echo "exists=false" >> $GITHUB_OUTPUT
+      env:
+        INPUTS_COMMAND: ${{ inputs.command }}

@@ -51,6 +51,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -74,7 +76,7 @@ jobs:
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''
         run: |
-          echo "${{ inputs.pre-install-commands }}" | while IFS= read -r cmd; do
+          echo "${INPUTS_PRE_INSTALL_COMMANDS}" | while IFS= read -r cmd; do
             if [ -n "$cmd" ]; then
               echo "Running: $cmd"
               eval "$cmd"
@@ -82,20 +84,22 @@ jobs:
           done
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          INPUTS_PRE_INSTALL_COMMANDS: ${{ inputs.pre-install-commands }}
 
       - name: Install dependencies
         run: |
           debug=${{ inputs.debug && '--verbose' || '' }}
-          if [ "${{ inputs.package-manager }}" = "yarn" ]; then
+          if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
             lock_flag=${{ inputs.is-yarn-classic && '--frozen-lockfile' || '--immutable' }}
             yarn install $lock_flag $debug
-          elif [ "${{ inputs.package-manager }}" = "pnpm" ]; then
+          elif [ "${INPUTS_PACKAGE_MANAGER}" = "pnpm" ]; then
             pnpm install --frozen-lockfile $debug
           else
             npm ci $debug
           fi
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
 
       - name: Get Changed Files
         id: changed-files
@@ -115,10 +119,12 @@ jobs:
         id: changeset-check
         env:
           CHANGED_FILES: ${{ steps.changed-files.outputs.result }}
+          INPUTS_PACKAGES_PATH: ${{ inputs.packages-path }}
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
         run: |
           set +e
 
-          PACKAGES_PATH="${{ inputs.packages-path }}"
+          PACKAGES_PATH="${INPUTS_PACKAGES_PATH}"
           PACKAGES_PREFIX="${PACKAGES_PATH%/}"
 
           # Get changed directories under the packages path using GitHub API results
@@ -167,7 +173,7 @@ jobs:
           fi
 
           # Check changeset status for detailed coverage
-          CHANGESET_STATUS=$(${{ inputs.package-manager }} changeset status --output=json 2>/dev/null)
+          CHANGESET_STATUS=$(${INPUTS_PACKAGE_MANAGER} changeset status --output=json 2>/dev/null)
           CHANGESET_EXIT_CODE=$?
 
           if [ $CHANGESET_EXIT_CODE -ne 0 ]; then
@@ -198,12 +204,16 @@ jobs:
       - name: Comment on PR if no changeset
         if: steps.changeset-check.outputs.needs_changeset == 'true'
         uses: actions/github-script@v8
+        env:
+          COMMENT_HEADER: ${{ inputs.comment-header }}
+          CHANGESET_COMMAND: ${{ inputs.changeset-command }}
+          STATUS_COMMAND: ${{ inputs.changeset-status-command }}
         with:
-          script: |
+          script: | # zizmor: ignore[template-injection] - affected_packages is a trusted input source  
             const { owner, repo, number } = context.issue;
-            const commentHeader = `${{ inputs.comment-header }}`;
-            const changesetCmd = `${{ inputs.changeset-command }}`;
-            const statusCmd = `${{ inputs.changeset-status-command }}`;
+            const commentHeader = process.env.COMMENT_HEADER;
+            const changesetCmd = process.env.CHANGESET_COMMAND;
+            const statusCmd = process.env.STATUS_COMMAND;
 
             const comments = await github.rest.issues.listComments({
               owner, repo, issue_number: number,
@@ -274,10 +284,12 @@ jobs:
       - name: Remove changeset comment if changeset exists
         if: steps.changeset-check.outputs.needs_changeset == 'false'
         uses: actions/github-script@v8
+        env:
+          COMMENT_HEADER: ${{ inputs.comment-header }}
         with:
           script: |
             const { owner, repo, number } = context.issue;
-            const commentHeader = `${{ inputs.comment-header }}`;
+            const commentHeader = process.env.COMMENT_HEADER;
 
             const comments = await github.rest.issues.listComments({
               owner, repo, issue_number: number,

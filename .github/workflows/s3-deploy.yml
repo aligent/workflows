@@ -49,9 +49,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7
         with:
           aws-access-key-id: ${{ inputs.aws-access-key-id }}
           aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
@@ -63,15 +65,21 @@ jobs:
           cache_control=""
           extra_args=""
 
-          if [ -n "${{inputs.cache-control}}" ]; then
-              cache_control="--cache-control \"${{inputs.cache-control}}\""
+          if [ -n "${INPUTS_CACHE_CONTROL}" ]; then
+              cache_control="--cache-control \"${INPUTS_CACHE_CONTROL}\""
           fi
 
-          command="aws s3 sync ${{inputs.local-path}}"
-          command="$command s3://${{inputs.s3-bucket}}${{inputs.s3-path}} ${cache_control} ${{inputs.extra-args}}"
+          command="aws s3 sync ${INPUTS_LOCAL_PATH}"
+          command="$command s3://${INPUTS_S3_BUCKET}${INPUTS_S3_PATH} ${cache_control} ${INPUTS_EXTRA_ARGS}"
 
           if [ "${{inputs.delete-flag}}" = "true" ]; then
             command="$command --delete"
           fi
 
           $command
+        env:
+          INPUTS_CACHE_CONTROL: ${{inputs.cache-control}}
+          INPUTS_LOCAL_PATH: ${{inputs.local-path}}
+          INPUTS_S3_BUCKET: ${{inputs.s3-bucket}}
+          INPUTS_S3_PATH: ${{inputs.s3-path}}
+          INPUTS_EXTRA_ARGS: ${{inputs.extra-args}}

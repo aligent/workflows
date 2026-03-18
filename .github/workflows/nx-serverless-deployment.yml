@@ -33,6 +33,8 @@ jobs:
     environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Validate required inputs
         run: |
@@ -106,16 +108,18 @@ jobs:
           lock_dependencies="--immutable"
           if [ "${{ inputs.is-yarn-classic }}" = "true" ]; then
             lock_dependencies="--frozen-lockfile"
-          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
+          elif [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
             debug=""
           fi
 
-          if [ "${{ inputs.package-manager }}" = "yarn" ]; then
+          if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
             yarn config get nodeLinker
             yarn install $lock_dependencies $debug
           else
             npm ci $debug
           fi
+        env:
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
 
       - name: 🔍 Check repository type
         id: repo-type
@@ -148,7 +152,7 @@ jobs:
           # Insert the cfnRole value into all serverless files
           # yq v4 converts YAML merge keys (<<) to !!merge tags when writing,
           # which is invalid for serverless. Pipe through sed to strip them.
-          if [ "${{ steps.repo-type.outputs.is_monorepo }}" = "true" ]; then
+          if [ "${STEPS_REPO_TYPE_OUTPUTS_IS_MONOREPO}" = "true" ]; then
             find services/*/ -name serverless.yml -exec sh -c '
               yq ".provider.cfnRole = \"${0}\"" "$1" | sed "s/!!merge <</<</g" > "$1.tmp" && mv "$1.tmp" "$1"
             ' "$CFN_ROLE" {} \;
@@ -163,6 +167,7 @@ jobs:
           AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
           CFN_ROLE: ${{ vars.CFN_ROLE }}
           DEBUG: ${{ inputs.debug }}
+          STEPS_REPO_TYPE_OUTPUTS_IS_MONOREPO: ${{ steps.repo-type.outputs.is_monorepo }}
 
       - name: 🚀 Deploy
         run: |
@@ -173,7 +178,7 @@ jobs:
             verbose="--verbose"
           fi
 
-          if [ "${{ steps.repo-type.outputs.is_monorepo }}" = "true" ]; then
+          if [ "${STEPS_REPO_TYPE_OUTPUTS_IS_MONOREPO}" = "true" ]; then
             echo "Deploying monorepo..."
             npx nx run-many -t "$COMMAND" $verbose -- --stage "$STAGE"
           else
@@ -184,3 +189,5 @@ jobs:
           STAGE: ${{ vars.STAGE }}
           AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
           DEBUG: ${{ inputs.debug }}
+
+          STEPS_REPO_TYPE_OUTPUTS_IS_MONOREPO: ${{ steps.repo-type.outputs.is_monorepo }}

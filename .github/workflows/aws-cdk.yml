@@ -118,6 +118,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           lfs: ${{ inputs.lfs }}
+          persist-credentials: false
 
       - name: Detect Node.js version
         id: node-version
@@ -188,14 +189,14 @@ jobs:
 
       - name: Install dependencies
         run: |
-          echo "📦 Installing dependencies with ${{ steps.detect-package-manager.outputs.manager }}..."
+          echo "📦 Installing dependencies with ${STEPS_DETECT_PACKAGE_MANAGER_OUTPUTS_MANAGER}..."
 
           verbose=""
           if [ "${{ inputs.debug }}" = "true" ]; then
             verbose="--verbose"
           fi
 
-          case "${{ steps.detect-package-manager.outputs.manager }}" in
+          case "${STEPS_DETECT_PACKAGE_MANAGER_OUTPUTS_MANAGER}" in
             "npm")
               npm ci $verbose
               ;;
@@ -209,39 +210,49 @@ jobs:
               pnpm install --frozen-lockfile $verbose
               ;;
           esac
+        env:
+          STEPS_DETECT_PACKAGE_MANAGER_OUTPUTS_MANAGER: ${{ steps.detect-package-manager.outputs.manager }}
 
       - name: Set CDK commands
         id: parse-cdk-config
         run: |
           echo "✅ CDK commands:"
-          echo "  bootstrap: ${{ inputs.bootstrap-command }}"
-          echo "  synth: ${{ inputs.synth-command }}"
-          echo "  diff: ${{ inputs.diff-command }}"
-          echo "  deploy: ${{ inputs.deploy-command }}"
+          echo "  bootstrap: ${INPUTS_BOOTSTRAP_COMMAND}"
+          echo "  synth: ${INPUTS_SYNTH_COMMAND}"
+          echo "  diff: ${INPUTS_DIFF_COMMAND}"
+          echo "  deploy: ${INPUTS_DEPLOY_COMMAND}"
 
-          echo "bootstrap-cmd=${{ inputs.bootstrap-command }}" >> $GITHUB_OUTPUT
-          echo "synth-cmd=${{ inputs.synth-command }}" >> $GITHUB_OUTPUT
-          echo "diff-cmd=${{ inputs.diff-command }}" >> $GITHUB_OUTPUT
-          echo "deploy-cmd=${{ inputs.deploy-command }}" >> $GITHUB_OUTPUT
+          echo "bootstrap-cmd=${INPUTS_BOOTSTRAP_COMMAND}" >> $GITHUB_OUTPUT
+          echo "synth-cmd=${INPUTS_SYNTH_COMMAND}" >> $GITHUB_OUTPUT
+          echo "diff-cmd=${INPUTS_DIFF_COMMAND}" >> $GITHUB_OUTPUT
+          echo "deploy-cmd=${INPUTS_DEPLOY_COMMAND}" >> $GITHUB_OUTPUT
+        env:
+          INPUTS_BOOTSTRAP_COMMAND: ${{ inputs.bootstrap-command }}
+          INPUTS_SYNTH_COMMAND: ${{ inputs.synth-command }}
+          INPUTS_DIFF_COMMAND: ${{ inputs.diff-command }}
+          INPUTS_DEPLOY_COMMAND: ${{ inputs.deploy-command }}
 
       - name: Resolve stack name
         id: resolve-stack-name
         run: |
           # Input takes priority over variable
-          if [ -n "${{ inputs.stack-name }}" ]; then
-            STACK_NAME="${{ inputs.stack-name }}"
+          if [ -n "${INPUTS_STACK_NAME}" ]; then
+            STACK_NAME="${INPUTS_STACK_NAME}"
           else
-            STACK_NAME="${{ vars.STACK_NAME }}"
+            STACK_NAME="${VARS_STACK_NAME}"
           fi
           echo "stack-name=$STACK_NAME" >> $GITHUB_OUTPUT
+        env:
+          INPUTS_STACK_NAME: ${{ inputs.stack-name }}
+          VARS_STACK_NAME: ${{ vars.STACK_NAME }}
 
       - name: Validate required inputs
         run: |
           echo "🔍 Validating deployment configuration..."
 
-          ENVIRONMENT="${{ inputs.github-environment }}"
-          STACK_NAME="${{ steps.resolve-stack-name.outputs.stack-name }}"
-          AWS_ACCESS_KEY_ID="${{ vars.AWS_ACCESS_KEY_ID }}"
+          ENVIRONMENT="${INPUTS_GITHUB_ENVIRONMENT}"
+          STACK_NAME="${STEPS_RESOLVE_STACK_NAME_OUTPUTS_STACK_NAME}"
+          AWS_ACCESS_KEY_ID="${VARS_AWS_ACCESS_KEY_ID}"
           AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
 
           if [ -z "$ENVIRONMENT" ]; then
@@ -272,9 +283,9 @@ jobs:
           echo "✅ AWS_SECRET_ACCESS_KEY secret is configured"
 
           # Validate environment target
-          case "${{ inputs.environment-target }}" in
+          case "${INPUTS_ENVIRONMENT_TARGET}" in
             stg|prd|dev)
-              echo "✅ Environment target: ${{ inputs.environment-target }}"
+              echo "✅ Environment target: ${INPUTS_ENVIRONMENT_TARGET}"
               ;;
             "")
               echo "ℹ️ Environment target is empty"
@@ -286,8 +297,8 @@ jobs:
           esac
 
           # Validate context JSON if provided
-          if [ "${{ inputs.context-values }}" != "{}" ]; then
-            echo '${{ inputs.context-values }}' | jq . > /dev/null
+          if [ "${INPUTS_CONTEXT_VALUES}" != "{}" ]; then
+            echo '${INPUTS_CONTEXT_VALUES}' | jq . > /dev/null
             if [ $? -ne 0 ]; then
               echo "❌ Error: context-values must be valid JSON"
               exit 1
@@ -303,6 +314,12 @@ jobs:
           fi
 
           echo "✅ All inputs validated successfully"
+        env:
+          INPUTS_GITHUB_ENVIRONMENT: ${{ inputs.github-environment }}
+          STEPS_RESOLVE_STACK_NAME_OUTPUTS_STACK_NAME: ${{ steps.resolve-stack-name.outputs.stack-name }}
+          VARS_AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
+          INPUTS_ENVIRONMENT_TARGET: ${{ inputs.environment-target }}
+          INPUTS_CONTEXT_VALUES: ${{ inputs.context-values }}
 
       - name: Configure CDK context
         id: context-config
@@ -312,23 +329,28 @@ jobs:
           context_args=""
 
           # Add environment-specific context
-          context_args="$context_args --context environment=${{ inputs.environment-target }}"
+          context_args="$context_args --context environment=${INPUTS_ENVIRONMENT_TARGET}"
 
           # Add custom context values (using process substitution to avoid subshell)
-          if [ "${{ inputs.context-values }}" != "{}" ]; then
+          if [ "${INPUTS_CONTEXT_VALUES}" != "{}" ]; then
             while read -r ctx; do
               context_args="$context_args $ctx"
-            done < <(echo '${{ inputs.context-values }}' | jq -r 'to_entries[] | "--context \(.key)=\(.value)"')
+            done < <(echo '${INPUTS_CONTEXT_VALUES}' | jq -r 'to_entries[] | "--context \(.key)=\(.value)"')
           fi
 
           echo "args=$context_args" >> $GITHUB_OUTPUT
           echo "✅ Context arguments configured"
+        env:
+          INPUTS_ENVIRONMENT_TARGET: ${{ inputs.environment-target }}
+          INPUTS_CONTEXT_VALUES: ${{ inputs.context-values }}
 
       - name: Sanitise stack name
         id: sanitise
         run: |
-          sanitised_cdk_stack_name=$(echo "${{ steps.resolve-stack-name.outputs.stack-name }}" | tr -cd '[:alnum:]-_')
+          sanitised_cdk_stack_name=$(echo "${STEPS_RESOLVE_STACK_NAME_OUTPUTS_STACK_NAME}" | tr -cd '[:alnum:]-_')
           echo "sanitised-cdk-stack-name=$sanitised_cdk_stack_name" >> $GITHUB_OUTPUT
+        env:
+          STEPS_RESOLVE_STACK_NAME_OUTPUTS_STACK_NAME: ${{ steps.resolve-stack-name.outputs.stack-name }}
 
       - name: Package node_modules for artifact
         run: |
@@ -356,6 +378,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           lfs: ${{ inputs.lfs }}
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -388,7 +411,7 @@ jobs:
           echo "✅ node_modules extracted"
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7
         with:
           aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -405,7 +428,7 @@ jobs:
             verbose="--verbose"
           fi
 
-          BOOTSTRAP_CMD="${{ needs.prepare.outputs.cdk-bootstrap-cmd }}"
+          BOOTSTRAP_CMD="${NEEDS_PREPARE_OUTPUTS_CDK_BOOTSTRAP_CMD}"
 
           # Check if using custom command from config or default
           if [ "$BOOTSTRAP_CMD" = "npx cdk bootstrap" ]; then
@@ -416,14 +439,18 @@ jobs:
             fi
 
             $BOOTSTRAP_CMD \
-              aws://$(aws sts get-caller-identity --query Account --output text)/${{ inputs.aws-region }} \
+              aws://$(aws sts get-caller-identity --query Account --output text)/${INPUTS_AWS_REGION} \
               $role_args \
               $verbose
           else
-            $BOOTSTRAP_CMD ${{ inputs.extra-arguments }} $verbose
+            $BOOTSTRAP_CMD ${INPUTS_EXTRA_ARGUMENTS} $verbose
           fi
 
           echo "✅ CDK environment bootstrapped successfully"
+        env:
+          NEEDS_PREPARE_OUTPUTS_CDK_BOOTSTRAP_CMD: ${{ needs.prepare.outputs.cdk-bootstrap-cmd }}
+          INPUTS_AWS_REGION: ${{ inputs.aws-region }}
+          INPUTS_EXTRA_ARGUMENTS: ${{ inputs.extra-arguments }}
 
       - name: Synthesize CDK application
         if: inputs.synth == true
@@ -435,14 +462,19 @@ jobs:
             verbose="--verbose"
           fi
 
-          SYNTH_CMD="${{ needs.prepare.outputs.cdk-synth-cmd }}"
+          SYNTH_CMD="${NEEDS_PREPARE_OUTPUTS_CDK_SYNTH_CMD}"
 
-          $SYNTH_CMD ${{ needs.prepare.outputs.stack-name }} \
-            ${{ needs.prepare.outputs.context-args }} \
-            ${{ inputs.extra-arguments }} \
+          $SYNTH_CMD ${NEEDS_PREPARE_OUTPUTS_STACK_NAME} \
+            ${NEEDS_PREPARE_OUTPUTS_CONTEXT_ARGS} \
+            ${INPUTS_EXTRA_ARGUMENTS} \
             $verbose
 
           echo "✅ CDK synthesis completed successfully"
+        env:
+          NEEDS_PREPARE_OUTPUTS_CDK_SYNTH_CMD: ${{ needs.prepare.outputs.cdk-synth-cmd }}
+          NEEDS_PREPARE_OUTPUTS_STACK_NAME: ${{ needs.prepare.outputs.stack-name }}
+          NEEDS_PREPARE_OUTPUTS_CONTEXT_ARGS: ${{ needs.prepare.outputs.context-args }}
+          INPUTS_EXTRA_ARGUMENTS: ${{ inputs.extra-arguments }}
 
       - name: Upload synthesis artifacts
         if: inputs.synth == true
@@ -458,11 +490,11 @@ jobs:
         run: |
           echo "📊 Analysing deployment changes..."
 
-          DIFF_CMD="${{ needs.prepare.outputs.cdk-diff-cmd }}"
+          DIFF_CMD="${NEEDS_PREPARE_OUTPUTS_CDK_DIFF_CMD}"
 
-          diff_output=$($DIFF_CMD ${{ needs.prepare.outputs.stack-name }} \
-            ${{ needs.prepare.outputs.context-args }} \
-            ${{ inputs.extra-arguments }} \
+          diff_output=$($DIFF_CMD ${NEEDS_PREPARE_OUTPUTS_STACK_NAME} \
+            ${NEEDS_PREPARE_OUTPUTS_CONTEXT_ARGS} \
+            ${INPUTS_EXTRA_ARGUMENTS} \
             --no-color 2>&1 || true)
 
           # Save diff to file for analysis
@@ -486,6 +518,11 @@ jobs:
             echo "⚠️ Infrastructure changes detected!"
             echo "$diff_output"
           fi
+        env:
+          NEEDS_PREPARE_OUTPUTS_CDK_DIFF_CMD: ${{ needs.prepare.outputs.cdk-diff-cmd }}
+          NEEDS_PREPARE_OUTPUTS_STACK_NAME: ${{ needs.prepare.outputs.stack-name }}
+          NEEDS_PREPARE_OUTPUTS_CONTEXT_ARGS: ${{ needs.prepare.outputs.context-args }}
+          INPUTS_EXTRA_ARGUMENTS: ${{ inputs.extra-arguments }}
 
       - name: Upload diff analysis
         if: inputs.diff == true
@@ -504,13 +541,13 @@ jobs:
             verbose="--verbose"
           fi
 
-          echo "🚀 Deploying CDK stack: ${{ needs.prepare.outputs.stack-name }}"
+          echo "🚀 Deploying CDK stack: ${NEEDS_PREPARE_OUTPUTS_STACK_NAME}"
 
-          DEPLOY_CMD="${{ needs.prepare.outputs.cdk-deploy-cmd }}"
+          DEPLOY_CMD="${NEEDS_PREPARE_OUTPUTS_CDK_DEPLOY_CMD}"
 
-          $DEPLOY_CMD ${{ needs.prepare.outputs.stack-name }} \
-            ${{ needs.prepare.outputs.context-args }} \
-            ${{ inputs.extra-arguments }} \
+          $DEPLOY_CMD ${NEEDS_PREPARE_OUTPUTS_STACK_NAME} \
+            ${NEEDS_PREPARE_OUTPUTS_CONTEXT_ARGS} \
+            ${INPUTS_EXTRA_ARGUMENTS} \
             --require-approval never \
             --outputs-file stack-outputs.json \
             $verbose
@@ -526,6 +563,11 @@ jobs:
 
           echo "status=success" >> $GITHUB_OUTPUT
           echo "✅ Stack deployed successfully"
+        env:
+          NEEDS_PREPARE_OUTPUTS_STACK_NAME: ${{ needs.prepare.outputs.stack-name }}
+          NEEDS_PREPARE_OUTPUTS_CDK_DEPLOY_CMD: ${{ needs.prepare.outputs.cdk-deploy-cmd }}
+          NEEDS_PREPARE_OUTPUTS_CONTEXT_ARGS: ${{ needs.prepare.outputs.context-args }}
+          INPUTS_EXTRA_ARGUMENTS: ${{ inputs.extra-arguments }}
 
       - name: Upload deployment artifacts
         if: inputs.deploy == true && steps.deploy.outputs.status == 'success'
@@ -540,13 +582,21 @@ jobs:
         run: |
           echo "📋 Deployment Summary"
           echo "===================="
-          echo "Stack Pattern: ${{ needs.prepare.outputs.stack-name }}"
+          echo "Stack Pattern: ${NEEDS_PREPARE_OUTPUTS_STACK_NAME}"
 
-          echo "Environment: ${{ inputs.github-environment }}"
-          echo "Region: ${{ inputs.aws-region }}"
-          echo "Status: ${{ steps.deploy.outputs.status }}"
-          echo "Node Version: ${{ needs.prepare.outputs.node-version }}"
-          echo "Package Manager: ${{ needs.prepare.outputs.package-manager }}"
+          echo "Environment: ${INPUTS_GITHUB_ENVIRONMENT}"
+          echo "Region: ${INPUTS_AWS_REGION}"
+          echo "Status: ${STEPS_DEPLOY_OUTPUTS_STATUS}"
+          echo "Node Version: ${NEEDS_PREPARE_OUTPUTS_NODE_VERSION}"
+          echo "Package Manager: ${NEEDS_PREPARE_OUTPUTS_PACKAGE_MANAGER}"
 
           echo ""
           echo "🎉 Deployment completed successfully!"
+
+        env:
+          NEEDS_PREPARE_OUTPUTS_STACK_NAME: ${{ needs.prepare.outputs.stack-name }}
+          INPUTS_GITHUB_ENVIRONMENT: ${{ inputs.github-environment }}
+          INPUTS_AWS_REGION: ${{ inputs.aws-region }}
+          STEPS_DEPLOY_OUTPUTS_STATUS: ${{ steps.deploy.outputs.status }}
+          NEEDS_PREPARE_OUTPUTS_NODE_VERSION: ${{ needs.prepare.outputs.node-version }}
+          NEEDS_PREPARE_OUTPUTS_PACKAGE_MANAGER: ${{ needs.prepare.outputs.package-manager }}

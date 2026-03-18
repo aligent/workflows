@@ -48,6 +48,8 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -75,10 +77,13 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         run: |
           if [ "${{ inputs.deploy-production }}" = "true" ]; then
-            yarn shopify app config use ${{ inputs.production-toml-name }}
+            yarn shopify app config use ${INPUTS_PRODUCTION_TOML_NAME}
           else
-            yarn shopify app config use ${{ inputs.development-toml-name }}
+            yarn shopify app config use ${INPUTS_DEVELOPMENT_TOML_NAME}
           fi
+        env:
+          INPUTS_PRODUCTION_TOML_NAME: ${{ inputs.production-toml-name }}
+          INPUTS_DEVELOPMENT_TOML_NAME: ${{ inputs.development-toml-name }}
 
       - name: Deploy to Shopify
         working-directory: ${{ inputs.working-directory }}

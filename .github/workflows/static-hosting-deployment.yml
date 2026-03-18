@@ -50,8 +50,13 @@ on:
         type: string
         required: false
 
+permissions: {}
+
 jobs:
   build-and-install:
+    permissions:
+      contents: read  # for actions/checkout
+      checks: write   # for problem matchers to post PR annotations
     uses: ./.github/workflows/node-pr.yml
     with:
       skip-format: true
