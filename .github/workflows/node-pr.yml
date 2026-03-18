@@ -178,7 +178,7 @@ jobs:
       # Use tar to store cache so file permissions are maintained (https://github.com/actions/upload-artifact/issues/38)
       - name: Archive node_modules with tar
         run: tar -czf node_modules.tar.gz -C . node_modules/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: node_modules
           path: node_modules.tar.gz
