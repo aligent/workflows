@@ -21,11 +21,6 @@ on:
         description: "If Yarn (pre-Berry) should be used"
         default: false
         type: boolean
-      build-command:
-        description: "Build command"
-        type: string
-        required: false
-        default: "build"
       debug:
         description: "Debug mode - enable verbose logging"
         type: boolean
@@ -39,48 +34,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Enable Corepack
-        if: ${{ inputs.package-manager == 'yarn' && !inputs.is-yarn-classic }}
-        run: corepack enable
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: .nvmrc
-          cache: ${{ inputs.package-manager }}
-
-      - name: Install safe-chain
-        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
-
-      - name: Install dependencies
-        run: |
-          debug=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
-            debug="--verbose"
-          fi
-
-          lock_dependencies="--immutable"
-          if [ "${{ inputs.is-yarn-classic }}" = "true" ]; then
-            lock_dependencies="--frozen-lockfile"
-          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            debug=""
-          fi
-
-          if [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            yarn config get nodeLinker
-            yarn install $lock_dependencies $debug
-          else
-            npm ci $debug
-          fi
-
       - name: Validate required inputs
         run: |
           echo "🔍 Validating deployment configuration..."
-
-          ENVIRONMENT="${{ inputs.github-environment }}"
-          STAGE="${{ vars.STAGE }}"
-          CFN_ROLE="${{ vars.CFN_ROLE }}"
-          AWS_ACCESS_KEY_ID="${{ vars.AWS_ACCESS_KEY_ID }}"
-          AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
 
           if [ -z "$ENVIRONMENT" ]; then
             ENVIRONMENT="Repository"
@@ -119,36 +75,45 @@ jobs:
           echo "✅ AWS_SECRET_ACCESS_KEY secret is configured"
           echo "✅ All inputs validated successfully"
         env:
-          AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
-
-      - name: 🚧 Configure Serverless
-        run: |
-          verbose=""
-          if [ "$DEBUG" = "true" ]; then
-            verbose="--verbose"
-          fi
-
-          npx serverless config credentials \
-            --provider aws \
-            --key "$AWS_ACCESS_KEY_ID" \
-            --secret "$AWS_SECRET_ACCESS_KEY" \
-            $verbose
-            
-          curl -L https://github.com/mikefarah/yq/releases/download/v4.45.4/yq_linux_amd64 > /usr/local/bin/yq
-          chmod +x /usr/local/bin/yq
-
-          # Insert the cfnRole value into all serverless files
-          # yq v4 converts YAML merge keys (<<) to !!merge tags when writing,
-          # which is invalid for serverless. Pipe through sed to strip them.
-          find services/*/ -name serverless.yml -exec sh -c '
-            yq ".provider.cfnRole = \"${0}\"" "$1" | sed "s/!!merge <</<</g" > "$1.tmp" && mv "$1.tmp" "$1"
-          ' "$CFN_ROLE" {} \;
-        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          STAGE: ${{ vars.STAGE }}
+          CFN_ROLE: ${{ vars.CFN_ROLE }}
           AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
-          CFN_ROLE: ${{ vars.CFN_ROLE }}
-          DEBUG: ${{ inputs.debug }}
+
+      - name: Enable Corepack
+        if: ${{ inputs.package-manager == 'yarn' && !inputs.is-yarn-classic }}
+        run: corepack enable
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: ${{ inputs.package-manager }}
+
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+
+      - name: Install dependencies
+        run: |
+          debug=""
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            debug="--verbose"
+          fi
+
+          lock_dependencies="--immutable"
+          if [ "${{ inputs.is-yarn-classic }}" = "true" ]; then
+            lock_dependencies="--frozen-lockfile"
+          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
+            debug=""
+          fi
+
+          if [ "${{ inputs.package-manager }}" = "yarn" ]; then
+            yarn config get nodeLinker
+            yarn install $lock_dependencies $debug
+          else
+            npm ci $debug
+          fi
 
       - name: 🔍 Check repository type
         id: repo-type
@@ -162,12 +127,41 @@ jobs:
             echo "Repository is not a monorepo (nx.json not found)"
           fi
 
-      - name: 🚀 Deploy
+      - name: 🚧 Configure Serverless
         run: |
-          if [ -z "${STAGE}" ]; then
-            STAGE=${{ vars.STAGE }} # Fall back to stage var
+          verbose=""
+          if [ "$DEBUG" = "true" ]; then
+            verbose="--verbose"
           fi
 
+          npx serverless config credentials \
+            --provider aws \
+            --key "$AWS_ACCESS_KEY_ID" \
+            --secret "$AWS_SECRET_ACCESS_KEY" \
+            $verbose
+
+          curl -L https://github.com/mikefarah/yq/releases/download/v4.45.4/yq_linux_amd64 > /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+
+          # Insert the cfnRole value into all serverless files
+          # yq v4 converts YAML merge keys (<<) to !!merge tags when writing,
+          # which is invalid for serverless. Pipe through sed to strip them.
+          if [ "${{ steps.repo-type.outputs.is_monorepo }}" = "true" ]; then
+            find services/*/ -name serverless.yml -exec sh -c '
+              yq ".provider.cfnRole = \"${0}\"" "$1" | sed "s/!!merge <</<</g" > "$1.tmp" && mv "$1.tmp" "$1"
+            ' "$CFN_ROLE" {} \;
+          else
+            yq ".provider.cfnRole = \"$CFN_ROLE\"" serverless.yml | sed "s/!!merge <</<</g" > serverless.yml.tmp && mv serverless.yml.tmp serverless.yml
+          fi
+        env:
+          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+          CFN_ROLE: ${{ vars.CFN_ROLE }}
+          DEBUG: ${{ inputs.debug }}
+
+      - name: 🚀 Deploy
+        run: |
           echo "Deploying to ${STAGE}"
 
           verbose=""
@@ -177,7 +171,7 @@ jobs:
 
           if [ "${{ steps.repo-type.outputs.is_monorepo }}" = "true" ]; then
             echo "Deploying monorepo..."
-            npx nx run-many -t "$COMMAND" --stage "$STAGE" $verbose
+            npx nx run-many -t "$COMMAND" $verbose -- --stage "$STAGE"
           else
             npx serverless "$COMMAND" --stage "$STAGE" $verbose
           fi
