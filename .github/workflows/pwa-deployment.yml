@@ -142,8 +142,12 @@ jobs:
               ;;
           esac
 
-          # Prepare invalidation paths
-          echo "invalidation-paths=${{ inputs.cloudfront-invalidation-paths }}" >> $GITHUB_OUTPUT
+          # Prepare invalidation paths (use heredoc to preserve JSON special characters)
+          {
+            echo 'invalidation-paths<<INVALIDATION_EOF'
+            echo '${{ inputs.cloudfront-invalidation-paths }}'
+            echo 'INVALIDATION_EOF'
+          } >> $GITHUB_OUTPUT
 
           if [ "${{ inputs.debug }}" = "true" ]; then
             echo "🔍 Cache configuration:"
