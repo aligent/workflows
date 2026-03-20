@@ -320,11 +320,16 @@ jobs:
       - name: Resolve role session name
         id: resolve-session-name
         if: steps.validate-inputs.outputs.auth-mode == 'oidc'
+        env:
+          ROLE_SESSION_NAME: ${{ inputs.role-session-name }}
+          COMMIT_SHA: ${{ github.sha }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
-          SESSION_NAME="${{ inputs.role-session-name }}"
+          SESSION_NAME="$ROLE_SESSION_NAME"
           if [ -z "$SESSION_NAME" ]; then
-            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-            SESSION_NAME="${{ github.event.repository.name }}-${SHORT_SHA}-${{ github.run_number }}"
+            SHORT_SHA=$(echo "$COMMIT_SHA" | cut -c1-7)
+            SESSION_NAME="${REPOSITORY_NAME}-${SHORT_SHA}-${RUN_NUMBER}"
           fi
           # AWS session names: max 64 chars, allowed [a-zA-Z0-9=,.@-]
           SESSION_NAME=$(echo "$SESSION_NAME" | tr -c '[:alnum:]=,.@-' '-' | cut -c1-64)
