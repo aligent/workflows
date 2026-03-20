@@ -18,6 +18,7 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 | **Core Configuration** |
 | stack-name | ❌ | string | | CDK stack name (overrides `STACK_NAME` variable if provided) |
 | aws-region | ❌ | string | ap-southeast-2 | AWS region for deployment |
+| role-session-name | ❌ | string | | AWS role session name for OIDC authentication (default: `{repo}-{short-sha}-{run-number}`) |
 | github-environment | ❌ | string | Repository| GitHub Environment name for secrets/variables (e.g., Staging, Production) |
 | **Deployment Control** |
 | bootstrap | ❌ | boolean | false | Bootstrap CDK environment before deployment |
@@ -44,9 +45,12 @@ These should be configured in your GitHub Environment (or at the repository leve
 | Name | Required | Type | Description |
 |------|----------|------|-------------|
 | `STACK_NAME` | ❌ | Variable | The name of the CloudFormation stack to deploy (required unless `stack-name` input is provided) |
-| `AWS_ACCESS_KEY_ID` | ✅ | Variable | AWS Access Key ID for authentication |
-| `AWS_SECRET_ACCESS_KEY` | ✅ | Secret | AWS Secret Access Key for authentication |
-| `CFN_EXECUTION_ROLE` | ❌ | Secret | CloudFormation execution role ARN (optional, for cross-account deployments) |
+| `AWS_ACCESS_KEY_ID` | ❌ | Variable | AWS Access Key ID (required for static credential auth) |
+| `AWS_SECRET_ACCESS_KEY` | ❌ | Secret | AWS Secret Access Key (required for static credential auth) |
+| `AWS_ROLE_ARN` | ❌ | Variable | AWS IAM role ARN (required for OIDC auth) |
+| `CFN_EXECUTION_ROLE` | ❌ | Secret | CloudFormation execution role ARN (optional, for cross-account deployments with static credentials) |
+
+> **Authentication:** Configure either static credentials (`AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`) **or** OIDC (`AWS_ROLE_ARN`). The workflow auto-detects which method to use.
 
 
 #### **Outputs**
@@ -167,6 +171,29 @@ jobs:
       deploy: true
       deploy-command: yarn nx run core:cdk deploy
       secrets: inherit
+```
+
+**Staging Deployment (OIDC):**
+
+> **Note:** Calling workflows must set `permissions: id-token: write` at the workflow or job level for OIDC to function. Configure `AWS_ROLE_ARN` as a variable in your GitHub Environment.
+
+```yaml
+on:
+  push:
+    branches:
+      - staging
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
+    with:
+      github-environment: Staging
+      deploy: true
+    secrets: inherit
 ```
 
 **Deploy Production in NX Monorepo from Release:**

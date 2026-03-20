@@ -14,6 +14,11 @@ on:
         type: string
         required: false
         default: "ap-southeast-2"
+      role-session-name:
+        description: "AWS role session name for OIDC authentication (default: {repo}-{short-sha}-{run-number})"
+        type: string
+        required: false
+        default: ""
       github-environment:
         description: "GitHub Environment name for secrets/variables (e.g. Staging, Production)"
         type: string
@@ -113,6 +118,8 @@ jobs:
       cdk-synth-cmd: ${{ steps.parse-cdk-config.outputs.synth-cmd }}
       cdk-diff-cmd: ${{ steps.parse-cdk-config.outputs.diff-cmd }}
       cdk-deploy-cmd: ${{ steps.parse-cdk-config.outputs.deploy-cmd }}
+      auth-mode: ${{ steps.validate-inputs.outputs.auth-mode }}
+      role-session-name: ${{ steps.resolve-session-name.outputs.role-session-name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -232,6 +239,7 @@ jobs:
           echo "stack-name=$STACK_NAME" >> $GITHUB_OUTPUT
 
       - name: Validate required inputs
+        id: validate-inputs
         run: |
           echo "🔍 Validating deployment configuration..."
 
@@ -239,6 +247,7 @@ jobs:
           STACK_NAME="${{ steps.resolve-stack-name.outputs.stack-name }}"
           AWS_ACCESS_KEY_ID="${{ vars.AWS_ACCESS_KEY_ID }}"
           AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+          AWS_ROLE_ARN="${{ vars.AWS_ROLE_ARN }}"
 
           if [ -z "$ENVIRONMENT" ]; then
             ENVIRONMENT="Repository"
@@ -253,19 +262,29 @@ jobs:
 
           echo "✅ STACK_NAME: $STACK_NAME"
 
-          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
-            echo "❌ Error: AWS_ACCESS_KEY_ID is not defined as a variable in your $ENVIRONMENT environment"
+          # Determine authentication mode
+          if [ -n "$AWS_ACCESS_KEY_ID" ]; then
+            echo "ℹ️ AWS_ACCESS_KEY_ID set from variable: $AWS_ACCESS_KEY_ID"
+
+            if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+              echo "❌ Error: AWS_SECRET_ACCESS_KEY is not defined as a secret in your $ENVIRONMENT environment"
+              exit 1
+            fi
+
+            echo "✅ AWS_SECRET_ACCESS_KEY secret is configured"
+            echo "✅ Using static credential authentication"
+            echo "auth-mode=static" >> $GITHUB_OUTPUT
+          elif [ -n "$AWS_ROLE_ARN" ]; then
+            echo "ℹ️ AWS_ROLE_ARN set from variable: $AWS_ROLE_ARN"
+            echo "✅ Using OIDC authentication"
+            echo "auth-mode=oidc" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Error: No AWS credentials configured in your $ENVIRONMENT environment."
+            echo "  Configure one of the following:"
+            echo "  - Static credentials: AWS_ACCESS_KEY_ID (variable) + AWS_SECRET_ACCESS_KEY (secret)"
+            echo "  - OIDC: AWS_ROLE_ARN (variable)"
             exit 1
           fi
-
-          echo "ℹ️ AWS_ACCESS_KEY_ID set from variable: $AWS_ACCESS_KEY_ID"
-
-          if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-            echo "❌ Error: AWS_SECRET_ACCESS_KEY is not defined as a secret in your $ENVIRONMENT environment"
-            exit 1
-          fi
-
-          echo "✅ AWS_SECRET_ACCESS_KEY secret is configured"
 
           # Validate environment target
           case "${{ inputs.environment-target }}" in
@@ -297,6 +316,19 @@ jobs:
           fi
 
           echo "✅ All inputs validated successfully"
+
+      - name: Resolve role session name
+        id: resolve-session-name
+        if: steps.validate-inputs.outputs.auth-mode == 'oidc'
+        run: |
+          SESSION_NAME="${{ inputs.role-session-name }}"
+          if [ -z "$SESSION_NAME" ]; then
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            SESSION_NAME="${{ github.event.repository.name }}-${SHORT_SHA}-${{ github.run_number }}"
+          fi
+          # AWS session names: max 64 chars, allowed [a-zA-Z0-9=,.@-]
+          SESSION_NAME=$(echo "$SESSION_NAME" | tr -c '[:alnum:]=,.@-' '-' | cut -c1-64)
+          echo "role-session-name=$SESSION_NAME" >> $GITHUB_OUTPUT
 
       - name: Configure CDK context
         id: context-config
@@ -341,6 +373,9 @@ jobs:
     name: ☁️ CDK Operations
     runs-on: ubuntu-latest
     needs: [prepare]
+    permissions:
+      id-token: write
+      contents: read
     environment: ${{ inputs.github-environment }}
     outputs:
       stack-outputs: ${{ steps.deploy.outputs.stack-outputs }}
@@ -381,13 +416,22 @@ jobs:
           rm node_modules.tar.gz
           echo "✅ node_modules extracted"
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (Static)
+        if: needs.prepare.outputs.auth-mode == 'static'
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.aws-region }}
           role-to-assume: ${{ vars.CFN_EXECUTION_ROLE || secrets.CFN_EXECUTION_ROLE }}
+
+      - name: Configure AWS credentials (OIDC)
+        if: needs.prepare.outputs.auth-mode == 'oidc'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: ${{ needs.prepare.outputs.role-session-name }}
+          aws-region: ${{ inputs.aws-region }}
 
       - name: Bootstrap CDK environment
         if: inputs.bootstrap == true
