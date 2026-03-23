@@ -464,7 +464,7 @@ jobs:
 
       - name: Configure AWS credentials (OIDC)
         if: needs.prepare.outputs.auth-mode == 'oidc'
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           role-session-name: ${{ needs.prepare.outputs.role-session-name }}
