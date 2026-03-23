@@ -14,6 +14,11 @@ on:
         type: string
         required: false
         default: "ap-southeast-2"
+      role-session-name:
+        description: "AWS role session name for OIDC authentication (default: {repo}-{short-sha}-{run-number})"
+        type: string
+        required: false
+        default: ""
       github-environment:
         description: "GitHub Environment name for secrets/variables (e.g. Staging, Production)"
         type: string
@@ -113,6 +118,8 @@ jobs:
       cdk-synth-cmd: ${{ steps.parse-cdk-config.outputs.synth-cmd }}
       cdk-diff-cmd: ${{ steps.parse-cdk-config.outputs.diff-cmd }}
       cdk-deploy-cmd: ${{ steps.parse-cdk-config.outputs.deploy-cmd }}
+      auth-mode: ${{ steps.validate-inputs.outputs.auth-mode }}
+      role-session-name: ${{ steps.resolve-session-name.outputs.role-session-name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -183,15 +190,18 @@ jobs:
         run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
 
       - name: Install dependencies
+        env:
+          PACKAGE_MANAGER: ${{ steps.detect-package-manager.outputs.manager }}
+          DEBUG_MODE: ${{ inputs.debug }}
         run: |
-          echo "📦 Installing dependencies with ${{ steps.detect-package-manager.outputs.manager }}..."
+          echo "📦 Installing dependencies with $PACKAGE_MANAGER..."
 
           verbose=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "$DEBUG_MODE" = "true" ]; then
             verbose="--verbose"
           fi
 
-          case "${{ steps.detect-package-manager.outputs.manager }}" in
+          case "$PACKAGE_MANAGER" in
             "npm")
               npm ci $verbose
               ;;
@@ -208,37 +218,55 @@ jobs:
 
       - name: Set CDK commands
         id: parse-cdk-config
+        env:
+          BOOTSTRAP_CMD: ${{ inputs.bootstrap-command }}
+          SYNTH_CMD: ${{ inputs.synth-command }}
+          DIFF_CMD: ${{ inputs.diff-command }}
+          DEPLOY_CMD: ${{ inputs.deploy-command }}
         run: |
           echo "✅ CDK commands:"
-          echo "  bootstrap: ${{ inputs.bootstrap-command }}"
-          echo "  synth: ${{ inputs.synth-command }}"
-          echo "  diff: ${{ inputs.diff-command }}"
-          echo "  deploy: ${{ inputs.deploy-command }}"
+          echo "  bootstrap: $BOOTSTRAP_CMD"
+          echo "  synth: $SYNTH_CMD"
+          echo "  diff: $DIFF_CMD"
+          echo "  deploy: $DEPLOY_CMD"
 
-          echo "bootstrap-cmd=${{ inputs.bootstrap-command }}" >> $GITHUB_OUTPUT
-          echo "synth-cmd=${{ inputs.synth-command }}" >> $GITHUB_OUTPUT
-          echo "diff-cmd=${{ inputs.diff-command }}" >> $GITHUB_OUTPUT
-          echo "deploy-cmd=${{ inputs.deploy-command }}" >> $GITHUB_OUTPUT
+          echo "bootstrap-cmd=$BOOTSTRAP_CMD" >> $GITHUB_OUTPUT
+          echo "synth-cmd=$SYNTH_CMD" >> $GITHUB_OUTPUT
+          echo "diff-cmd=$DIFF_CMD" >> $GITHUB_OUTPUT
+          echo "deploy-cmd=$DEPLOY_CMD" >> $GITHUB_OUTPUT
 
       - name: Resolve stack name
         id: resolve-stack-name
+        env:
+          INPUT_STACK_NAME: ${{ inputs.stack-name }}
+          VAR_STACK_NAME: ${{ vars.STACK_NAME }}
         run: |
           # Input takes priority over variable
-          if [ -n "${{ inputs.stack-name }}" ]; then
-            STACK_NAME="${{ inputs.stack-name }}"
+          if [ -n "$INPUT_STACK_NAME" ]; then
+            STACK_NAME="$INPUT_STACK_NAME"
           else
-            STACK_NAME="${{ vars.STACK_NAME }}"
+            STACK_NAME="$VAR_STACK_NAME"
           fi
           echo "stack-name=$STACK_NAME" >> $GITHUB_OUTPUT
 
       - name: Validate required inputs
+        id: validate-inputs
+        env:
+          INPUT_ENVIRONMENT: ${{ inputs.github-environment }}
+          INPUT_STACK_NAME: ${{ steps.resolve-stack-name.outputs.stack-name }}
+          VAR_AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
+          SECRET_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          VAR_AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+          ENVIRONMENT_TARGET: ${{ inputs.environment-target }}
+          CONTEXT_VALUES: ${{ inputs.context-values }}
+          INPUT_SYNTH: ${{ inputs.synth }}
+          INPUT_DIFF: ${{ inputs.diff }}
+          INPUT_DEPLOY: ${{ inputs.deploy }}
         run: |
           echo "🔍 Validating deployment configuration..."
 
-          ENVIRONMENT="${{ inputs.github-environment }}"
-          STACK_NAME="${{ steps.resolve-stack-name.outputs.stack-name }}"
-          AWS_ACCESS_KEY_ID="${{ vars.AWS_ACCESS_KEY_ID }}"
-          AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+          ENVIRONMENT="$INPUT_ENVIRONMENT"
+          STACK_NAME="$INPUT_STACK_NAME"
 
           if [ -z "$ENVIRONMENT" ]; then
             ENVIRONMENT="Repository"
@@ -253,24 +281,34 @@ jobs:
 
           echo "✅ STACK_NAME: $STACK_NAME"
 
-          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
-            echo "❌ Error: AWS_ACCESS_KEY_ID is not defined as a variable in your $ENVIRONMENT environment"
+          # Determine authentication mode
+          if [ -n "$VAR_AWS_ACCESS_KEY_ID" ]; then
+            echo "ℹ️ AWS_ACCESS_KEY_ID set from variable: $VAR_AWS_ACCESS_KEY_ID"
+
+            if [ -z "$SECRET_AWS_SECRET_ACCESS_KEY" ]; then
+              echo "❌ Error: AWS_SECRET_ACCESS_KEY is not defined as a secret in your $ENVIRONMENT environment"
+              exit 1
+            fi
+
+            echo "✅ AWS_SECRET_ACCESS_KEY secret is configured"
+            echo "✅ Using static credential authentication"
+            echo "auth-mode=static" >> $GITHUB_OUTPUT
+          elif [ -n "$VAR_AWS_ROLE_ARN" ]; then
+            echo "ℹ️ AWS_ROLE_ARN set from variable: $VAR_AWS_ROLE_ARN"
+            echo "✅ Using OIDC authentication"
+            echo "auth-mode=oidc" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Error: No AWS credentials configured in your $ENVIRONMENT environment."
+            echo "  Configure one of the following:"
+            echo "  - Static credentials: AWS_ACCESS_KEY_ID (variable) + AWS_SECRET_ACCESS_KEY (secret)"
+            echo "  - OIDC: AWS_ROLE_ARN (variable)"
             exit 1
           fi
-
-          echo "ℹ️ AWS_ACCESS_KEY_ID set from variable: $AWS_ACCESS_KEY_ID"
-
-          if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-            echo "❌ Error: AWS_SECRET_ACCESS_KEY is not defined as a secret in your $ENVIRONMENT environment"
-            exit 1
-          fi
-
-          echo "✅ AWS_SECRET_ACCESS_KEY secret is configured"
 
           # Validate environment target
-          case "${{ inputs.environment-target }}" in
+          case "$ENVIRONMENT_TARGET" in
             stg|prd|dev)
-              echo "✅ Environment target: ${{ inputs.environment-target }}"
+              echo "✅ Environment target: $ENVIRONMENT_TARGET"
               ;;
             "")
               echo "ℹ️ Environment target is empty"
@@ -282,8 +320,8 @@ jobs:
           esac
 
           # Validate context JSON if provided
-          if [ "${{ inputs.context-values }}" != "{}" ]; then
-            echo '${{ inputs.context-values }}' | jq . > /dev/null
+          if [ "$CONTEXT_VALUES" != "{}" ]; then
+            echo "$CONTEXT_VALUES" | jq . > /dev/null
             if [ $? -ne 0 ]; then
               echo "❌ Error: context-values must be valid JSON"
               exit 1
@@ -291,28 +329,49 @@ jobs:
           fi
 
           # Validate that at least one of synth, diff or deploy is true
-          if [ "${{ inputs.synth }}" != "true" ] && [ "${{ inputs.diff }}" != "true" ] && [ "${{ inputs.deploy }}" != "true" ]; then
+          if [ "$INPUT_SYNTH" != "true" ] && [ "$INPUT_DIFF" != "true" ] && [ "$INPUT_DEPLOY" != "true" ]; then
             echo "❌ Error: At least one of synth, diff, or deploy must be true"
             exit 1
           fi
 
           echo "✅ All inputs validated successfully"
 
+      - name: Resolve role session name
+        id: resolve-session-name
+        if: steps.validate-inputs.outputs.auth-mode == 'oidc'
+        env:
+          ROLE_SESSION_NAME: ${{ inputs.role-session-name }}
+          COMMIT_SHA: ${{ github.sha }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          SESSION_NAME="$ROLE_SESSION_NAME"
+          if [ -z "$SESSION_NAME" ]; then
+            SHORT_SHA=$(echo "$COMMIT_SHA" | cut -c1-7)
+            SESSION_NAME="${REPOSITORY_NAME}-${SHORT_SHA}-${RUN_NUMBER}"
+          fi
+          # AWS session names: max 64 chars, allowed [a-zA-Z0-9=,.@-]
+          SESSION_NAME=$(echo "$SESSION_NAME" | tr -c '[:alnum:]=,.@-' '-' | cut -c1-64)
+          echo "role-session-name=$SESSION_NAME" >> $GITHUB_OUTPUT
+
       - name: Configure CDK context
         id: context-config
+        env:
+          ENVIRONMENT_TARGET: ${{ inputs.environment-target }}
+          CONTEXT_VALUES: ${{ inputs.context-values }}
         run: |
           echo "⚙️ Configuring CDK context..."
 
           context_args=""
 
           # Add environment-specific context
-          context_args="$context_args --context environment=${{ inputs.environment-target }}"
+          context_args="$context_args --context environment=$ENVIRONMENT_TARGET"
 
           # Add custom context values (using process substitution to avoid subshell)
-          if [ "${{ inputs.context-values }}" != "{}" ]; then
+          if [ "$CONTEXT_VALUES" != "{}" ]; then
             while read -r ctx; do
               context_args="$context_args $ctx"
-            done < <(echo '${{ inputs.context-values }}' | jq -r 'to_entries[] | "--context \(.key)=\(.value)"')
+            done < <(echo "$CONTEXT_VALUES" | jq -r 'to_entries[] | "--context \(.key)=\(.value)"')
           fi
 
           echo "args=$context_args" >> $GITHUB_OUTPUT
@@ -320,8 +379,10 @@ jobs:
 
       - name: Sanitise stack name
         id: sanitise
+        env:
+          STACK_NAME: ${{ steps.resolve-stack-name.outputs.stack-name }}
         run: |
-          sanitised_cdk_stack_name=$(echo "${{ steps.resolve-stack-name.outputs.stack-name }}" | tr -cd '[:alnum:]-_')
+          sanitised_cdk_stack_name=$(echo "$STACK_NAME" | tr -cd '[:alnum:]-_')
           echo "sanitised-cdk-stack-name=$sanitised_cdk_stack_name" >> $GITHUB_OUTPUT
 
       - name: Package node_modules for artifact
@@ -341,6 +402,9 @@ jobs:
     name: ☁️ CDK Operations
     runs-on: ubuntu-latest
     needs: [prepare]
+    permissions:
+      id-token: write
+      contents: read
     environment: ${{ inputs.github-environment }}
     outputs:
       stack-outputs: ${{ steps.deploy.outputs.stack-outputs }}
@@ -381,7 +445,8 @@ jobs:
           rm node_modules.tar.gz
           echo "✅ node_modules extracted"
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (Static)
+        if: needs.prepare.outputs.auth-mode == 'static'
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
@@ -389,51 +454,67 @@ jobs:
           aws-region: ${{ inputs.aws-region }}
           role-to-assume: ${{ vars.CFN_EXECUTION_ROLE || secrets.CFN_EXECUTION_ROLE }}
 
+      - name: Configure AWS credentials (OIDC)
+        if: needs.prepare.outputs.auth-mode == 'oidc'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: ${{ needs.prepare.outputs.role-session-name }}
+          aws-region: ${{ inputs.aws-region }}
+
       - name: Bootstrap CDK environment
         if: inputs.bootstrap == true
+        env:
+          DEBUG_MODE: ${{ inputs.debug }}
+          BOOTSTRAP_CMD: ${{ needs.prepare.outputs.cdk-bootstrap-cmd }}
+          CFN_EXECUTION_ROLE: ${{ secrets.CFN_EXECUTION_ROLE }}
+          AWS_REGION: ${{ inputs.aws-region }}
+          EXTRA_ARGUMENTS: ${{ inputs.extra-arguments }}
         run: |
           echo "🥾 Bootstrapping CDK environment..."
 
           verbose=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "$DEBUG_MODE" = "true" ]; then
             verbose="--verbose"
           fi
-
-          BOOTSTRAP_CMD="${{ needs.prepare.outputs.cdk-bootstrap-cmd }}"
 
           # Check if using custom command from config or default
           if [ "$BOOTSTRAP_CMD" = "npx cdk bootstrap" ]; then
             # Default command - add AWS-specific arguments
             role_args=""
-            if [ -n "${{ secrets.CFN_EXECUTION_ROLE }}" ]; then
-              role_args="--cloudformation-execution-policies ${{ secrets.CFN_EXECUTION_ROLE }}"
+            if [ -n "$CFN_EXECUTION_ROLE" ]; then
+              role_args="--cloudformation-execution-policies $CFN_EXECUTION_ROLE"
             fi
 
             $BOOTSTRAP_CMD \
-              aws://$(aws sts get-caller-identity --query Account --output text)/${{ inputs.aws-region }} \
+              aws://$(aws sts get-caller-identity --query Account --output text)/$AWS_REGION \
               $role_args \
               $verbose
           else
-            $BOOTSTRAP_CMD ${{ inputs.extra-arguments }} $verbose
+            $BOOTSTRAP_CMD $EXTRA_ARGUMENTS $verbose
           fi
 
           echo "✅ CDK environment bootstrapped successfully"
 
       - name: Synthesize CDK application
         if: inputs.synth == true
+        env:
+          DEBUG_MODE: ${{ inputs.debug }}
+          SYNTH_CMD: ${{ needs.prepare.outputs.cdk-synth-cmd }}
+          STACK_NAME: ${{ needs.prepare.outputs.stack-name }}
+          CONTEXT_ARGS: ${{ needs.prepare.outputs.context-args }}
+          EXTRA_ARGUMENTS: ${{ inputs.extra-arguments }}
         run: |
           echo "🔨 Synthesizing CDK application..."
 
           verbose=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "$DEBUG_MODE" = "true" ]; then
             verbose="--verbose"
           fi
 
-          SYNTH_CMD="${{ needs.prepare.outputs.cdk-synth-cmd }}"
-
-          $SYNTH_CMD ${{ needs.prepare.outputs.stack-name }} \
-            ${{ needs.prepare.outputs.context-args }} \
-            ${{ inputs.extra-arguments }} \
+          $SYNTH_CMD $STACK_NAME \
+            $CONTEXT_ARGS \
+            $EXTRA_ARGUMENTS \
             $verbose
 
           echo "✅ CDK synthesis completed successfully"
@@ -449,14 +530,17 @@ jobs:
       - name: Generate deployment diff
         if: inputs.diff == true
         id: diff-analysis
+        env:
+          DIFF_CMD: ${{ needs.prepare.outputs.cdk-diff-cmd }}
+          STACK_NAME: ${{ needs.prepare.outputs.stack-name }}
+          CONTEXT_ARGS: ${{ needs.prepare.outputs.context-args }}
+          EXTRA_ARGUMENTS: ${{ inputs.extra-arguments }}
         run: |
           echo "📊 Analysing deployment changes..."
 
-          DIFF_CMD="${{ needs.prepare.outputs.cdk-diff-cmd }}"
-
-          diff_output=$($DIFF_CMD ${{ needs.prepare.outputs.stack-name }} \
-            ${{ needs.prepare.outputs.context-args }} \
-            ${{ inputs.extra-arguments }} \
+          diff_output=$($DIFF_CMD $STACK_NAME \
+            $CONTEXT_ARGS \
+            $EXTRA_ARGUMENTS \
             --no-color 2>&1 || true)
 
           # Save diff to file for analysis
@@ -492,19 +576,23 @@ jobs:
       - name: Execute CDK deployment
         if: inputs.deploy == true
         id: deploy
+        env:
+          DEBUG_MODE: ${{ inputs.debug }}
+          DEPLOY_CMD: ${{ needs.prepare.outputs.cdk-deploy-cmd }}
+          STACK_NAME: ${{ needs.prepare.outputs.stack-name }}
+          CONTEXT_ARGS: ${{ needs.prepare.outputs.context-args }}
+          EXTRA_ARGUMENTS: ${{ inputs.extra-arguments }}
         run: |
           verbose=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "$DEBUG_MODE" = "true" ]; then
             verbose="--verbose"
           fi
 
-          echo "🚀 Deploying CDK stack: ${{ needs.prepare.outputs.stack-name }}"
+          echo "🚀 Deploying CDK stack: $STACK_NAME"
 
-          DEPLOY_CMD="${{ needs.prepare.outputs.cdk-deploy-cmd }}"
-
-          $DEPLOY_CMD ${{ needs.prepare.outputs.stack-name }} \
-            ${{ needs.prepare.outputs.context-args }} \
-            ${{ inputs.extra-arguments }} \
+          $DEPLOY_CMD $STACK_NAME \
+            $CONTEXT_ARGS \
+            $EXTRA_ARGUMENTS \
             --require-approval never \
             --outputs-file stack-outputs.json \
             $verbose
@@ -531,16 +619,23 @@ jobs:
 
       - name: Display deployment summary
         if: inputs.deploy == true && steps.deploy.outputs.status == 'success'
+        env:
+          STACK_NAME: ${{ needs.prepare.outputs.stack-name }}
+          ENVIRONMENT: ${{ inputs.github-environment }}
+          AWS_REGION: ${{ inputs.aws-region }}
+          DEPLOY_STATUS: ${{ steps.deploy.outputs.status }}
+          NODE_VERSION: ${{ needs.prepare.outputs.node-version }}
+          PACKAGE_MANAGER: ${{ needs.prepare.outputs.package-manager }}
         run: |
           echo "📋 Deployment Summary"
           echo "===================="
-          echo "Stack Pattern: ${{ needs.prepare.outputs.stack-name }}"
+          echo "Stack Pattern: $STACK_NAME"
 
-          echo "Environment: ${{ inputs.github-environment }}"
-          echo "Region: ${{ inputs.aws-region }}"
-          echo "Status: ${{ steps.deploy.outputs.status }}"
-          echo "Node Version: ${{ needs.prepare.outputs.node-version }}"
-          echo "Package Manager: ${{ needs.prepare.outputs.package-manager }}"
+          echo "Environment: $ENVIRONMENT"
+          echo "Region: $AWS_REGION"
+          echo "Status: $DEPLOY_STATUS"
+          echo "Node Version: $NODE_VERSION"
+          echo "Package Manager: $PACKAGE_MANAGER"
 
           echo ""
           echo "🎉 Deployment completed successfully!"
