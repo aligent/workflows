@@ -142,8 +142,12 @@ jobs:
               ;;
           esac
 
-          # Prepare invalidation paths
-          echo "invalidation-paths=${INPUTS_CLOUDFRONT_INVALIDATION_PATHS}" >> $GITHUB_OUTPUT
+          # Prepare invalidation paths (use heredoc to preserve JSON special characters)
+          {
+            echo 'invalidation-paths<<INVALIDATION_EOF'
+            echo '${INPUTS_CLOUDFRONT_INVALIDATION_PATHS}'
+            echo 'INVALIDATION_EOF'
+          } >> $GITHUB_OUTPUT
 
           if [ "${{ inputs.debug }}" = "true" ]; then
             echo "🔍 Cache configuration:"

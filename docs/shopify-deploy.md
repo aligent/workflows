@@ -28,7 +28,6 @@ A reusable workflow for deploying Shopify apps using the Shopify CLI with suppor
 #### **Prerequisites**
 - A `.nvmrc` file in the repository root specifying the Node.js version
 - A `yarn.lock` file in the working directory
-- Build artifacts uploaded with the name `build-artifacts` from a previous job
 - Shopify app TOML configuration files for each environment
 
 #### **Example Usage**
