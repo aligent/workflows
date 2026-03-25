@@ -336,7 +336,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -445,7 +445,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -553,7 +553,7 @@ jobs:
           coverage: xdebug
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -707,7 +707,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -817,7 +817,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -948,7 +948,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: vendor-php${{ inputs.php-version }}
 

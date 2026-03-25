@@ -214,7 +214,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           cache: ${{ inputs.package-manager }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: node_modules
       - name: Extract node_modules with tar
@@ -305,7 +305,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           cache: ${{ inputs.package-manager }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: node_modules
       - name: Extract node_modules with tar
