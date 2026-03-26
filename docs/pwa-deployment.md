@@ -12,15 +12,31 @@ A comprehensive Progressive Web Application deployment workflow supporting S3 st
 - **Manual production gates**: Environment-based deployment protection
 - **Comprehensive caching**: Build artifact optimisation and cleanup
 
+#### **GitHub Environment Variables and Secrets**
+
+Environment-specific values are read directly from the GitHub Environment (set via `github-environment`), rather than being passed as workflow inputs. Configure the following on each environment:
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `S3_BUCKET` | variable | :white_check_mark: | S3 bucket name for deployment |
+| `CLOUDFRONT_DISTRIBUTION_ID` | variable | :white_check_mark: | CloudFront distribution ID for cache invalidation |
+| `AWS_REGION` | variable | :x: | AWS region (falls back to `aws-region` input) |
+| **Static credentials** | | | |
+| `AWS_ACCESS_KEY_ID` | variable | :white_check_mark: | AWS access key ID (required if not using OIDC) |
+| `AWS_SECRET_ACCESS_KEY` | secret | :white_check_mark: | AWS secret access key (required if not using OIDC) |
+| **OIDC** | | | |
+| `AWS_ROLE_ARN` | variable | :white_check_mark: | IAM role ARN to assume via OIDC (alternative to static credentials) |
+
+Either `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` **or** `AWS_ROLE_ARN` must be configured. The workflow detects which to use automatically.
+
 #### **Inputs**
 | Name | Required | Type | Default | Description |
 |------|----------|------|---------|-------------|
-| **AWS Configuration** |
-| aws-region | :x: | string | ap-southeast-2 | AWS region for deployment |
-| s3-bucket | :white_check_mark: | string | | S3 bucket name for deployment |
-| cloudfront-distribution-id | :white_check_mark: | string | | CloudFront distribution ID for cache invalidation |
 | **Environment Configuration** |
-| environment | :x: | string | staging | Deployment environment (GitHub environment name for protection rules) |
+| github-environment | :white_check_mark: | string | | GitHub Environment name for secrets/variables (e.g. Staging, Production) |
+| **AWS Configuration** |
+| aws-region | :x: | string | ap-southeast-2 | AWS region fallback (overridden by `AWS_REGION` environment variable if set) |
+| role-session-name | :x: | string | | AWS role session name for OIDC (default: `{repo}-{short-sha}-{run-number}`) |
 | **Build Configuration** |
 | package-manager | :x: | string | yarn | Node package manager (yarn/npm) |
 | is-yarn-classic | :x: | boolean | false | Use Yarn Classic (pre-Berry) instead of modern Yarn |
@@ -38,14 +54,6 @@ A comprehensive Progressive Web Application deployment workflow supporting S3 st
 | extra-sync-args | :x: | string | | Additional AWS S3 sync arguments |
 | **Debug and Control** |
 | debug | :x: | boolean | false | Enable verbose logging and debug output |
-| skip-build | :x: | boolean | false | Skip the build step (use pre-built assets) |
-| skip-tests | :x: | boolean | false | Skip test execution |
-
-#### **Secrets**
-| Name | Required | Description |
-|------|----------|-------------|
-| aws-access-key-id | :white_check_mark: | AWS access key ID |
-| aws-secret-access-key | :white_check_mark: | AWS secret access key |
 
 #### **Outputs**
 | Name | Description |
@@ -55,20 +63,29 @@ A comprehensive Progressive Web Application deployment workflow supporting S3 st
 
 #### **Example Usage**
 
-**Basic Production Deployment:**
+**Basic Deployment (Static Credentials):**
+```yaml
+jobs:
+  deploy-staging:
+    uses: aligent/workflows/.github/workflows/pwa-deployment.yml@main
+    with:
+      github-environment: Staging
+    secrets: inherit
+```
+
+The `Staging` GitHub Environment must have `S3_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` configured.
+
+**Basic Deployment (OIDC):**
 ```yaml
 jobs:
   deploy-production:
     uses: aligent/workflows/.github/workflows/pwa-deployment.yml@main
     with:
-      s3-bucket: my-production-bucket
-      cloudfront-distribution-id: E1234567890ABC
-      environment: production
-      cache-strategy: immutable
-    secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      github-environment: Production
+    secrets: inherit
 ```
+
+The `Production` GitHub Environment must have `S3_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`, and `AWS_ROLE_ARN` configured.
 
 **Preview Environment for Pull Requests:**
 ```yaml
@@ -77,15 +94,11 @@ jobs:
     if: github.event_name == 'pull_request'
     uses: aligent/workflows/.github/workflows/pwa-deployment.yml@main
     with:
-      s3-bucket: my-preview-bucket
-      cloudfront-distribution-id: E1234567890ABC
-      environment: preview
+      github-environment: Preview
       preview-mode: true
       preview-base-url: https://preview.example.com
       cache-strategy: no-cache
-    secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    secrets: inherit
 ```
 
 **Multi-brand Deployment:**
@@ -94,14 +107,10 @@ jobs:
   deploy-multi-brand:
     uses: aligent/workflows/.github/workflows/pwa-deployment.yml@main
     with:
-      s3-bucket: my-multi-brand-bucket
-      cloudfront-distribution-id: E1234567890ABC
-      environment: production
+      github-environment: Production
       brand-config: '{"brand":["brand-a","brand-b","brand-c"]}'
       build-command: build:brands
-    secrets:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    secrets: inherit
 ```
 
 **Custom Build Configuration:**
@@ -110,13 +119,12 @@ jobs:
   deploy-custom:
     uses: aligent/workflows/.github/workflows/pwa-deployment.yml@main
     with:
-      s3-bucket: my-custom-bucket
-      cloudfront-distribution-id: E1234567890ABC
-      environment: staging
+      github-environment: Staging
       package-manager: npm
       build-command: build:staging
       build-directory: build
       cloudfront-invalidation-paths: '["/*", "/api/*"]'
       extra-sync-args: --exclude "*.map"
       debug: true
+    secrets: inherit
 ```
