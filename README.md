@@ -6,6 +6,8 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 
 | Workflow | Description |
 |----------|-------------|
+| [AIO App Deployment](docs/aio-app-deployment.md) | Adobe I/O App Builder deployment for standalone apps and NX monorepos |
+| [AIO Mesh Deployment](docs/aio-mesh-deployment.md) | Adobe I/O API Mesh create/update with provisioning polling |
 | [AWS CDK](docs/aws-cdk.md) | Multi-environment infrastructure synthesis, diffs and deployments with automatic package manager detection |
 | [Changeset Check](docs/changeset-check.md) | Advisory PR comments when changesets are missing for affected packages |
 | [Changeset Release](docs/changeset-release.md) | Automated package versioning and publishing with Changesets |
