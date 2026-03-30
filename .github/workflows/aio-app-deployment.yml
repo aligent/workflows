@@ -37,10 +37,12 @@ jobs:
     environment: ${{ inputs.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
         with:
           node-version-file: .nvmrc
           cache: ${{ inputs.package-manager }}
@@ -58,13 +60,13 @@ jobs:
         run: yarn install
 
       - name: Setup Adobe I/O CLI
-        uses: adobe/aio-cli-setup-action@5a7a7313f7024283e7eb384dc79b69b02effb307 # v1.3.0
+        uses: adobe/aio-cli-setup-action@5a7a7313f7024283e7eb384dc79b69b02effb307 #v1.3.0
         with:
           os: ubuntu-latest
           version: ${{ inputs.aio-cli-version }}
 
       - name: Authenticate with Adobe I/O
-        uses: adobe/aio-apps-action@0a7e7eb813fbdf73faea7ee7d03fd20e6dd7badb # v4.0.0
+        uses: adobe/aio-apps-action@0a7e7eb813fbdf73faea7ee7d03fd20e6dd7badb #v4.0.0
         with:
           os: ubuntu-latest
           command: oauth_sts
