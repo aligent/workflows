@@ -51,7 +51,10 @@ on:
         required: false
         default: false
       use-custom-config:
-        description: "Use project config files (phpstan.neon, phpcs.xml) and vendor binaries directly instead of composer scripts. Enable this when composer scripts (e.g. check-style, phpstan) are designed for local pre-commit hooks and don't work in CI."
+        description: >
+          Use project config files (phpstan.neon, phpcs.xml) and vendor binaries directly instead of composer scripts. 
+          Enable this when composer scripts (e.g. check-style, phpstan) are designed for local pre-commit hooks 
+          and don't work in CI.
         type: boolean
         required: false
         default: false
@@ -501,7 +504,8 @@ jobs:
           echo "🎨 Running PHP CodeSniffer (${INPUTS_CODING_STANDARD} standard)..."
 
           # Check for custom check-style script first (unless use-custom-config is set)
-          if [ "${{ inputs.use-custom-config }}" == "false" ] && composer run-script --list | grep -q "check-style"; then
+          if [ "${{ inputs.use-custom-config }}" == "false" ] 
+              && composer run-script --list | grep -q "check-style"; then
             echo "✅ Using composer check-style script"
             composer run-script check-style
           elif [ "${NEEDS_INSTALL_OUTPUTS_HAS_PHPCS_CONFIG}" = "true" ]; then
