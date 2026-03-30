@@ -409,7 +409,9 @@ jobs:
           command: ${{ inputs.check-types-command }}
 
       - name: Fetch all commits for Nx
-        if: steps.check-check-types.outputs.exists-script != 'true' && steps.check-check-types.outputs.exists-nx-target == 'true'
+        if: >-
+          steps.check-check-types.outputs.exists-script != 'true' &&
+          steps.check-check-types.outputs.exists-nx-target == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
