@@ -1,0 +1,38 @@
+version: '3'
+
+tasks:
+  default:
+    desc: Run all CI checks
+    deps: [yamllint, actionlint, zizmor]
+
+  yamllint:
+    desc: Lint YAML files
+    preconditions:
+      - sh: command -v yamllint
+        msg: "yamllint is not installed. Run: pip3 install yamllint"
+    cmds:
+      - yamllint .
+
+  actionlint:
+    desc: Lint GitHub Actions workflow files
+    preconditions:
+      - sh: command -v actionlint
+        msg: "actionlint is not installed. See https://github.com/rhysd/actionlint/blob/main/docs/install.md"
+    cmds:
+      - actionlint
+
+  zizmor:
+    desc: Run security analysis on GitHub Actions workflows
+    preconditions:
+      - sh: command -v zizmor
+        msg: "zizmor is not installed. Run: pip3 install zizmor"
+    cmds:
+      - zizmor .github/
+
+  zizmor-fix:
+    desc: Auto-fix zizmor security findings (safe fixes only)
+    preconditions:
+      - sh: command -v zizmor
+        msg: "zizmor is not installed. Run: pip3 install zizmor"
+    cmds:
+      - zizmor --fix .github/

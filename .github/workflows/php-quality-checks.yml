@@ -17,7 +17,9 @@ on:
         description: "PHP Extensions to use redis, exif, etc"
         type: string
         required: false
-        default: "bcmath bz2 calendar exif gd gettext intl mysqli opcache pdo_mysql redis soap sockets sodium sysvmsg sysvsem sysvshm xsl zip pcntl"
+        default: >-
+          bcmath bz2 calendar exif gd gettext intl mysqli opcache pdo_mysql
+          redis soap sockets sodium sysvmsg sysvsem sysvshm xsl zip pcntl
 
       skip-composer-validate:
         description: "Skip Validation of the composer.json"
@@ -129,7 +131,9 @@ on:
         default: "2"
 
       opensearch-image:
-        description: "OpenSearch Docker image name, combined with opensearch-version as the tag (e.g., aligent/bitbucket-opensearch)"
+        description: >-
+          OpenSearch Docker image name, combined with opensearch-version as the tag
+          (e.g., aligent/bitbucket-opensearch)
         type: string
         required: false
         default: "opensearchproject/opensearch"
@@ -150,7 +154,9 @@ jobs:
     env:
       COMPOSER_AUTH: ${{ secrets.composer-auth }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Check for required files
         id: check-files
@@ -239,7 +245,7 @@ jobs:
 
       - name: Cache Composer dependencies
         if: steps.check-files.outputs.has-composer == 'true'
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
@@ -257,8 +263,10 @@ jobs:
             --dev \
             --no-progress \
             --no-interaction \
-            ${{ inputs.composer-args }} \
+            ${INPUTS_COMPOSER_ARGS} \
             ${{ inputs.debug && '--verbose' || '' }}
+        env:
+          INPUTS_COMPOSER_ARGS: ${{ inputs.composer-args }}
 
       - name: Run Magento setup if needed
         if: steps.check-files.outputs.has-composer == 'true'
@@ -310,7 +318,7 @@ jobs:
             tar -czf dependencies.tar.gz --files-from /dev/null
           fi
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: steps.check-files.outputs.has-composer == 'true'
         with:
           name: vendor-php${{ inputs.php-version }}
@@ -326,7 +334,9 @@ jobs:
       needs.install.outputs.has-composer == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
         uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
@@ -336,7 +346,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -366,7 +376,7 @@ jobs:
           fi
 
       - name: Cache PHPStan results
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7
         with:
           path: /tmp/phpstan
           key: phpstan-php${{ inputs.php-version }}-${{ inputs.phpstan-level }}-${{ hashFiles('**/*.php') }}
@@ -376,7 +386,7 @@ jobs:
 
       - name: Run PHPStan analysis
         run: |
-          echo "🔍 Running PHPStan analysis (Level ${{ inputs.phpstan-level }})..."
+          echo "🔍 Running PHPStan analysis (Level ${INPUTS_PHPSTAN_LEVEL})..."
 
           # Check for custom phpstan script first
           if composer run-script --list | grep -q "phpstan"; then
@@ -391,14 +401,14 @@ jobs:
             phpstan_cmd="vendor/bin/phpstan"
 
             # Build PHPStan command
-            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpstan_cmd analyse"
+            cmd="php -d memory_limit=${INPUTS_MEMORY_LIMIT} $phpstan_cmd analyse"
 
             # Use existing config or set defaults
-            if [ "${{ needs.install.outputs.has-phpstan-config }}" = "true" ]; then
+            if [ "${NEEDS_INSTALL_OUTPUTS_HAS_PHPSTAN_CONFIG}" = "true" ]; then
               echo "✅ Using existing PHPStan configuration"
             else
               echo "ℹ️ Using default PHPStan configuration"
-              cmd="$cmd --level=${{ inputs.phpstan-level }} src/ app/"
+              cmd="$cmd --level=${INPUTS_PHPSTAN_LEVEL} src/ app/"
             fi
 
             # Add debug flags if enabled
@@ -414,8 +424,8 @@ jobs:
             phpstan_cmd="phpstan"
 
             # Build PHPStan command
-            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpstan_cmd analyse"
-            cmd="$cmd --level=${{ inputs.phpstan-level }} src/ app/"
+            cmd="php -d memory_limit=${INPUTS_MEMORY_LIMIT} $phpstan_cmd analyse"
+            cmd="$cmd --level=${INPUTS_PHPSTAN_LEVEL} src/ app/"
 
             # Add debug flags if enabled
             if [ "${{ inputs.debug }}" = "true" ]; then
@@ -426,6 +436,11 @@ jobs:
             eval $cmd
           fi
 
+        env:
+          INPUTS_PHPSTAN_LEVEL: ${{ inputs.phpstan-level }}
+          INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
+          NEEDS_INSTALL_OUTPUTS_HAS_PHPSTAN_CONFIG: ${{ needs.install.outputs.has-phpstan-config }}
+
   # PHP CodeSniffer style checks
   phpcs:
     name: 🎨 Code Style Check
@@ -435,7 +450,9 @@ jobs:
       needs.install.outputs.has-composer == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
         uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
@@ -445,7 +462,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -476,13 +493,13 @@ jobs:
 
       - name: Run PHP CodeSniffer
         run: |
-          echo "🎨 Running PHP CodeSniffer (${{ inputs.coding-standard }} standard)..."
+          echo "🎨 Running PHP CodeSniffer (${INPUTS_CODING_STANDARD} standard)..."
 
           # Check for custom check-style script first
           if composer run-script --list | grep -q "check-style"; then
             echo "✅ Using composer check-style script"
             composer run-script check-style
-          elif [ "${{ needs.install.outputs.has-phpcs-config }}" = "true" ]; then
+          elif [ "${NEEDS_INSTALL_OUTPUTS_HAS_PHPCS_CONFIG}" = "true" ]; then
             echo "✅ Using existing PHPCS configuration"
             if [ -f "vendor/bin/phpcs" ]; then
               phpcs_cmd="vendor/bin/phpcs"
@@ -492,18 +509,18 @@ jobs:
               phpcs_cmd="phpcs"
             fi
 
-            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd --report=full --colors"
+            cmd="php -d memory_limit=${INPUTS_MEMORY_LIMIT} $phpcs_cmd --report=full --colors"
             if [ "${{ inputs.debug }}" = "true" ]; then
               cmd="$cmd --verbose"
             fi
             eval $cmd
           elif [ -f "vendor/bin/phpcs" ]; then
-            echo "✅ Using vendor PHPCS with ${{ inputs.coding-standard }} standard"
+            echo "✅ Using vendor PHPCS with ${INPUTS_CODING_STANDARD} standard"
             phpcs_cmd="vendor/bin/phpcs"
 
             # Build PHPCS command
-            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd"
-            cmd="$cmd --standard=${{ inputs.coding-standard }} src/ app/"
+            cmd="php -d memory_limit=${INPUTS_MEMORY_LIMIT} $phpcs_cmd"
+            cmd="$cmd --standard=${INPUTS_CODING_STANDARD} src/ app/"
             cmd="$cmd --report=full --colors"
 
             if [ "${{ inputs.debug }}" = "true" ]; then
@@ -517,13 +534,13 @@ jobs:
             phpcs_cmd="phpcs"
 
             # Install Magento2 standard if needed
-            if [ "${{ inputs.coding-standard }}" = "Magento2" ]; then
+            if [ "${INPUTS_CODING_STANDARD}" = "Magento2" ]; then
               composer global require magento/magento-coding-standard:*
             fi
 
             # Build PHPCS command
-            cmd="php -d memory_limit=${{ inputs.memory-limit }} $phpcs_cmd"
-            cmd="$cmd --standard=${{ inputs.coding-standard }} src/ app/"
+            cmd="php -d memory_limit=${INPUTS_MEMORY_LIMIT} $phpcs_cmd"
+            cmd="$cmd --standard=${INPUTS_CODING_STANDARD} src/ app/"
             cmd="$cmd --report=full --colors"
 
             if [ "${{ inputs.debug }}" = "true" ]; then
@@ -532,6 +549,11 @@ jobs:
 
             eval $cmd
           fi
+
+        env:
+          INPUTS_CODING_STANDARD: ${{ inputs.coding-standard }}
+          NEEDS_INSTALL_OUTPUTS_HAS_PHPCS_CONFIG: ${{ needs.install.outputs.has-phpcs-config }}
+          INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
 
   # PHPUnit testing with coverage
   test:
@@ -543,7 +565,9 @@ jobs:
       needs.install.outputs.has-unit-tests == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Setup PHP with Xdebug
         uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
@@ -553,7 +577,7 @@ jobs:
           coverage: xdebug
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -599,7 +623,10 @@ jobs:
           pushd dev/tests/unit
 
           # Build PHPUnit command with coverage
-          cmd='php -d memory_limit=${{ inputs.memory-limit }} -d xdebug.mode=coverage $phpunit_cmd -c ./phpunit.xml --testsuite="Unit Tests" --log-junit ./test-results/report.xml'
+          cmd='php -d memory_limit=${INPUTS_MEMORY_LIMIT}'
+          cmd+=' -d xdebug.mode=coverage $phpunit_cmd'
+          cmd+=' -c ./phpunit.xml --testsuite="Unit Tests"'
+          cmd+=' --log-junit ./test-results/report.xml'
           cmd="$cmd --coverage-text --coverage-clover=coverage.xml"
 
           # Add debug flags if enabled
@@ -609,10 +636,12 @@ jobs:
 
           # Execute PHPUnit
           eval $cmd
+        env:
+          INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
 
       - name: Check coverage threshold
         run: |
-          threshold=${{ inputs.coverage-threshold }}
+          threshold=${INPUTS_COVERAGE_THRESHOLD}
           if [ -f "coverage.xml" ] && [ "$threshold" != "0" ]; then
             echo "📊 Checking coverage threshold ($threshold%)..."
 
@@ -638,9 +667,11 @@ jobs:
           else
             echo "ℹ️ Skipping coverage threshold check"
           fi
+        env:
+          INPUTS_COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
 
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: coverage-php${{ inputs.php-version }}
@@ -648,7 +679,7 @@ jobs:
           retention-days: 7
 
       - name: Upload test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: integration-test-results-php${{ inputs.php-version }}
@@ -677,27 +708,37 @@ jobs:
         options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
       search:
+        # yamllint disable rule:line-length
         image: ${{ inputs.opensearch-image }}${{ inputs.opensearch-version && format(':{0}', inputs.opensearch-version) || '' }}
+        # yamllint enable rule:line-length
         env:
           discovery.type: single-node
           OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
           DISABLE_SECURITY_PLUGIN: true
         ports:
           - 9200:9200
-        options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: >-
+          --health-cmd="curl -f http://localhost:9200/_cluster/health"
+          --health-interval=10s --health-timeout=5s --health-retries=5
 
       rabbitmq:
+        # yamllint disable rule:line-length
         image: ${{ inputs.rabbitmq-image }}${{ inputs.rabbitmq-version && format(':{0}', inputs.rabbitmq-version) || '' }}
+        # yamllint enable rule:line-length
         env:
           RABBITMQ_DEFAULT_USER: guest
           RABBITMQ_DEFAULT_PASS: guest
         ports:
           - 5672:5672
           - 15672:15672
-        options: --health-cmd="rabbitmq-diagnostics -q ping" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s --health-timeout=5s --health-retries=5
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
         uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
@@ -707,7 +748,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -747,7 +788,7 @@ jobs:
 
           # Run integration tests
           if [ -f "vendor/bin/phpunit" ]; then
-            php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit \
+            php -d memory_limit=${INPUTS_MEMORY_LIMIT} vendor/bin/phpunit \
               -c $(pwd)/dev/tests/integration/phpunit.xml \
               --log-junit ./test-results/integration-report.xml \
               --testsuite="Integration Tests" \
@@ -756,9 +797,11 @@ jobs:
             echo "❌ PHPUnit not found in vendor/bin/"
             exit 1
           fi
+        env:
+          INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
 
       - name: Upload test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: integration-test-results-php${{ inputs.php-version }}
@@ -787,27 +830,37 @@ jobs:
         options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
       search:
+        # yamllint disable rule:line-length
         image: ${{ inputs.opensearch-image }}${{ inputs.opensearch-version && format(':{0}', inputs.opensearch-version) || '' }}
+        # yamllint enable rule:line-length
         env:
           discovery.type: single-node
           OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
           DISABLE_SECURITY_PLUGIN: true
         ports:
           - 9200:9200
-        options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: >-
+          --health-cmd="curl -f http://localhost:9200/_cluster/health"
+          --health-interval=10s --health-timeout=5s --health-retries=5
 
       rabbitmq:
+        # yamllint disable rule:line-length
         image: ${{ inputs.rabbitmq-image }}${{ inputs.rabbitmq-version && format(':{0}', inputs.rabbitmq-version) || '' }}
+        # yamllint enable rule:line-length
         env:
           RABBITMQ_DEFAULT_USER: guest
           RABBITMQ_DEFAULT_PASS: guest
         ports:
           - 5672:5672
           - 15672:15672
-        options: --health-cmd="rabbitmq-diagnostics -q ping" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s --health-timeout=5s --health-retries=5
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
         uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
@@ -817,7 +870,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -873,7 +926,7 @@ jobs:
 
           # Run REST API tests
           if [ -f "vendor/bin/phpunit" ]; then
-            php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit \
+            php -d memory_limit=${INPUTS_MEMORY_LIMIT} vendor/bin/phpunit \
               -c $(pwd)/dev/tests/api-functional/phpunit_rest.xml \
               --log-junit ./test-results/rest-api-report.xml \
               --testsuite="REST API Tests" \
@@ -887,9 +940,11 @@ jobs:
           if [ ! -z "$SERVER_PID" ]; then
             kill $SERVER_PID || true
           fi
+        env:
+          INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
 
       - name: Upload test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: rest-api-test-results-php${{ inputs.php-version }}
@@ -918,27 +973,37 @@ jobs:
         options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
       search:
+        # yamllint disable rule:line-length
         image: ${{ inputs.opensearch-image }}${{ inputs.opensearch-version && format(':{0}', inputs.opensearch-version) || '' }}
+        # yamllint enable rule:line-length
         env:
           discovery.type: single-node
           OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
           DISABLE_SECURITY_PLUGIN: true
         ports:
           - 9200:9200
-        options: --health-cmd="curl -f http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: >-
+          --health-cmd="curl -f http://localhost:9200/_cluster/health"
+          --health-interval=10s --health-timeout=5s --health-retries=5
 
       rabbitmq:
+        # yamllint disable rule:line-length
         image: ${{ inputs.rabbitmq-image }}${{ inputs.rabbitmq-version && format(':{0}', inputs.rabbitmq-version) || '' }}
+        # yamllint enable rule:line-length
         env:
           RABBITMQ_DEFAULT_USER: guest
           RABBITMQ_DEFAULT_PASS: guest
         ports:
           - 5672:5672
           - 15672:15672
-        options: --health-cmd="rabbitmq-diagnostics -q ping" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s --health-timeout=5s --health-retries=5
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
         uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
@@ -948,7 +1013,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -1004,7 +1069,7 @@ jobs:
 
           # Run GraphQL tests
           if [ -f "vendor/bin/phpunit" ]; then
-            php -d memory_limit=${{ inputs.memory-limit }} vendor/bin/phpunit \
+            php -d memory_limit=${INPUTS_MEMORY_LIMIT} vendor/bin/phpunit \
               -c $(pwd)/dev/tests/api-functional/phpunit_graphql.xml \
               --log-junit ./test-results/graphql-report.xml \
               --testsuite="GraphQL API Tests" \
@@ -1018,9 +1083,11 @@ jobs:
           if [ ! -z "$SERVER_PID" ]; then
             kill $SERVER_PID || true
           fi
+        env:
+          INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
 
       - name: Upload test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: graphql-test-results-php${{ inputs.php-version }}

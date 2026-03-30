@@ -96,11 +96,13 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Cache Maven packages
         if: ${{ !env.ACT }}  # Skip when running with act locally
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7
         with:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
@@ -131,11 +133,13 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Cache Maven packages
         if: ${{ !env.ACT }}  # Skip when running with act locally
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7
         with:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
@@ -165,9 +169,10 @@ jobs:
 
     steps:
       - name: Checkout code with full history
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Configure Git
         run: |
@@ -193,11 +198,11 @@ jobs:
 
           # Determine branch name
           if [ -n "$REMOTE_BRANCH" ]; then
-            BRANCH="${{ github.ref_name }}:${REMOTE_BRANCH}"
-            echo "📋 Pushing '${{ github.ref_name }}' to Cloud Manager branch '${REMOTE_BRANCH}'"
+            BRANCH="${GITHUB_REF_NAME}:${REMOTE_BRANCH}"
+            echo "📋 Pushing '${GITHUB_REF_NAME}' to Cloud Manager branch '${REMOTE_BRANCH}'"
           else
-            BRANCH="${{ github.ref_name }}"
-            echo "📋 Pushing '${{ github.ref_name }}' to Cloud Manager"
+            BRANCH="${GITHUB_REF_NAME}"
+            echo "📋 Pushing '${GITHUB_REF_NAME}' to Cloud Manager"
           fi
 
           # Push to Cloud Manager
@@ -215,16 +220,16 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Source Branch** | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Source Branch** | ${GITHUB_REF_NAME} |" >> $GITHUB_STEP_SUMMARY
 
           if [ -n "$REMOTE_BRANCH" ]; then
             echo "| **Target Branch** | ${REMOTE_BRANCH} |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| **Target Branch** | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Target Branch** | ${GITHUB_REF_NAME} |" >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "| **Git Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Triggered By** | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Triggered By** | ${GITHUB_ACTOR} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### ✅ Sync Complete" >> $GITHUB_STEP_SUMMARY
           echo "Your AEM project has been successfully synced to Cloud Manager." >> $GITHUB_STEP_SUMMARY

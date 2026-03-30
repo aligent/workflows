@@ -1,4 +1,3 @@
-
 name: 🤖 Gadget Deploy
 on:
   workflow_call:
@@ -40,7 +39,6 @@ on:
         description: "Gadget Test API key for running tests"
         required: false
 
-
 jobs:
   push:
     name: 🫸 Push to Gadget
@@ -48,10 +46,12 @@ jobs:
     env:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
     outputs:
-        push-environment-status: ${{ steps.push-environment.outcome }}
+      push-environment-status: ${{ steps.push-environment.outcome }}
     if: inputs.push-staging == true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Install ggt
         run: |
@@ -62,7 +62,10 @@ jobs:
         id: push-environment
         working-directory: ${{ inputs.working-directory }}
         run: |
-          ggt push --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory 
+          ggt push --app=${INPUTS_APP_NAME} --env=${INPUTS_ENVIRONMENT_NAME} --force --allow-unknown-directory
+        env:
+          INPUTS_APP_NAME: ${{ inputs.app-name }}
+          INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }} 
 
   test:
     name: 🧪 Test from Gadget
@@ -72,7 +75,9 @@ jobs:
     needs: push
     if: inputs.test == true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Install ggt
         run: |
@@ -82,17 +87,22 @@ jobs:
       - name: Pull client files into env # pull .gadget folder into test runner
         working-directory: ${{ inputs.working-directory }}
         run: |
-          ggt pull --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory
+          ggt pull --app=${INPUTS_APP_NAME} --env=${INPUTS_ENVIRONMENT_NAME} --force --allow-unknown-directory
+        env:
+          INPUTS_APP_NAME: ${{ inputs.app-name }}
+          INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
         with:
           node-version-file: ${{ inputs.working-directory }}/.nvmrc
           cache: yarn
           cache-dependency-path: ${{ inputs.working-directory }}/yarn.lock
 
       - name: Install safe-chain
-        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+        run: |
+          SAFE_CHAIN_URL="https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh"
+          curl -fsSL "$SAFE_CHAIN_URL" | sh -s -- --ci
 
       - name: Install dependencies
         working-directory: ${{ inputs.working-directory }}
@@ -112,7 +122,9 @@ jobs:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
     if: inputs.deploy-production == true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Install ggt
         run: |
@@ -122,4 +134,11 @@ jobs:
       - name: Deploy (promote) to Production environment in Gadget
         working-directory: ${{ inputs.working-directory }}
         run: |
-          ggt deploy --app=${{ inputs.app-name }} --env=${{ inputs.environment-name }} --force --allow-unknown-directory --allow-problems
+          ggt deploy \
+            --app=${INPUTS_APP_NAME} \
+            --env=${INPUTS_ENVIRONMENT_NAME} \
+            --force --allow-unknown-directory --allow-problems
+
+        env:
+          INPUTS_APP_NAME: ${{ inputs.app-name }}
+          INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}

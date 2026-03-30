@@ -23,7 +23,7 @@ runs:
     - id: check-script
       shell: bash
       run: |
-        cmd="${{ inputs.command }}"
+        cmd="${INPUTS_COMMAND}"
 
         # Check root package.json scripts
         if jq -e --arg cmd "$cmd" '.scripts[$cmd]' package.json > /dev/null 2>&1; then
@@ -58,7 +58,8 @@ runs:
         if [ -f "pnpm-workspace.yaml" ]; then
           # Extract package paths from YAML list items, stripping optional quotes
           # Matches: "  - packages/*", "  - 'apps/*'", '  - "libs/*"' -> packages/*, apps/*, libs/*
-          pnpm_packages=$(grep -E '^\s*-\s+' pnpm-workspace.yaml | sed "s/.*-\s*['\"]\\{0,1\\}\([^'\"]*\\)['\"]\\{0,1\\}/\1/" 2>/dev/null)
+          pnpm_packages=$(grep -E '^\s*-\s+' pnpm-workspace.yaml \
+            | sed "s/.*-\s*['\"]\\{0,1\\}\([^'\"]*\\)['\"]\\{0,1\\}/\1/" 2>/dev/null)
           for pattern in $pnpm_packages; do
             for pkg_dir in $pattern; do
               if [ -f "$pkg_dir/package.json" ]; then
@@ -72,11 +73,13 @@ runs:
         fi
 
         echo "exists=false" >> $GITHUB_OUTPUT
+      env:
+        INPUTS_COMMAND: ${{ inputs.command }}
 
     - id: check-nx
       shell: bash
       run: |
-        cmd="${{ inputs.command }}"
+        cmd="${INPUTS_COMMAND}"
 
         # Check Nx targets if this is an Nx workspace
         if [ -f "nx.json" ]; then
@@ -87,3 +90,5 @@ runs:
         fi
 
         echo "exists=false" >> $GITHUB_OUTPUT
+      env:
+        INPUTS_COMMAND: ${{ inputs.command }}
