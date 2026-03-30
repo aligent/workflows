@@ -231,7 +231,7 @@ jobs:
 
       - name: Setup PHP
         if: steps.check-files.outputs.has-composer == 'true'
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@64e2975255df6f394da2ff70a860a20e216a073c
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
@@ -339,7 +339,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@64e2975255df6f394da2ff70a860a20e216a073c
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
@@ -455,7 +455,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@64e2975255df6f394da2ff70a860a20e216a073c
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
@@ -570,7 +570,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup PHP with Xdebug
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@64e2975255df6f394da2ff70a860a20e216a073c
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}, xdebug
@@ -741,7 +741,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@64e2975255df6f394da2ff70a860a20e216a073c
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
@@ -863,7 +863,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@64e2975255df6f394da2ff70a860a20e216a073c
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
@@ -1006,7 +1006,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@64e2975255df6f394da2ff70a860a20e216a073c
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
