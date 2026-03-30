@@ -51,7 +51,10 @@ on:
         required: false
         default: false
       use-custom-config:
-        description: "Use project config files (phpstan.neon, phpcs.xml) and vendor binaries directly instead of composer scripts. Enable this when composer scripts (e.g. check-style, phpstan) are designed for local pre-commit hooks and don't work in CI."
+        description: >
+          Use project config files (phpstan.neon, phpcs.xml) and vendor binaries directly instead of composer scripts. 
+          Enable this when composer scripts (e.g. check-style, phpstan) are designed for local pre-commit hooks 
+          and don't work in CI.
         type: boolean
         required: false
         default: false
@@ -159,7 +162,7 @@ jobs:
     env:
       COMPOSER_AUTH: ${{ secrets.composer-auth }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           persist-credentials: false
 
@@ -236,7 +239,7 @@ jobs:
 
       - name: Setup PHP
         if: steps.check-files.outputs.has-composer == 'true'
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f #2.37.0
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
@@ -250,7 +253,7 @@ jobs:
 
       - name: Cache Composer dependencies
         if: steps.check-files.outputs.has-composer == 'true'
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 #v5.0.4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
@@ -323,7 +326,7 @@ jobs:
             tar -czf dependencies.tar.gz --files-from /dev/null
           fi
 
-      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
         if: steps.check-files.outputs.has-composer == 'true'
         with:
           name: vendor-php${{ inputs.php-version }}
@@ -339,19 +342,19 @@ jobs:
       needs.install.outputs.has-composer == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f #2.37.0
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c #v8.0.1
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -381,7 +384,7 @@ jobs:
           fi
 
       - name: Cache PHPStan results
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 #v5.0.4
         with:
           path: /tmp/phpstan
           key: phpstan-php${{ inputs.php-version }}-${{ inputs.phpstan-level }}-${{ hashFiles('**/*.php') }}
@@ -455,19 +458,19 @@ jobs:
       needs.install.outputs.has-composer == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f #2.37.0
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c #v8.0.1
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -501,7 +504,8 @@ jobs:
           echo "🎨 Running PHP CodeSniffer (${INPUTS_CODING_STANDARD} standard)..."
 
           # Check for custom check-style script first (unless use-custom-config is set)
-          if [ "${{ inputs.use-custom-config }}" == "false" ] && composer run-script --list | grep -q "check-style"; then
+          if [ "${{ inputs.use-custom-config }}" == "false" ] 
+              && composer run-script --list | grep -q "check-style"; then
             echo "✅ Using composer check-style script"
             composer run-script check-style
           elif [ "${NEEDS_INSTALL_OUTPUTS_HAS_PHPCS_CONFIG}" = "true" ]; then
@@ -570,19 +574,19 @@ jobs:
       needs.install.outputs.has-unit-tests == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           persist-credentials: false
 
       - name: Setup PHP with Xdebug
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f #2.37.0
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}, xdebug
           coverage: xdebug
           tools: composer:v2
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c #v8.0.1
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -676,7 +680,7 @@ jobs:
           INPUTS_COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
 
       - name: Upload coverage reports
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
         if: always()
         with:
           name: coverage-php${{ inputs.php-version }}
@@ -684,7 +688,7 @@ jobs:
           retention-days: 7
 
       - name: Upload test results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
         if: always()
         with:
           name: integration-test-results-php${{ inputs.php-version }}
@@ -741,19 +745,19 @@ jobs:
           --health-interval=10s --health-timeout=5s --health-retries=5
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f #2.37.0
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c #v8.0.1
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -806,7 +810,7 @@ jobs:
           INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
 
       - name: Upload test results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
         if: always()
         with:
           name: integration-test-results-php${{ inputs.php-version }}
@@ -863,19 +867,19 @@ jobs:
           --health-interval=10s --health-timeout=5s --health-retries=5
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f #2.37.0
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c #v8.0.1
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -949,7 +953,7 @@ jobs:
           INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
 
       - name: Upload test results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
         if: always()
         with:
           name: rest-api-test-results-php${{ inputs.php-version }}
@@ -1006,19 +1010,19 @@ jobs:
           --health-interval=10s --health-timeout=5s --health-retries=5
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@93cb3149d228516dfca679606c5060ee44f46437
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f #2.37.0
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.php-extensions }}
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c #v8.0.1
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -1092,7 +1096,7 @@ jobs:
           INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
 
       - name: Upload test results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
         if: always()
         with:
           name: graphql-test-results-php${{ inputs.php-version }}
