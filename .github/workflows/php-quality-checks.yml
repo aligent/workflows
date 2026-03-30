@@ -48,6 +48,11 @@ on:
         type: boolean
         required: false
         default: false
+      use-custom-config:
+        description: "Use project config files (phpstan.neon, phpcs.xml) and vendor binaries directly instead of composer scripts. Enable this when composer scripts (e.g. check-style, phpstan) are designed for local pre-commit hooks and don't work in CI."
+        type: boolean
+        required: false
+        default: false
 
       # Testing Configuration
       coverage-threshold:
@@ -378,11 +383,11 @@ jobs:
         run: |
           echo "🔍 Running PHPStan analysis (Level ${{ inputs.phpstan-level }})..."
 
-          # Check for custom phpstan script first
-          if composer run-script --list | grep -q "phpstan"; then
+          # Check for custom phpstan script first (unless use-custom-config is set)
+          if [ "${{ inputs.use-custom-config }}" == "false" ] && composer run-script --list | grep -q "phpstan"; then
             echo "✅ Using composer phpstan script"
             composer run-script phpstan
-          elif [ -f "phpstan.sh" ]; then
+          elif [ "${{ inputs.use-custom-config }}" == "false" ] && [ -f "phpstan.sh" ]; then
             echo "✅ Using phpstan.sh script"
             chmod +x phpstan.sh
             ./phpstan.sh
@@ -478,8 +483,8 @@ jobs:
         run: |
           echo "🎨 Running PHP CodeSniffer (${{ inputs.coding-standard }} standard)..."
 
-          # Check for custom check-style script first
-          if composer run-script --list | grep -q "check-style"; then
+          # Check for custom check-style script first (unless use-custom-config is set)
+          if [ "${{ inputs.use-custom-config }}" == "false" ] && composer run-script --list | grep -q "check-style"; then
             echo "✅ Using composer check-style script"
             composer run-script check-style
           elif [ "${{ needs.install.outputs.has-phpcs-config }}" = "true" ]; then
