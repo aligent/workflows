@@ -124,7 +124,7 @@ jobs:
       - name: Configure cache strategy
         id: cache-config
         run: |
-          case "${{ inputs.cache-strategy }}" in
+          case "${INPUTS_CACHE_STRATEGY}" in
             "immutable")
               # Static assets with content hashing - cache for 1 year
               echo "cache-control-static=public, max-age=31536000, immutable" >> $GITHUB_OUTPUT
@@ -137,7 +137,7 @@ jobs:
               echo "cache-control-html=no-cache, no-store, must-revalidate" >> $GITHUB_OUTPUT
               ;;
             *)
-              echo "❌ Invalid cache-strategy: '${{ inputs.cache-strategy }}'. Must be 'immutable' or 'no-cache'."
+              echo "❌ Invalid cache-strategy: '${INPUTS_CACHE_STRATEGY}'. Must be 'immutable' or 'no-cache'."
               exit 1
               ;;
           esac
@@ -145,16 +145,19 @@ jobs:
           # Prepare invalidation paths (use heredoc to preserve JSON special characters)
           {
             echo 'invalidation-paths<<INVALIDATION_EOF'
-            echo '${{ inputs.cloudfront-invalidation-paths }}'
+            echo '${INPUTS_CLOUDFRONT_INVALIDATION_PATHS}'
             echo 'INVALIDATION_EOF'
           } >> $GITHUB_OUTPUT
 
           if [ "${{ inputs.debug }}" = "true" ]; then
             echo "🔍 Cache configuration:"
-            echo "  Strategy: ${{ inputs.cache-strategy }}"
+            echo "  Strategy: ${INPUTS_CACHE_STRATEGY}"
             echo "  Static assets: $(cat $GITHUB_OUTPUT | grep cache-control-static | cut -d'=' -f2-)"
             echo "  HTML files: $(cat $GITHUB_OUTPUT | grep cache-control-html | cut -d'=' -f2-)"
           fi
+        env:
+          INPUTS_CACHE_STRATEGY: ${{ inputs.cache-strategy }}
+          INPUTS_CLOUDFRONT_INVALIDATION_PATHS: ${{ inputs.cloudfront-invalidation-paths }}
 
       - name: Configure deployment paths
         id: deployment-config
@@ -164,24 +167,25 @@ jobs:
             if [ -n "${{ github.event.pull_request.number }}" ]; then
               PREFIX="pr-${{ github.event.pull_request.number }}"
             else
-              PREFIX="branch-$(echo '${{ github.ref_name }}' | sed 's/[^a-zA-Z0-9-]/-/g')"
+              PREFIX="branch-$(echo '${GITHUB_REF_NAME}' | sed 's/[^a-zA-Z0-9-]/-/g')"
             fi
 
             echo "s3-prefix=${PREFIX}/" >> $GITHUB_OUTPUT
 
-            if [ -n "${{ inputs.preview-base-url }}" ]; then
-              echo "deployment-url=${{ inputs.preview-base-url }}/${PREFIX}/" >> $GITHUB_OUTPUT
+            if [ -n "${INPUTS_PREVIEW_BASE_URL}" ]; then
+              echo "deployment-url=${INPUTS_PREVIEW_BASE_URL}/${PREFIX}/" >> $GITHUB_OUTPUT
             else
-              echo "deployment-url=https://${{ inputs.s3-bucket }}.s3.amazonaws.com/${PREFIX}/index.html" >> $GITHUB_OUTPUT
+              DEPLOY_URL="https://${INPUTS_S3_BUCKET}.s3.amazonaws.com/${PREFIX}/index.html"
+              echo "deployment-url=$DEPLOY_URL" >> $GITHUB_OUTPUT
             fi
           else
             # Production/staging deployment to root
             echo "s3-prefix=" >> $GITHUB_OUTPUT
 
-            if [ -n "${{ inputs.preview-base-url }}" ]; then
-              echo "deployment-url=${{ inputs.preview-base-url }}/" >> $GITHUB_OUTPUT
+            if [ -n "${INPUTS_PREVIEW_BASE_URL}" ]; then
+              echo "deployment-url=${INPUTS_PREVIEW_BASE_URL}/" >> $GITHUB_OUTPUT
             else
-              echo "deployment-url=https://${{ inputs.s3-bucket }}.s3.amazonaws.com/index.html" >> $GITHUB_OUTPUT
+              echo "deployment-url=https://${INPUTS_S3_BUCKET}.s3.amazonaws.com/index.html" >> $GITHUB_OUTPUT
             fi
           fi
 
@@ -190,17 +194,23 @@ jobs:
             echo "  S3 Prefix: $(cat $GITHUB_OUTPUT | grep s3-prefix | cut -d'=' -f2-)"
             echo "  Deployment URL: $(cat $GITHUB_OUTPUT | grep deployment-url | cut -d'=' -f2-)"
           fi
+        env:
+          INPUTS_PREVIEW_BASE_URL: ${{ inputs.preview-base-url }}
+          INPUTS_S3_BUCKET: ${{ inputs.s3-bucket }}
 
       - name: Configure multi-brand matrix
         id: brand-config
         run: |
-          if [ -n "${{ inputs.brand-config }}" ]; then
-            echo "matrix=${{ inputs.brand-config }}" >> $GITHUB_OUTPUT
+          if [ -n "${INPUTS_BRAND_CONFIG}" ]; then
+            echo "matrix=${INPUTS_BRAND_CONFIG}" >> $GITHUB_OUTPUT
             echo "📱 Multi-brand deployment configured"
           else
             echo 'matrix={"brand":["default"]}' >> $GITHUB_OUTPUT
             echo "📱 Single brand deployment"
           fi
+
+        env:
+          INPUTS_BRAND_CONFIG: ${{ inputs.brand-config }}
 
   # Build and test the application
   build-and-deploy:
@@ -217,10 +227,12 @@ jobs:
       matrix: ${{ fromJSON(needs.prepare.outputs.brand-matrix) }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
         with:
           node-version-file: .nvmrc
           cache: ${{ inputs.package-manager }}
@@ -232,7 +244,7 @@ jobs:
             debug="--verbose"
           fi
 
-          case "${{ inputs.package-manager }}" in
+          case "${INPUTS_PACKAGE_MANAGER}" in
             "yarn")
               if [ "${{ inputs.is-yarn-classic }}" = "true" ]; then
                 yarn install --frozen-lockfile $debug
@@ -244,10 +256,12 @@ jobs:
               npm ci $debug
               ;;
             *)
-              echo "❌ Unsupported package manager: ${{ inputs.package-manager }}"
+              echo "❌ Unsupported package manager: ${INPUTS_PACKAGE_MANAGER}"
               exit 1
               ;;
           esac
+        env:
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
 
       - name: Build application
         run: |
@@ -257,18 +271,22 @@ jobs:
           fi
 
           # Set brand-specific environment if multi-brand
-          if [ "${{ matrix.brand }}" != "default" ]; then
-            echo "🏷️ Building for brand: ${{ matrix.brand }}"
-            export BRAND=${{ matrix.brand }}
+          if [ "${MATRIX_BRAND}" != "default" ]; then
+            echo "🏷️ Building for brand: ${MATRIX_BRAND}"
+            export BRAND=${MATRIX_BRAND}
           fi
 
           echo "🏗️ Building application..."
-          ${{ inputs.package-manager }} run ${{ inputs.build-command }} $debug
+          ${INPUTS_PACKAGE_MANAGER} run ${INPUTS_BUILD_COMMAND} $debug
+        env:
+          MATRIX_BRAND: ${{ matrix.brand }}
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
 
       - name: Verify build output
         run: |
-          if [ ! -d "${{ inputs.build-directory }}" ]; then
-            echo "❌ Build directory '${{ inputs.build-directory }}' not found"
+          if [ ! -d "${INPUTS_BUILD_DIRECTORY}" ]; then
+            echo "❌ Build directory '${INPUTS_BUILD_DIRECTORY}' not found"
             echo "Available directories:"
             ls -la
             exit 1
@@ -276,10 +294,12 @@ jobs:
 
           echo "✅ Build completed successfully"
           echo "📁 Build directory contents:"
-          find "${{ inputs.build-directory }}" -type f | head -10
+          find "${INPUTS_BUILD_DIRECTORY}" -type f | head -10        
+        env:
+          INPUTS_BUILD_DIRECTORY: ${{ inputs.build-directory }}
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 #v6.0.0
         with:
           aws-access-key-id: ${{ secrets.aws-access-key-id }}
           aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
@@ -288,54 +308,74 @@ jobs:
       - name: Configure S3 deployment paths
         id: s3-config
         run: |
-          S3_PATH="${{ needs.prepare.outputs.s3-prefix }}"
+          S3_PATH="${NEEDS_PREPARE_OUTPUTS_S3_PREFIX}"
 
-          if [ "${{ matrix.brand }}" != "default" ]; then
-            S3_PATH="${S3_PATH}${{ matrix.brand }}/"
+          if [ "${MATRIX_BRAND}" != "default" ]; then
+            S3_PATH="${S3_PATH}${MATRIX_BRAND}/"
           fi
 
           echo "s3-path=${S3_PATH}" >> $GITHUB_OUTPUT
-          echo "🎯 Deploying to: s3://${{ inputs.s3-bucket }}/${S3_PATH}"
+          echo "🎯 Deploying to: s3://${INPUTS_S3_BUCKET}/${S3_PATH}"
+        env:
+          NEEDS_PREPARE_OUTPUTS_S3_PREFIX: ${{ needs.prepare.outputs.s3-prefix }}
+          MATRIX_BRAND: ${{ matrix.brand }}
+          INPUTS_S3_BUCKET: ${{ inputs.s3-bucket }}
 
       - name: Deploy static assets to S3
         run: |
           echo "🚀 Deploying static assets..."
 
           # Deploy static assets with immutable cache headers (exclude HTML and service-worker.js)
-          aws s3 sync "${{ inputs.build-directory }}" "s3://${{ inputs.s3-bucket }}/${{ steps.s3-config.outputs.s3-path }}" \
+          aws s3 sync \
+            "${INPUTS_BUILD_DIRECTORY}" \
+            "s3://${INPUTS_S3_BUCKET}/${STEPS_S3_CONFIG_OUTPUTS_S3_PATH}" \
             --exclude "*.html" \
             --exclude "service-worker.js" \
-            --cache-control "${{ needs.prepare.outputs.cache-control-static }}" \
+            --cache-control "${NEEDS_PREPARE_OUTPUTS_CACHE_CONTROL_STATIC}" \
             --delete \
-            ${{ inputs.extra-sync-args }}
+            ${INPUTS_EXTRA_SYNC_ARGS}
+        env:
+          INPUTS_BUILD_DIRECTORY: ${{ inputs.build-directory }}
+          INPUTS_S3_BUCKET: ${{ inputs.s3-bucket }}
+          STEPS_S3_CONFIG_OUTPUTS_S3_PATH: ${{ steps.s3-config.outputs.s3-path }}
+          NEEDS_PREPARE_OUTPUTS_CACHE_CONTROL_STATIC: ${{ needs.prepare.outputs.cache-control-static }}
+          INPUTS_EXTRA_SYNC_ARGS: ${{ inputs.extra-sync-args }}
 
       - name: Deploy HTML and service worker to S3
         run: |
           echo "📄 Deploying HTML files and service worker..."
 
           # Deploy HTML and service-worker.js with revalidation cache headers
-          aws s3 sync "${{ inputs.build-directory }}" "s3://${{ inputs.s3-bucket }}/${{ steps.s3-config.outputs.s3-path }}" \
+          aws s3 sync \
+            "${INPUTS_BUILD_DIRECTORY}" \
+            "s3://${INPUTS_S3_BUCKET}/${STEPS_S3_CONFIG_OUTPUTS_S3_PATH}" \
             --exclude "*" \
             --include "*.html" \
             --include "service-worker.js" \
-            --cache-control "${{ needs.prepare.outputs.cache-control-html }}" \
-            ${{ inputs.extra-sync-args }}
+            --cache-control "${NEEDS_PREPARE_OUTPUTS_CACHE_CONTROL_HTML}" \
+            ${INPUTS_EXTRA_SYNC_ARGS}
+        env:
+          INPUTS_BUILD_DIRECTORY: ${{ inputs.build-directory }}
+          INPUTS_S3_BUCKET: ${{ inputs.s3-bucket }}
+          STEPS_S3_CONFIG_OUTPUTS_S3_PATH: ${{ steps.s3-config.outputs.s3-path }}
+          NEEDS_PREPARE_OUTPUTS_CACHE_CONTROL_HTML: ${{ needs.prepare.outputs.cache-control-html }}
+          INPUTS_EXTRA_SYNC_ARGS: ${{ inputs.extra-sync-args }}
 
       - name: Invalidate CloudFront cache
         run: |
           echo "🔄 Invalidating CloudFront cache..."
 
           # Parse invalidation paths
-          PATHS=$(echo '${{ needs.prepare.outputs.invalidation-paths }}' | jq -r '.[]')
+          PATHS=$(echo '${NEEDS_PREPARE_OUTPUTS_INVALIDATION_PATHS}' | jq -r '.[]')
 
           # Add brand prefix if multi-brand deployment
-          if [ "${{ matrix.brand }}" != "default" ]; then
+          if [ "${MATRIX_BRAND}" != "default" ]; then
             PREFIXED_PATHS=""
             for path in $PATHS; do
               if [ "$path" = "/*" ]; then
-                PREFIXED_PATHS="$PREFIXED_PATHS /${{ steps.s3-config.outputs.s3-path }}*"
+                PREFIXED_PATHS="$PREFIXED_PATHS /${STEPS_S3_CONFIG_OUTPUTS_S3_PATH}*"
               else
-                PREFIXED_PATHS="$PREFIXED_PATHS /${{ steps.s3-config.outputs.s3-path }}${path#/}"
+                PREFIXED_PATHS="$PREFIXED_PATHS /${STEPS_S3_CONFIG_OUTPUTS_S3_PATH}${path#/}"
               fi
             done
             PATHS="$PREFIXED_PATHS"
@@ -344,7 +384,7 @@ jobs:
           echo "Invalidating paths: $PATHS"
 
           INVALIDATION_ID=$(aws cloudfront create-invalidation \
-            --distribution-id "${{ inputs.cloudfront-distribution-id }}" \
+            --distribution-id "${INPUTS_CLOUDFRONT_DISTRIBUTION_ID}" \
             --paths $PATHS \
             --query 'Invalidation.Id' \
             --output text)
@@ -354,10 +394,15 @@ jobs:
           if [ "${{ inputs.debug }}" = "true" ]; then
             echo "🔍 Waiting for invalidation to complete..."
             aws cloudfront wait invalidation-completed \
-              --distribution-id "${{ inputs.cloudfront-distribution-id }}" \
+              --distribution-id "${INPUTS_CLOUDFRONT_DISTRIBUTION_ID}" \
               --id "$INVALIDATION_ID"
             echo "✅ CloudFront invalidation completed"
           fi
+        env:
+          NEEDS_PREPARE_OUTPUTS_INVALIDATION_PATHS: ${{ needs.prepare.outputs.invalidation-paths }}
+          MATRIX_BRAND: ${{ matrix.brand }}
+          STEPS_S3_CONFIG_OUTPUTS_S3_PATH: ${{ steps.s3-config.outputs.s3-path }}
+          INPUTS_CLOUDFRONT_DISTRIBUTION_ID: ${{ inputs.cloudfront-distribution-id }}
 
       - name: Generate deployment summary
         run: |
@@ -365,25 +410,37 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Environment** | ${{ inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Brand** | ${{ matrix.brand }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **S3 Bucket** | ${{ inputs.s3-bucket }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **S3 Path** | ${{ steps.s3-config.outputs.s3-path }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Cache Strategy** | ${{ inputs.cache-strategy }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Deployment URL** | ${{ needs.prepare.outputs.deployment-url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | ${INPUTS_ENVIRONMENT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Brand** | ${MATRIX_BRAND} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **S3 Bucket** | ${INPUTS_S3_BUCKET} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **S3 Path** | ${STEPS_S3_CONFIG_OUTPUTS_S3_PATH} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Cache Strategy** | ${INPUTS_CACHE_STRATEGY} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Deployment URL** | ${NEEDS_PREPARE_OUTPUTS_DEPLOYMENT_URL} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 Build Information" >> $GITHUB_STEP_SUMMARY
-          echo "- **Package Manager**: ${{ inputs.package-manager }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build Command**: ${{ inputs.build-command }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build Directory**: ${{ inputs.build-directory }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Package Manager**: ${INPUTS_PACKAGE_MANAGER}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Command**: ${INPUTS_BUILD_COMMAND}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Directory**: ${INPUTS_BUILD_DIRECTORY}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
+          DEPLOY_URL="${NEEDS_PREPARE_OUTPUTS_DEPLOYMENT_URL}"
           if [ "${{ inputs.preview-mode }}" = "true" ]; then
             echo "### 🔍 Preview Environment" >> $GITHUB_STEP_SUMMARY
             echo "This is a preview deployment. The application is available at:" >> $GITHUB_STEP_SUMMARY
-            echo "**[${{ needs.prepare.outputs.deployment-url }}](${{ needs.prepare.outputs.deployment-url }})**" >> $GITHUB_STEP_SUMMARY
+            echo "**[$DEPLOY_URL]($DEPLOY_URL)**" >> $GITHUB_STEP_SUMMARY
           else
             echo "### 🌍 Deployment" >> $GITHUB_STEP_SUMMARY
-            echo "Application deployed to ${{ inputs.environment }} environment:" >> $GITHUB_STEP_SUMMARY
-            echo "**[${{ needs.prepare.outputs.deployment-url }}](${{ needs.prepare.outputs.deployment-url }})**" >> $GITHUB_STEP_SUMMARY
+            echo "Application deployed to ${INPUTS_ENVIRONMENT} environment:" >> $GITHUB_STEP_SUMMARY
+            echo "**[$DEPLOY_URL]($DEPLOY_URL)**" >> $GITHUB_STEP_SUMMARY
           fi
+
+        env:
+          INPUTS_ENVIRONMENT: ${{ inputs.environment }}
+          MATRIX_BRAND: ${{ matrix.brand }}
+          INPUTS_S3_BUCKET: ${{ inputs.s3-bucket }}
+          STEPS_S3_CONFIG_OUTPUTS_S3_PATH: ${{ steps.s3-config.outputs.s3-path }}
+          INPUTS_CACHE_STRATEGY: ${{ inputs.cache-strategy }}
+          NEEDS_PREPARE_OUTPUTS_DEPLOYMENT_URL: ${{ needs.prepare.outputs.deployment-url }}
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
+          INPUTS_BUILD_DIRECTORY: ${{ inputs.build-directory }}

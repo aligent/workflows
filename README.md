@@ -28,6 +28,52 @@ The three changeset workflows work together to automate package versioning, publ
 - [Changeset Check](docs/changeset-check.md) - advisory PR comments for missing changesets
 - [Update Lockfile](docs/update-lockfile.md) - auto-commits lockfile updates on version PRs
 
+## Local Development
+
+### Prerequisites
+
+**yamllint** (via pip3):
+```bash
+pip3 install yamllint
+# Add pip's user bin to your PATH if not already present (macOS)
+export PATH="$PATH:$(python3 -m site --user-base)/bin"
+# Add the export to ~/.zshrc or ~/.bash_profile to make it permanent
+```
+
+**actionlint** — install the pre-built binary for your platform.
+See the [actionlint install docs](https://github.com/rhysd/actionlint/blob/v1.7.11/docs/install.md) for all options. On macOS (Apple Silicon), download the `darwin-arm64` pre-built binary:
+
+```bash
+# macOS (Apple Silicon) — adjust version as needed
+curl -sLO https://github.com/rhysd/actionlint/releases/download/v1.7.11/actionlint_1.7.11_darwin_arm64.tar.gz
+tar -xzf actionlint_1.7.11_darwin_arm64.tar.gz actionlint
+mv actionlint <somewhere on your $PATH>
+```
+
+**zizmor** — security analysis for GitHub Actions.
+See the [zizmor install docs](https://docs.zizmor.sh/installation/) for all options:
+
+```bash
+pip3 install zizmor
+```
+
+**Task** — task runner used to execute the checks.
+See [taskfile.dev/docs/installation](https://taskfile.dev/docs/installation) for all options:
+
+```bash
+# Install script — place the binary somewhere in your $PATH (e.g. ~/bin)
+sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/bin
+```
+
+### Running checks locally
+
+```bash
+task          # run all checks
+task yamllint # YAML linting only
+task actionlint # GitHub Actions linting only
+task zizmor   # security analysis only
+```
+
 ## Test Github Workflows Locally using Act
 
 Refer to https://aligent.atlassian.net/wiki/x/JgDjAwE on guidance to test these Workflows locally

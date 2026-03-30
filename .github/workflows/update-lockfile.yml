@@ -59,13 +59,14 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           token: ${{ secrets.GITHUB_PAT || github.token }}
           ref: ${{ github.head_ref }}
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
@@ -78,7 +79,7 @@ jobs:
           fi
 
       - name: Configure Dependency Cache
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
         with:
           cache: ${{ inputs.package-manager }}
           node-version-file: .nvmrc
@@ -86,7 +87,7 @@ jobs:
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''
         run: |
-          echo "${{ inputs.pre-install-commands }}" | while IFS= read -r cmd; do
+          echo "${INPUTS_PRE_INSTALL_COMMANDS}" | while IFS= read -r cmd; do
             if [ -n "$cmd" ]; then
               echo "Running: $cmd"
               eval "$cmd"
@@ -94,28 +95,34 @@ jobs:
           done
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          INPUTS_PRE_INSTALL_COMMANDS: ${{ inputs.pre-install-commands }}
 
       - name: Update Lockfile
         run: |
-          ${{ inputs.update-command }}
+          ${INPUTS_UPDATE_COMMAND}
 
-          if git diff --quiet ${{ inputs.lockfile }}; then
+          if git diff --quiet ${INPUTS_LOCKFILE}; then
             echo "No lockfile changes needed"
             exit 0
           fi
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          INPUTS_UPDATE_COMMAND: ${{ inputs.update-command }}
+          INPUTS_LOCKFILE: ${{ inputs.lockfile }}
 
       - name: Commit Lockfile Changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          if git diff --quiet ${{ inputs.lockfile }}; then
+          if git diff --quiet ${INPUTS_LOCKFILE}; then
             echo "No changes to commit"
             exit 0
           fi
 
-          git add ${{ inputs.lockfile }}
-          git commit -m "${{ inputs.commit-message }}"
+          git add ${INPUTS_LOCKFILE}
+          git commit -m "${INPUTS_COMMIT_MESSAGE}"
           git push
+        env:
+          INPUTS_LOCKFILE: ${{ inputs.lockfile }}
+          INPUTS_COMMIT_MESSAGE: ${{ inputs.commit-message }}
