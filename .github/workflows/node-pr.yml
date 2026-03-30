@@ -275,7 +275,7 @@ jobs:
 
       - name: Fetch all commits for Nx
         if: steps.check-build.outputs.exists-script != 'true' && steps.check-build.outputs.exists-nx-target == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -407,6 +407,13 @@ jobs:
         uses: aligent/workflows/.github/actions/command-exists@main
         with:
           command: ${{ inputs.check-types-command }}
+
+      - name: Fetch all commits for Nx
+        if: steps.check-check-types.outputs.exists-script != 'true' && steps.check-check-types.outputs.exists-nx-target == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Build commands list
         id: build-commands
