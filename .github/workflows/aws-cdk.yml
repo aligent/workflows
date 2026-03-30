@@ -122,7 +122,7 @@ jobs:
       role-session-name: ${{ steps.resolve-session-name.outputs.role-session-name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           lfs: ${{ inputs.lfs }}
           persist-credentials: false
@@ -159,7 +159,7 @@ jobs:
           fi
 
       - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
         with:
           node-version: ${{ steps.node-version.outputs.version }}
 
@@ -182,7 +182,7 @@ jobs:
           echo "✅ Corepack enabled and cache directory created: $CACHE_DIR"
 
       - name: Configure dependency cache
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
         with:
           node-version: ${{ steps.node-version.outputs.version }}
           # yamllint disable rule:line-length
@@ -399,7 +399,7 @@ jobs:
           echo "✅ node_modules packaged ($(du -h node_modules.tar.gz | cut -f1))"
 
       - name: Upload node_modules artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
         with:
           name: node_modules-${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
           path: node_modules.tar.gz
@@ -418,13 +418,13 @@ jobs:
       deployment-status: ${{ steps.deploy.outputs.status }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           lfs: ${{ inputs.lfs }}
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
         with:
           node-version: ${{ needs.prepare.outputs.node-version }}
 
@@ -442,7 +442,7 @@ jobs:
           echo "✅ Corepack enabled"
 
       - name: Download node_modules artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c #v8.0.1
         with:
           name: node_modules-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
 
@@ -455,7 +455,7 @@ jobs:
 
       - name: Configure AWS credentials (Static)
         if: needs.prepare.outputs.auth-mode == 'static'
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 #v6.0.0
         with:
           aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -464,7 +464,7 @@ jobs:
 
       - name: Configure AWS credentials (OIDC)
         if: needs.prepare.outputs.auth-mode == 'oidc'
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 #v6.0.0
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           role-session-name: ${{ needs.prepare.outputs.role-session-name }}
@@ -532,7 +532,7 @@ jobs:
 
       - name: Upload synthesis artifacts
         if: inputs.synth == true
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
         with:
           name: cdk-synthesis-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: cdk.out/
@@ -578,7 +578,7 @@ jobs:
 
       - name: Upload diff analysis
         if: inputs.diff == true
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
         with:
           name: deployment-diff-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: deployment-diff.txt
@@ -622,7 +622,7 @@ jobs:
 
       - name: Upload deployment artifacts
         if: inputs.deploy == true && steps.deploy.outputs.status == 'success'
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
         with:
           name: deployment-outputs-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: stack-outputs.json
