@@ -207,12 +207,6 @@ jobs:
         with:
           fetch-depth: ${{ inputs.fetch-depth }}
           persist-credentials: false
-      - name: Fetch Origin
-        if: hashFiles('nx.json') != ''
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-        with:
-          fetch-depth: 0
-          persist-credentials: false
       - name: Install Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
         with:
@@ -279,6 +273,13 @@ jobs:
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
           INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
 
+      - name: Fetch all commits for Nx
+        if: steps.check-build.outputs.exists-script != 'true' && steps.check-build.outputs.exists-nx-target == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
       - name: Build (nx)
         if: steps.check-build.outputs.exists-script != 'true' && steps.check-build.outputs.exists-nx-target == 'true'
         run: npx nx run-many -t ${INPUTS_BUILD_COMMAND} ${{ inputs.debug && '--verbose' || '' }}
@@ -314,12 +315,6 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: ${{ inputs.fetch-depth }}
-          persist-credentials: false
-      - name: Fetch Origin
-        if: hashFiles('nx.json') != ''
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-        with:
-          fetch-depth: 0
           persist-credentials: false
       - name: Install Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
