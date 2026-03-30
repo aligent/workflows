@@ -245,7 +245,7 @@ jobs:
 
       - name: Cache Composer dependencies
         if: steps.check-files.outputs.has-composer == 'true'
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
@@ -318,7 +318,7 @@ jobs:
             tar -czf dependencies.tar.gz --files-from /dev/null
           fi
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: steps.check-files.outputs.has-composer == 'true'
         with:
           name: vendor-php${{ inputs.php-version }}
@@ -346,7 +346,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -376,7 +376,7 @@ jobs:
           fi
 
       - name: Cache PHPStan results
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7
         with:
           path: /tmp/phpstan
           key: phpstan-php${{ inputs.php-version }}-${{ inputs.phpstan-level }}-${{ hashFiles('**/*.php') }}
@@ -462,7 +462,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -577,7 +577,7 @@ jobs:
           coverage: xdebug
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -671,7 +671,7 @@ jobs:
           INPUTS_COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
 
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: coverage-php${{ inputs.php-version }}
@@ -679,7 +679,7 @@ jobs:
           retention-days: 7
 
       - name: Upload test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: integration-test-results-php${{ inputs.php-version }}
@@ -748,7 +748,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -801,7 +801,7 @@ jobs:
           INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
 
       - name: Upload test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: integration-test-results-php${{ inputs.php-version }}
@@ -870,7 +870,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -944,7 +944,7 @@ jobs:
           INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
 
       - name: Upload test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: rest-api-test-results-php${{ inputs.php-version }}
@@ -1013,7 +1013,7 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: vendor-php${{ inputs.php-version }}
 
@@ -1087,7 +1087,7 @@ jobs:
           INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
 
       - name: Upload test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: graphql-test-results-php${{ inputs.php-version }}

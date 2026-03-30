@@ -17,7 +17,7 @@ runs:
   using: composite
   steps:
     - id: add-matchers
-      uses: aligent/workflows/.github/actions/node-problem-matchers@main # zizmor: ignore[unpinned-uses] trusted source
+      uses: aligent/workflows/.github/actions/node-problem-matchers@main
     - id: run
       shell: bash
       run: |
@@ -44,6 +44,6 @@ runs:
         INPUTS_COMMANDS: ${{ inputs.commands }}
     - id: remove-matchers
       if: always()
-      uses: aligent/workflows/.github/actions/node-problem-matchers@main # zizmor: ignore[unpinned-uses] trusted source
+      uses: aligent/workflows/.github/actions/node-problem-matchers@main
       with:
         action: remove

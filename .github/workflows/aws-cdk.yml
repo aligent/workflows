@@ -159,7 +159,7 @@ jobs:
           fi
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
         with:
           node-version: ${{ steps.node-version.outputs.version }}
 
@@ -182,7 +182,7 @@ jobs:
           echo "✅ Corepack enabled and cache directory created: $CACHE_DIR"
 
       - name: Configure dependency cache
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
         with:
           node-version: ${{ steps.node-version.outputs.version }}
           # yamllint disable rule:line-length
@@ -399,7 +399,7 @@ jobs:
           echo "✅ node_modules packaged ($(du -h node_modules.tar.gz | cut -f1))"
 
       - name: Upload node_modules artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: node_modules-${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
           path: node_modules.tar.gz
@@ -424,7 +424,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
         with:
           node-version: ${{ needs.prepare.outputs.node-version }}
 
@@ -442,7 +442,7 @@ jobs:
           echo "✅ Corepack enabled"
 
       - name: Download node_modules artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: node_modules-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
 
@@ -532,7 +532,7 @@ jobs:
 
       - name: Upload synthesis artifacts
         if: inputs.synth == true
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: cdk-synthesis-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: cdk.out/
@@ -578,7 +578,7 @@ jobs:
 
       - name: Upload diff analysis
         if: inputs.diff == true
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: deployment-diff-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: deployment-diff.txt
@@ -622,7 +622,7 @@ jobs:
 
       - name: Upload deployment artifacts
         if: inputs.deploy == true && steps.deploy.outputs.status == 'success'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: deployment-outputs-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: stack-outputs.json

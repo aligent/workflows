@@ -93,7 +93,7 @@ jobs:
           INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
         with:
           node-version-file: ${{ inputs.working-directory }}/.nvmrc
           cache: yarn
