@@ -26,6 +26,9 @@ on:
         type: boolean
         required: false
         default: false
+    secrets:
+      AWS_SECRET_ACCESS_KEY:
+        required: false
 
 jobs:
   deploy:
@@ -71,6 +74,7 @@ jobs:
 
           if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
             echo "❌ Error: AWS_SECRET_ACCESS_KEY is not defined as a secret in your $ENVIRONMENT environment"
+            echo "or passed in via an external secret from the calling workflow"
             exit 1
           fi
 

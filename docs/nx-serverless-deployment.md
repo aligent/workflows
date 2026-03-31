@@ -21,6 +21,9 @@ These should be configured in your GitHub Environment (or at the repository leve
 | `CFN_ROLE` | ✅ | Secret | CloudFormation role ARN to assume |
 | `AWS_REGION` | ❌ | Variable | AWS Region to deploy to (defaults to ap-southeast-2) |
 
+
+**Note:** If calling this workflow from an external GitHub organisation, you will need to pass the AWS_SECRET_ACCESS_KEY explicitly (see example below).
+
 #### Example Usage
 
 ```yaml
@@ -47,4 +50,23 @@ jobs:
     with:
       environment: ${{ github.ref_name == 'production' && 'Production' || 'Staging' }}
       package-manager: npm
+```
+
+```yaml
+name: 🚀 Deploy
+
+on:
+  push:
+    branches:
+      - staging
+      - production
+
+jobs:
+  deploy:
+    uses: aligent/workflows/.github/workflows/nx-serverless-deployment.yml@main
+    with:
+      environment: ${{ github.ref_name == 'production' && 'Production' || 'Staging' }}
+      package-manager: npm
+    secrets:
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```
