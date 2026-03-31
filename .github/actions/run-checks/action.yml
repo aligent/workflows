@@ -25,7 +25,7 @@ runs:
         pm=${INPUTS_PACKAGE_MANAGER}
 
         # Parse JSON array of commands
-        readarray -t commands < <(echo '${INPUTS_COMMANDS}' | jq -r '.[]')
+        readarray -t commands < <(echo "${INPUTS_COMMANDS}" | jq -r '.[]')
 
         if [ ${#commands[@]} -gt 0 ]; then
           # Build the full command strings
