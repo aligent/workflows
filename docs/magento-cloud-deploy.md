@@ -3,7 +3,7 @@
 A simple Magento Cloud deployment workflow that pushes code to your Magento Cloud git repository with optional NewRelic monitoring and CST reporting.
 
 #### **Features**
-- **Multi-environment support**: integration, staging, and production deployments
+- **Multi-environment support**: integration, staging, staging2 and production deployments
 - **Simple git push**: No composer install, patching, or building - just pushes code
 - **NewRelic integration**: Optional deployment markers for tracking deployment lifecycle (start/complete)
 - **CST system integration**: Optional composer.lock reporting to Confidentiality and Security Team
@@ -15,7 +15,7 @@ A simple Magento Cloud deployment workflow that pushes code to your Magento Clou
 |------|----------|------|---------|-------------|
 | **Magento Cloud Configuration** |
 | magento-cloud-project-id | ✅ | string | | Magento Cloud project ID (required) |
-| environment | ❌ | string | integration | Target environment (integration/staging/production) |
+| environment | ❌ | string | integration | Target environment (integration/staging/staging2/production) |
 | **Monitoring and Reporting** |
 | newrelic-app-id | ❌ | string | | NewRelic application ID for deployment markers (optional) |
 | **CST Reporting Configuration** |
