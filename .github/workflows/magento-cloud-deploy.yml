@@ -9,7 +9,7 @@ on:
         type: string
         required: true
       environment:
-        description: "Target environment (integration/staging/production)"
+        description: "Target environment (integration/staging/staging2/production)"
         type: string
         required: false
         default: "integration"
@@ -84,8 +84,9 @@ jobs:
 
           if [ "${INPUTS_ENVIRONMENT}" != "integration" ] && \
              [ "${INPUTS_ENVIRONMENT}" != "staging" ] && \
+             [ "${INPUTS_ENVIRONMENT}" != "staging2" ] && \
              [ "${INPUTS_ENVIRONMENT}" != "production" ]; then
-            echo "❌ Error: environment must be one of: integration, staging, production"
+            echo "❌ Error: environment must be one of: integration, staging, staging2, production"
             exit 1
           fi
 
@@ -159,8 +160,8 @@ jobs:
               echo "Deploying to integration environment..."
               magento-cloud push --force --wait $debug
               ;;
-            "staging"|"production")
-              # Push to staging/production branch
+            "staging"|"staging2"|"production")
+              # Push to staging/staging2/production branch
               echo "Deploying to ${INPUTS_ENVIRONMENT} environment..."
               magento-cloud push --environment "${INPUTS_ENVIRONMENT}" --force --wait $debug
               ;;
@@ -225,6 +226,11 @@ jobs:
             "staging")
               echo "### 🚀 Staging Environment" >> $GITHUB_STEP_SUMMARY
               echo "Staging environment updated successfully:" >> $GITHUB_STEP_SUMMARY
+              echo "**[$DEPLOY_URL]($DEPLOY_URL)**" >> $GITHUB_STEP_SUMMARY
+              ;;
+            "staging2")
+              echo "### 🚧 Staging2 Environment" >> $GITHUB_STEP_SUMMARY
+              echo "Staging2 environment updated successfully:" >> $GITHUB_STEP_SUMMARY
               echo "**[$DEPLOY_URL]($DEPLOY_URL)**" >> $GITHUB_STEP_SUMMARY
               ;;
             *)
