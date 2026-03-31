@@ -280,6 +280,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
           clean: false
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build (nx)
         if: steps.check-build.outputs.exists-script != 'true' && steps.check-build.outputs.exists-nx-target == 'true'
@@ -421,6 +422,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
           clean: false
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build commands list
         id: build-commands
