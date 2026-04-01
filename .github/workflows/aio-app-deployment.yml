@@ -1,0 +1,107 @@
+name: AIO App Deployment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub environment to run in
+        type: string
+        required: true
+      aio-cli-version:
+        description: Adobe I/O CLI version to install
+        type: string
+        required: false
+        default: 11.x.x
+      app-directory:
+        description: >
+          Working directory for the app, relative to the repo root.
+          Use this when deploying a subdirectory app in an NX monorepo.
+        type: string
+        required: false
+        default: '.'
+      package-manager:
+        description: Node package manager to use (npm or yarn)
+        type: string
+        required: false
+        default: yarn
+      debug:
+        description: Enable verbose logging
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  deploy:
+    name: Deploy AIO App
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
+        with:
+          node-version-file: .nvmrc
+          cache: ${{ inputs.package-manager }}
+
+      - name: Enable Corepack
+        if: inputs.package-manager == 'yarn'
+        run: corepack enable
+
+      - name: Install dependencies (npm)
+        if: inputs.package-manager != 'yarn'
+        run: npm ci
+
+      - name: Install dependencies (yarn)
+        if: inputs.package-manager == 'yarn'
+        run: yarn install
+
+      - name: Setup Adobe I/O CLI
+        uses: adobe/aio-cli-setup-action@5a7a7313f7024283e7eb384dc79b69b02effb307 #v1.3.0
+        with:
+          os: ubuntu-latest
+          version: ${{ inputs.aio-cli-version }}
+
+      - name: Authenticate with Adobe I/O
+        uses: adobe/aio-apps-action@0a7e7eb813fbdf73faea7ee7d03fd20e6dd7badb #v4.0.0
+        with:
+          os: ubuntu-latest
+          command: oauth_sts
+          CLIENTID: ${{ secrets.AIO_CLIENT_ID }}
+          CLIENTSECRET: ${{ secrets.AIO_CLIENT_SECRET }}
+          TECHNICALACCOUNTID: ${{ secrets.AIO_TECHNICAL_ACCOUNT_ID }}
+          TECHNICALACCOUNTEMAIL: ${{ secrets.AIO_TECHNICAL_ACCOUNT_EMAIL }}
+          IMSORGID: ${{ secrets.AIO_IMS_ORG_ID }}
+          SCOPES: ${{ secrets.AIO_SCOPES }}
+
+      - name: Export extra environment variables
+        env:
+          EXTRA_VARS: ${{ vars.AIO_DEPLOY_EXTRA_VARS }}
+          EXTRA_SECRETS: ${{ secrets.AIO_DEPLOY_EXTRA_SECRETS }}
+        run: |
+          if [ -n "$EXTRA_VARS" ]; then
+            while IFS= read -r line; do
+              [ -n "$line" ] && echo "$line" >> "$GITHUB_ENV"
+            done <<< "$EXTRA_VARS"
+          fi
+          if [ -n "$EXTRA_SECRETS" ]; then
+            while IFS= read -r line; do
+              [ -n "$line" ] && echo "$line" >> "$GITHUB_ENV"
+            done <<< "$EXTRA_SECRETS"
+          fi
+
+      - name: Deploy
+        working-directory: ${{ inputs.app-directory }}
+        env:
+          AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE }}
+          AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH }}
+          AIO_PROJECT_ID: ${{ vars.AIO_PROJECT_ID }}
+          AIO_PROJECT_NAME: ${{ vars.AIO_PROJECT_NAME }}
+          AIO_PROJECT_ORG_ID: ${{ vars.AIO_PROJECT_ORG_ID }}
+          AIO_PROJECT_WORKSPACE_ID: ${{ vars.AIO_PROJECT_WORKSPACE_ID }}
+          AIO_PROJECT_WORKSPACE_NAME: ${{ vars.AIO_PROJECT_WORKSPACE_NAME }}
+          VERBOSE: ${{ inputs.debug && '--verbose' || '' }}
+        run: aio app deploy${VERBOSE:+ $VERBOSE}
