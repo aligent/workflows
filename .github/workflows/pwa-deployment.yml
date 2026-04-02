@@ -485,7 +485,7 @@ jobs:
           NEEDS_PREPARE_OUTPUTS_INVALIDATION_PATHS: ${{ needs.prepare.outputs.invalidation-paths }}
           MATRIX_BRAND: ${{ matrix.brand }}
           STEPS_S3_CONFIG_OUTPUTS_S3_PATH: ${{ steps.s3-config.outputs.s3-path }}
-          INPUTS_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} || ${{ inputs.cloudfront-distribution-id }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} || ${{ inputs.cloudfront-distribution-id }}
           INPUTS_DEBUG: ${{ inputs.debug }}
 
       - name: Generate deployment summary
