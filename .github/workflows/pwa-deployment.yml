@@ -460,7 +460,7 @@ jobs:
           echo "Invalidating paths: $PATHS"
 
           INVALIDATION_ID=$(aws cloudfront create-invalidation \
-            --distribution-id "${INPUTS_CLOUDFRONT_DISTRIBUTION_ID}" \
+            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
             --paths $PATHS \
             --query 'Invalidation.Id' \
             --output text)
@@ -470,7 +470,7 @@ jobs:
           if [ "${{ inputs.debug }}" = "true" ]; then
             echo "🔍 Waiting for invalidation to complete..."
             aws cloudfront wait invalidation-completed \
-              --distribution-id "${INPUTS_CLOUDFRONT_DISTRIBUTION_ID}" \
+              --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
               --id "$INVALIDATION_ID"
             echo "✅ CloudFront invalidation completed"
           fi
