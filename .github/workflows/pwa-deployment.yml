@@ -214,7 +214,7 @@ jobs:
             echo 'INVALIDATION_EOF'
           } >> $GITHUB_OUTPUT
 
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
             echo "🔍 Cache configuration:"
             echo "  Strategy: ${INPUTS_CACHE_STRATEGY}"
             echo "  Static assets: $(cat $GITHUB_OUTPUT | grep cache-control-static | cut -d'=' -f2-)"
@@ -223,16 +223,17 @@ jobs:
         env:
           INPUTS_CACHE_STRATEGY: ${{ inputs.cache-strategy }}
           INPUTS_CLOUDFRONT_INVALIDATION_PATHS: ${{ inputs.cloudfront-invalidation-paths }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
       - name: Configure deployment paths
         id: deployment-config
         run: |
-          if [ "${{ inputs.preview-mode }}" = "true" ]; then
+          if [ "${INPUTS_PREVIEW_MODE}" = "true" ]; then
             # Preview deployment uses PR number or branch name
-            if [ -n "${{ github.event.pull_request.number }}" ]; then
-              PREFIX="pr-${{ github.event.pull_request.number }}"
+            if [ -n "${PR_NUMBER}" ]; then
+              PREFIX="pr-${PR_NUMBER}"
             else
-              PREFIX="branch-$(echo '${GITHUB_REF_NAME}' | sed 's/[^a-zA-Z0-9-]/-/g')"
+              PREFIX="branch-$(echo "${GITHUB_REF_NAME}" | sed 's/[^a-zA-Z0-9-]/-/g')"
             fi
 
             echo "s3-prefix=${PREFIX}/" >> $GITHUB_OUTPUT
@@ -254,7 +255,7 @@ jobs:
             fi
           fi
 
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
             echo "🔍 Deployment configuration:"
             echo "  S3 Prefix: $(cat $GITHUB_OUTPUT | grep s3-prefix | cut -d'=' -f2-)"
             echo "  Deployment URL: $(cat $GITHUB_OUTPUT | grep deployment-url | cut -d'=' -f2-)"
@@ -262,6 +263,9 @@ jobs:
         env:
           INPUTS_PREVIEW_BASE_URL: ${{ inputs.preview-base-url }}
           INPUTS_S3_BUCKET: ${{ vars.S3_BUCKET }} || ${{ inputs.s3-bucket }}
+          INPUTS_PREVIEW_MODE: ${{ inputs.preview-mode }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
 
       - name: Configure multi-brand matrix
         id: brand-config
@@ -308,13 +312,13 @@ jobs:
       - name: Install dependencies
         run: |
           debug=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
             debug="--verbose"
           fi
 
           case "${INPUTS_PACKAGE_MANAGER}" in
             "yarn")
-              if [ "${{ inputs.is-yarn-classic }}" = "true" ]; then
+              if [ "${INPUTS_IS_YARN_CLASSIC}" = "true" ]; then
                 yarn install --frozen-lockfile $debug
               else
                 yarn install --immutable $debug
@@ -330,11 +334,13 @@ jobs:
           esac
         env:
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
+          INPUTS_IS_YARN_CLASSIC: ${{ inputs.is-yarn-classic }}
 
       - name: Build application
         run: |
           debug=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
             debug="--verbose"
           fi
 
@@ -350,6 +356,7 @@ jobs:
           MATRIX_BRAND: ${{ matrix.brand }}
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
           INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
       - name: Verify build output
         run: |
@@ -467,7 +474,7 @@ jobs:
 
           echo "✅ CloudFront invalidation created: $INVALIDATION_ID"
 
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
             echo "🔍 Waiting for invalidation to complete..."
             aws cloudfront wait invalidation-completed \
               --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
@@ -479,6 +486,8 @@ jobs:
           MATRIX_BRAND: ${{ matrix.brand }}
           STEPS_S3_CONFIG_OUTPUTS_S3_PATH: ${{ steps.s3-config.outputs.s3-path }}
           CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} || ${{ inputs.cloudfront-distribution-id }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
+
       - name: Generate deployment summary
         run: |
           echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
@@ -499,7 +508,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           DEPLOY_URL="${NEEDS_PREPARE_OUTPUTS_DEPLOYMENT_URL}"
-          if [ "${{ inputs.preview-mode }}" = "true" ]; then
+          if [ "${INPUTS_PREVIEW_MODE}" = "true" ]; then
             echo "### 🔍 Preview Environment" >> $GITHUB_STEP_SUMMARY
             echo "This is a preview deployment. The application is available at:" >> $GITHUB_STEP_SUMMARY
             echo "**[$DEPLOY_URL]($DEPLOY_URL)**" >> $GITHUB_STEP_SUMMARY
@@ -519,3 +528,4 @@ jobs:
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
           INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
           INPUTS_BUILD_DIRECTORY: ${{ inputs.build-directory }}
+          INPUTS_PREVIEW_MODE: ${{ inputs.preview-mode }}
