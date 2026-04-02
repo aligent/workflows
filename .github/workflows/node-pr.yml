@@ -155,8 +155,10 @@ jobs:
             elif [ -n "$current_key" ]; then
               current_value="$(printf '%s\n%s' "${current_value}" "${line}")"
             fi
-          done <<< "${{ secrets.ENV_VARS }}"
+          done <<< "${SECRETS_ENV_VARS}"
           flush_var
+        env:
+          SECRETS_ENV_VARS: ${{ secrets.ENV_VARS }}
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''
         run: |
@@ -171,10 +173,19 @@ jobs:
           INPUTS_PRE_INSTALL_COMMANDS: ${{ inputs.pre-install-commands }}
       - name: Install dependencies
         run: |
-          debug=${{ inputs.debug && '--verbose' || '' }}
+          debug=""
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
+            debug="--verbose"
+          fi
           if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
-            lock_dependencies=${{ inputs.is-yarn-classic && '--frozen-lockfile' || '--immutable' }}
-            skip_cache=${{ inputs.skip-cache && '--force' || '' }}
+            lock_dependencies="--immutable"
+            if [ "${INPUTS_IS_YARN_CLASSIC}" = "true" ]; then
+              lock_dependencies="--frozen-lockfile"
+            fi
+            skip_cache=""
+            if [ "${INPUTS_SKIP_CACHE}" = "true" ]; then
+              skip_cache="--force"
+            fi
 
             yarn config get nodeLinker
             yarn install $lock_dependencies $skip_cache $debug
@@ -184,6 +195,9 @@ jobs:
 
         env:
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
+          INPUTS_IS_YARN_CLASSIC: ${{ inputs.is-yarn-classic }}
+          INPUTS_SKIP_CACHE: ${{ inputs.skip-cache }}
 
       # Use tar to store cache so file permissions are maintained (https://github.com/actions/upload-artifact/issues/38)
       - name: Archive node_modules with tar
@@ -254,8 +268,10 @@ jobs:
             elif [ -n "$current_key" ]; then
               current_value="$(printf '%s\n%s' "${current_value}" "${line}")"
             fi
-          done <<< "${{ secrets.ENV_VARS }}"
+          done <<< "${SECRETS_ENV_VARS}"
           flush_var
+        env:
+          SECRETS_ENV_VARS: ${{ secrets.ENV_VARS }}
 
       - name: Register problem matchers
         uses: aligent/workflows/.github/actions/node-problem-matchers@main
@@ -268,10 +284,16 @@ jobs:
 
       - name: Build (script)
         if: steps.check-build.outputs.exists-script == 'true'
-        run: ${INPUTS_PACKAGE_MANAGER} run ${INPUTS_BUILD_COMMAND} ${{ inputs.debug && '--verbose' || '' }}
+        run: |
+          debug=""
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
+            debug="--verbose"
+          fi
+          ${INPUTS_PACKAGE_MANAGER} run ${INPUTS_BUILD_COMMAND} $debug
         env:
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
           INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
       - name: Fetch all commits for Nx
         if: steps.check-build.outputs.exists-nx-target == 'true'
@@ -283,9 +305,15 @@ jobs:
 
       - name: Build (nx)
         if: steps.check-build.outputs.exists-script != 'true' && steps.check-build.outputs.exists-nx-target == 'true'
-        run: npx nx run-many -t ${INPUTS_BUILD_COMMAND} ${{ inputs.debug && '--verbose' || '' }}
+        run: |
+          debug=""
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
+            debug="--verbose"
+          fi
+          npx nx run-many -t ${INPUTS_BUILD_COMMAND} $debug
         env:
           INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
       - name: Skip build (command not found)
         if: steps.check-build.outputs.exists-script != 'true' && steps.check-build.outputs.exists-nx-target != 'true'
@@ -364,8 +392,10 @@ jobs:
             elif [ -n "$current_key" ]; then
               current_value="$(printf '%s\n%s' "${current_value}" "${line}")"
             fi
-          done <<< "${{ secrets.ENV_VARS }}"
+          done <<< "${SECRETS_ENV_VARS}"
           flush_var
+        env:
+          SECRETS_ENV_VARS: ${{ secrets.ENV_VARS }}
 
       - name: Run pre-test command
         if: inputs.pre-test-command != ''
@@ -426,18 +456,18 @@ jobs:
         id: build-commands
         run: |
           commands=()
-          if [ "${{ inputs.skip-test }}" != "true" ] && [ "${STEPS_CHECK_TEST_OUTPUTS_EXISTS}" == "true" ]; then
+          if [ "${INPUTS_SKIP_TEST}" != "true" ] && [ "${STEPS_CHECK_TEST_OUTPUTS_EXISTS}" == "true" ]; then
             commands+=("${INPUTS_TEST_COMMAND}")
           fi
-          if [ "${{ inputs.skip-lint }}" != "true" ] && [ "${STEPS_CHECK_LINT_OUTPUTS_EXISTS}" == "true" ]; then
+          if [ "${INPUTS_SKIP_LINT}" != "true" ] && [ "${STEPS_CHECK_LINT_OUTPUTS_EXISTS}" == "true" ]; then
             commands+=("${INPUTS_LINT_COMMAND}")
           fi
-          if [ "${{ inputs.skip-format }}" != "true" ] && [ "${STEPS_CHECK_FORMAT_OUTPUTS_EXISTS}" == "true" ]; then
+          if [ "${INPUTS_SKIP_FORMAT}" != "true" ] && [ "${STEPS_CHECK_FORMAT_OUTPUTS_EXISTS}" == "true" ]; then
             commands+=("${INPUTS_FORMAT_COMMAND}")
           fi
-          if [ "${{ inputs.skip-test-storybook }}" != "true" ] && \
+          if [ "${INPUTS_SKIP_TEST_STORYBOOK}" != "true" ] && \
              [ "${STEPS_CHECK_TEST_STORYBOOK_OUTPUTS_EXISTS}" == "true" ]; then
-            # Ensure playwright dependencies are installed before story blok test execution begins 
+            # Ensure playwright dependencies are installed before story blok test execution begins
             if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
               yarn playwright install --with-deps
             else
@@ -445,7 +475,7 @@ jobs:
             fi
             commands+=("${INPUTS_TEST_STORYBOOK_COMMAND}")
           fi
-          if [ "${{ inputs.skip-check-types }}" != "true" ] && \
+          if [ "${INPUTS_SKIP_CHECK_TYPES}" != "true" ] && \
              [ "${STEPS_CHECK_CHECK_TYPES_OUTPUTS_EXISTS}" == "true" ]; then
             commands+=("${INPUTS_CHECK_TYPES_COMMAND}")
           fi
@@ -464,6 +494,11 @@ jobs:
           INPUTS_TEST_STORYBOOK_COMMAND: ${{ inputs.test-storybook-command }}
           STEPS_CHECK_CHECK_TYPES_OUTPUTS_EXISTS: ${{ steps.check-check-types.outputs.exists }}
           INPUTS_CHECK_TYPES_COMMAND: ${{ inputs.check-types-command }}
+          INPUTS_SKIP_TEST: ${{ inputs.skip-test }}
+          INPUTS_SKIP_LINT: ${{ inputs.skip-lint }}
+          INPUTS_SKIP_FORMAT: ${{ inputs.skip-format }}
+          INPUTS_SKIP_TEST_STORYBOOK: ${{ inputs.skip-test-storybook }}
+          INPUTS_SKIP_CHECK_TYPES: ${{ inputs.skip-check-types }}
 
       - name: Run checks concurrently
         uses: aligent/workflows/.github/actions/run-checks@main

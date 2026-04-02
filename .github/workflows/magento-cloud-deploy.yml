@@ -114,10 +114,10 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{
               "deployment": {
-                "revision": "${{ github.sha }}",
+                "revision": "'"${GITHUB_SHA}"'",
                 "changelog": "Magento Cloud deployment started",
-                "description": "Deployment to ${INPUTS_ENVIRONMENT} environment",
-                "user": "${GITHUB_ACTOR}"
+                "description": "Deployment to '"${INPUTS_ENVIRONMENT}"' environment",
+                "user": "'"${GITHUB_ACTOR}"'"
               }
             }'
 
@@ -146,7 +146,7 @@ jobs:
           echo "🚀 Starting deployment to ${INPUTS_ENVIRONMENT}..."
 
           debug=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
             debug="--verbose"
           fi
 
@@ -172,6 +172,7 @@ jobs:
         env:
           INPUTS_ENVIRONMENT: ${{ inputs.environment }}
           INPUTS_MAGENTO_CLOUD_PROJECT_ID: ${{ inputs.magento-cloud-project-id }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
       - name: Get deployment information
         id: deploy-info
@@ -192,7 +193,7 @@ jobs:
             --columns id --no-header | head -1)
           echo "id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
 
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
             echo "🔍 Deployment information:"
             echo "  URL: ${URL}"
             echo "  Deployment ID: ${DEPLOYMENT_ID}"
@@ -200,6 +201,7 @@ jobs:
         env:
           INPUTS_ENVIRONMENT: ${{ inputs.environment }}
           INPUTS_MAGENTO_CLOUD_PROJECT_ID: ${{ inputs.magento-cloud-project-id }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
       - name: Generate deployment summary
         run: |
@@ -213,7 +215,7 @@ jobs:
           echo "| **Environment** | ${INPUTS_ENVIRONMENT} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Deployment ID** | ${STEPS_DEPLOY_INFO_OUTPUTS_ID} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Site URL** | [$DEPLOY_URL]($DEPLOY_URL) |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Git Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Git Commit** | ${GITHUB_SHA} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Deployed By** | ${GITHUB_ACTOR} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -283,14 +285,14 @@ jobs:
           curl -X POST "https://api.newrelic.com/v2/applications/${INPUTS_NEWRELIC_APP_ID}/deployments.json" \
             -H "X-Api-Key: $NEWRELIC_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "{
-              \"deployment\": {
-                \"revision\": \"${{ github.sha }}\",
-                \"changelog\": \"${CHANGELOG}\",
-                \"description\": \"${DESCRIPTION}\",
-                \"user\": \"${GITHUB_ACTOR}\"
+            -d '{
+              "deployment": {
+                "revision": "'"${GITHUB_SHA}"'",
+                "changelog": "'"${CHANGELOG}"'",
+                "description": "'"${DESCRIPTION}"'",
+                "user": "'"${GITHUB_ACTOR}"'"
               }
-            }"
+            }'
 
           echo "✅ NewRelic deployment marker created with status: ${STEPS_DEPLOYMENT_OUTCOME}"
 
@@ -313,9 +315,9 @@ jobs:
           fi
 
           # Determine CST reporting key - input overrides workspace secret
-          CST_KEY="${{ secrets.cst-reporting-token }}"
+          CST_KEY="${SECRETS_CST_REPORTING_TOKEN_INPUT}"
           if [ -z "$CST_KEY" ]; then
-            CST_KEY="${{ secrets.CST_REPORTING_TOKEN }}"
+            CST_KEY="${SECRETS_CST_REPORTING_TOKEN}"
           fi
 
           # Check if we have all required CST configuration
@@ -365,3 +367,5 @@ jobs:
           GITHUB_EVENT_REPOSITORY_NAME: ${{ github.event.repository.name }}
           INPUTS_CST_BRANCH: ${{ inputs.cst-branch }}
           GITHUB_EVENT_REPOSITORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          SECRETS_CST_REPORTING_TOKEN_INPUT: ${{ secrets.cst-reporting-token }}
+          SECRETS_CST_REPORTING_TOKEN: ${{ secrets.CST_REPORTING_TOKEN }}

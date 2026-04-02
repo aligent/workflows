@@ -72,7 +72,7 @@ jobs:
           command="aws s3 sync ${INPUTS_LOCAL_PATH}"
           command="$command s3://${INPUTS_S3_BUCKET}${INPUTS_S3_PATH} ${cache_control} ${INPUTS_EXTRA_ARGS}"
 
-          if [ "${{inputs.delete-flag}}" = "true" ]; then
+          if [ "${INPUTS_DELETE_FLAG}" = "true" ]; then
             command="$command --delete"
           fi
 
@@ -83,3 +83,4 @@ jobs:
           INPUTS_S3_BUCKET: ${{inputs.s3-bucket}}
           INPUTS_S3_PATH: ${{inputs.s3-path}}
           INPUTS_EXTRA_ARGS: ${{inputs.extra-args}}
+          INPUTS_DELETE_FLAG: ${{ inputs.delete-flag }}
