@@ -23,6 +23,7 @@ A comprehensive PHP quality assurance workflow supporting static analysis, codin
 | **Code Style Configuration** |
 | coding-standard | ❌ | string | Magento2 | Coding standard (Magento2, PSR12, PSR2) |
 | skip-phpcs | ❌ | boolean | false | Skip PHP CodeSniffer checks |
+| use-custom-config | ❌ | boolean | false | Use project config files (phpstan.neon, phpcs.xml) directly instead of composer scripts. See below. |
 | **Testing Configuration** |
 | coverage-threshold | ❌ | string | 80 | Code coverage threshold percentage (0-100) |
 | skip-tests | ❌ | boolean | false | Skip PHP unit testing |
@@ -85,6 +86,24 @@ jobs:
       php-version: "8.4"
       opensearch-image: "aligent/bitbucket-opensearch"
       opensearch-version: "3.1.0"
+```
+
+**Magento project with pre-commit hook scripts (use-custom-config):**
+
+Some projects have composer scripts (`check-style`, `phpstan`) designed for local pre-commit hooks that use `git diff --cached` to scan only staged files. These scripts scan nothing in CI because there are no staged files. Setting `use-custom-config: true` skips composer script detection and uses project config files (`phpstan.neon`, `phpcs.xml`) or vendor binaries with the configured standard directly.
+
+```yaml
+jobs:
+  quality-checks:
+    uses: aligent/workflows/.github/workflows/php-quality-checks.yml@main
+    with:
+      php-version: "8.3"
+      coding-standard: "Magento2"
+      skip-tests: true
+      skip-composer-validate: true
+      use-custom-config: true
+    secrets:
+      composer-auth: ${{ secrets.COMPOSER_AUTH }}
 ```
 
 **PSR Standards with High Coverage:**

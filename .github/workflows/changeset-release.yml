@@ -16,7 +16,9 @@ on:
         default: ""
         type: string
       pre-publish-commands:
-        description: "Commands to run after install but before the changesets action (e.g., build, generate-types, run tests)"
+        description: >-
+          Commands to run after install but before the changesets action
+          (e.g., build, generate-types, run tests)
         default: ""
         type: string
       publish-command:
@@ -40,7 +42,9 @@ on:
         default: true
         type: boolean
       npm-registry-url:
-        description: "npm registry URL for setup-node (used for OIDC/token-based npm publishing). Leave empty if not needed."
+        description: >-
+          npm registry URL for setup-node (used for OIDC/token-based npm publishing).
+          Leave empty if not needed.
         default: ""
         type: string
       post-publish-commands:
@@ -56,7 +60,9 @@ on:
         description: "NPM authentication token for private registries (used during install and publishing)"
         required: false
       GITHUB_PAT:
-        description: "GitHub PAT if the default GITHUB_TOKEN is insufficient (e.g., for triggering other workflows from changeset commits)"
+        description: >-
+          GitHub PAT if the default GITHUB_TOKEN is insufficient
+          (e.g., for triggering other workflows from changeset commits)
         required: false
 
 jobs:
@@ -69,12 +75,13 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           token: ${{ secrets.GITHUB_PAT || github.token }}
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
@@ -87,7 +94,7 @@ jobs:
           fi
 
       - name: Configure Dependency Cache
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
         with:
           cache: ${{ inputs.package-manager }}
           node-version-file: .nvmrc
@@ -96,7 +103,7 @@ jobs:
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''
         run: |
-          echo "${{ inputs.pre-install-commands }}" | while IFS= read -r cmd; do
+          echo "${INPUTS_PRE_INSTALL_COMMANDS}" | while IFS= read -r cmd; do
             if [ -n "$cmd" ]; then
               echo "Running: $cmd"
               eval "$cmd"
@@ -104,25 +111,27 @@ jobs:
           done
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          INPUTS_PRE_INSTALL_COMMANDS: ${{ inputs.pre-install-commands }}
 
       - name: Install dependencies
         run: |
           debug=${{ inputs.debug && '--verbose' || '' }}
-          if [ "${{ inputs.package-manager }}" = "yarn" ]; then
+          if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
             lock_flag=${{ inputs.is-yarn-classic && '--frozen-lockfile' || '--immutable' }}
             yarn install $lock_flag $debug
-          elif [ "${{ inputs.package-manager }}" = "pnpm" ]; then
+          elif [ "${INPUTS_PACKAGE_MANAGER}" = "pnpm" ]; then
             pnpm install --frozen-lockfile $debug
           else
             npm ci $debug
           fi
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
 
       - name: Run pre-publish commands
         if: inputs.pre-publish-commands != ''
         run: |
-          echo "${{ inputs.pre-publish-commands }}" | while IFS= read -r cmd; do
+          echo "${INPUTS_PRE_PUBLISH_COMMANDS}" | while IFS= read -r cmd; do
             if [ -n "$cmd" ]; then
               echo "Running: $cmd"
               eval "$cmd"
@@ -130,6 +139,7 @@ jobs:
           done
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          INPUTS_PRE_PUBLISH_COMMANDS: ${{ inputs.pre-publish-commands }}
 
       - name: Configure Git
         run: |
@@ -138,7 +148,7 @@ jobs:
 
       - name: Create Release Pull Request or Publish
         id: changesets
-        uses: changesets/action@c48e67d110a68bc90ccf1098e9646092baacaa87 # v1.6.0
+        uses: changesets/action@6a0a831ff30acef54f2c6aa1cbbc1096b066edaf # v1.7.0
         with:
           publish: ${{ inputs.publish-command }}
           version: ${{ inputs.version-command }}
@@ -154,12 +164,14 @@ jobs:
         if: steps.changesets.outputs.published == 'true'
         run: |
           echo "Published packages:"
-          echo '${{ steps.changesets.outputs.publishedPackages }}' | jq -r '.[] | "- \(.name)@\(.version)"'
+          echo '${STEPS_CHANGESETS_OUTPUTS_PUBLISHEDPACKAGES}' | jq -r '.[] | "- \(.name)@\(.version)"'
+        env:
+          STEPS_CHANGESETS_OUTPUTS_PUBLISHEDPACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
 
       - name: Run post-publish commands
         if: steps.changesets.outputs.published == 'true' && inputs.post-publish-commands != ''
         run: |
-          echo "${{ inputs.post-publish-commands }}" | while IFS= read -r cmd; do
+          echo "${INPUTS_POST_PUBLISH_COMMANDS}" | while IFS= read -r cmd; do
             if [ -n "$cmd" ]; then
               echo "Running: $cmd"
               eval "$cmd"
@@ -167,3 +179,4 @@ jobs:
           done
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          INPUTS_POST_PUBLISH_COMMANDS: ${{ inputs.post-publish-commands }}

@@ -1,0 +1,188 @@
+name: AIO Mesh Deployment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub environment to run in
+        type: string
+        required: true
+      aio-cli-version:
+        description: Adobe I/O CLI version to install
+        type: string
+        required: false
+        default: 11.x.x
+      mesh-config:
+        description: Path to the mesh config file, relative to mesh-directory
+        type: string
+        required: false
+        default: mesh.json
+      mesh-directory:
+        description: >
+          Working directory for the mesh, relative to the repo root.
+          Use this when deploying a subdirectory mesh in an NX monorepo.
+        type: string
+        required: false
+        default: '.'
+      package-manager:
+        description: Node package manager to use (npm or yarn)
+        type: string
+        required: false
+        default: yarn
+      build-command:
+        description: Optional command to run before deploying the mesh (e.g. yarn build:resolvers)
+        type: string
+        required: false
+        default: ''
+      provisioning-timeout:
+        description: Seconds to wait for the mesh to finish provisioning before failing
+        type: number
+        required: false
+        default: 300
+      debug:
+        description: Enable verbose logging
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  deploy:
+    name: Deploy API Mesh
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
+        with:
+          node-version-file: .nvmrc
+          cache: ${{ inputs.package-manager }}
+
+      - name: Enable Corepack
+        if: inputs.package-manager == 'yarn'
+        run: corepack enable
+
+      - name: Install dependencies (npm)
+        if: inputs.package-manager != 'yarn'
+        run: npm ci
+
+      - name: Install dependencies (yarn)
+        if: inputs.package-manager == 'yarn'
+        run: yarn install
+
+      - name: Setup Adobe I/O CLI
+        uses: adobe/aio-cli-setup-action@5a7a7313f7024283e7eb384dc79b69b02effb307 #v1.3.0
+        with:
+          os: ubuntu-latest
+          version: ${{ inputs.aio-cli-version }}
+
+      - name: Install API Mesh plugin
+        run: aio plugins:install @adobe/aio-cli-plugin-api-mesh
+
+      - name: Authenticate with Adobe I/O
+        uses: adobe/aio-apps-action@0a7e7eb813fbdf73faea7ee7d03fd20e6dd7badb #v4.0.0
+        with:
+          os: ubuntu-latest
+          command: oauth_sts
+          CLIENTID: ${{ secrets.AIO_CLIENT_ID }}
+          CLIENTSECRET: ${{ secrets.AIO_CLIENT_SECRET }}
+          TECHNICALACCOUNTID: ${{ secrets.AIO_TECHNICAL_ACCOUNT_ID }}
+          TECHNICALACCOUNTEMAIL: ${{ secrets.AIO_TECHNICAL_ACCOUNT_EMAIL }}
+          IMSORGID: ${{ secrets.AIO_IMS_ORG_ID }}
+          SCOPES: ${{ secrets.AIO_SCOPES }}
+
+      - name: Select Adobe I/O organisation, project and workspace
+        env:
+          AIO_PROJECT_ORG_ID: ${{ vars.AIO_PROJECT_ORG_ID }}
+          AIO_PROJECT_ID: ${{ vars.AIO_PROJECT_ID }}
+          AIO_PROJECT_WORKSPACE_ID: ${{ vars.AIO_PROJECT_WORKSPACE_ID }}
+        run: |
+          aio config set cli.env prod
+          aio console:org:select "$AIO_PROJECT_ORG_ID"
+          aio console:project:select "$AIO_PROJECT_ID"
+          aio console:workspace:select "$AIO_PROJECT_WORKSPACE_ID"
+
+      - name: Pre-deploy build
+        if: inputs.build-command != ''
+        working-directory: ${{ inputs.mesh-directory }}
+        env:
+          BUILD_COMMAND: ${{ inputs.build-command }}
+        run: $BUILD_COMMAND
+
+      - name: Generate mesh config files
+        working-directory: ${{ inputs.mesh-directory }}
+        env:
+          AIO_MESH_ENV_VARS: ${{ vars.AIO_MESH_ENV_VARS }}
+          AIO_MESH_SECRETS: ${{ secrets.AIO_MESH_SECRETS }}
+        run: |
+          if [ -n "$AIO_MESH_ENV_VARS" ]; then
+            echo "$AIO_MESH_ENV_VARS" > .env
+          fi
+          if [ -n "$AIO_MESH_SECRETS" ]; then
+            while IFS= read -r line; do
+              if [ -n "$line" ]; then
+                key="${line%%=*}"
+                value="${line#*=}"
+                printf '%s: %s\n' "$key" "$value"
+              fi
+            done <<< "$AIO_MESH_SECRETS" > secrets.yaml
+          fi
+
+      - name: Create or update mesh
+        working-directory: ${{ inputs.mesh-directory }}
+        env:
+          MESH_CONFIG: ${{ inputs.mesh-config }}
+        run: |
+          FLAGS="-c $MESH_CONFIG"
+          [ -f ".env" ] && FLAGS="$FLAGS --env=.env"
+          [ -f "secrets.yaml" ] && FLAGS="$FLAGS --secrets=secrets.yaml"
+
+          MESH_STATUS=$(aio api-mesh:status 2>&1 || echo "NO_MESH")
+
+          if [[ "$MESH_STATUS" == *"NO_MESH"* ]] || [[ "$MESH_STATUS" == *"Error"* ]]; then
+            echo "Creating new mesh..."
+            aio api-mesh:create $FLAGS
+          else
+            echo "Updating existing mesh..."
+            aio api-mesh:update $FLAGS
+          fi
+
+      - name: Wait for mesh to be provisioned
+        env:
+          TIMEOUT: ${{ inputs.provisioning-timeout }}
+        run: |
+          echo "Waiting for mesh to be provisioned..."
+          START_TIME=$(date +%s)
+          POLL_INTERVAL=30
+
+          while true; do
+            STATUS_OUTPUT=$(aio api-mesh:status 2>&1 || true)
+
+            if [[ "$STATUS_OUTPUT" == *"Mesh provisioned successfully"* ]]; then
+              echo "Mesh provisioned successfully!"
+              break
+            elif [[ "$STATUS_OUTPUT" == *"Currently provisioning your mesh"* ]] || \
+                 [[ "$STATUS_OUTPUT" == *"Mesh is currently building"* ]]; then
+              CURRENT_TIME=$(date +%s)
+              ELAPSED=$((CURRENT_TIME - START_TIME))
+
+              if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+                echo "ERROR: Mesh provisioning timed out after ${TIMEOUT} seconds"
+                exit 1
+              fi
+
+              echo "Still provisioning... waiting ${POLL_INTERVAL}s (elapsed: ${ELAPSED}s)"
+              sleep $POLL_INTERVAL
+            else
+              echo "ERROR: Unexpected mesh status:"
+              echo "$STATUS_OUTPUT"
+              exit 1
+            fi
+          done
+
+      - name: Describe mesh
+        run: aio api-mesh:describe

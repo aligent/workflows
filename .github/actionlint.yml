@@ -1,0 +1,6 @@
+paths:
+  # CST_REPORTING_TOKEN is an org-level secret — not declared in the workflow
+  # but valid at runtime. actionlint cannot see org-level secrets.
+  ".github/workflows/magento-cloud-deploy.yml":
+    ignore:
+      - 'property "cst_reporting_token" is not defined'

@@ -295,12 +295,12 @@ jobs:
       matrix: ${{ fromJSON(needs.prepare.outputs.brand-matrix) }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
         with:
           node-version-file: .nvmrc
           cache: ${{ inputs.package-manager }}
@@ -362,13 +362,12 @@ jobs:
 
           echo "✅ Build completed successfully"
           echo "📁 Build directory contents:"
-          find "${INPUTS_BUILD_DIRECTORY}" -type f | head -10
+          find "${INPUTS_BUILD_DIRECTORY}" -type f | head -10        
         env:
           INPUTS_BUILD_DIRECTORY: ${{ inputs.build-directory }}
 
-      - name: Configure AWS credentials (Static)
-        if: needs.prepare.outputs.auth-mode == 'static'
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 #v6.0.0
         with:
           aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -486,7 +485,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Environment** | ${INPUTS_GITHUB_ENVIRONMENT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | ${INPUTS_ENVIRONMENT} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Brand** | ${MATRIX_BRAND} |" >> $GITHUB_STEP_SUMMARY
           echo "| **S3 Bucket** | ${INPUTS_S3_BUCKET} |" >> $GITHUB_STEP_SUMMARY
           echo "| **S3 Path** | ${STEPS_S3_CONFIG_OUTPUTS_S3_PATH} |" >> $GITHUB_STEP_SUMMARY
@@ -506,12 +505,12 @@ jobs:
             echo "**[$DEPLOY_URL]($DEPLOY_URL)**" >> $GITHUB_STEP_SUMMARY
           else
             echo "### 🌍 Deployment" >> $GITHUB_STEP_SUMMARY
-            echo "Application deployed to ${INPUTS_GITHUB_ENVIRONMENT} environment:" >> $GITHUB_STEP_SUMMARY
+            echo "Application deployed to ${INPUTS_ENVIRONMENT} environment:" >> $GITHUB_STEP_SUMMARY
             echo "**[$DEPLOY_URL]($DEPLOY_URL)**" >> $GITHUB_STEP_SUMMARY
           fi
 
         env:
-          INPUTS_GITHUB_ENVIRONMENT: ${{ inputs.environment }}
+          INPUTS_ENVIRONMENT: ${{ inputs.environment }}
           MATRIX_BRAND: ${{ matrix.brand }}
           INPUTS_S3_BUCKET: ${{ vars.S3_BUCKET }} || ${{ inputs.s3-bucket }}
           STEPS_S3_CONFIG_OUTPUTS_S3_PATH: ${{ steps.s3-config.outputs.s3-path }}

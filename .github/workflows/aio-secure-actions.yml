@@ -1,0 +1,100 @@
+name: AIO Secure Actions
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub environment to run in
+        type: string
+        required: true
+      aio-cli-version:
+        description: Adobe I/O CLI version to install
+        type: string
+        required: false
+        default: 11.x.x
+      actions:
+        description: Newline-separated list of runtime action names to secure
+        type: string
+        required: true
+    secrets:
+      AIO_CLIENT_ID:
+        description: Adobe I/O client ID
+        required: true
+      AIO_CLIENT_SECRET:
+        description: Adobe I/O client secret
+        required: true
+      AIO_TECHNICAL_ACCOUNT_ID:
+        description: Adobe I/O technical account ID
+        required: true
+      AIO_TECHNICAL_ACCOUNT_EMAIL:
+        description: Adobe I/O technical account email
+        required: true
+      AIO_IMS_ORG_ID:
+        description: Adobe I/O IMS organisation ID
+        required: true
+      AIO_SCOPES:
+        description: Adobe I/O OAuth scopes
+        required: true
+      AIO_RUNTIME_NAMESPACE:
+        description: Adobe I/O Runtime namespace
+        required: true
+      AIO_RUNTIME_AUTH:
+        description: Adobe I/O Runtime auth token
+        required: true
+      AIO_ACTION_AUTH_HASH:
+        description: Web-secure hash to apply to the runtime actions
+        required: true
+
+jobs:
+  secure:
+    name: Secure Actions
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Setup Adobe I/O CLI
+        uses: adobe/aio-cli-setup-action@5a7a7313f7024283e7eb384dc79b69b02effb307 #v1.3.0
+        with:
+          os: ubuntu-latest
+          version: ${{ inputs.aio-cli-version }}
+
+      - name: Authenticate with Adobe I/O
+        uses: adobe/aio-apps-action@0a7e7eb813fbdf73faea7ee7d03fd20e6dd7badb #v4.0.0
+        with:
+          os: ubuntu-latest
+          command: oauth_sts
+          CLIENTID: ${{ secrets.AIO_CLIENT_ID }}
+          CLIENTSECRET: ${{ secrets.AIO_CLIENT_SECRET }}
+          TECHNICALACCOUNTID: ${{ secrets.AIO_TECHNICAL_ACCOUNT_ID }}
+          TECHNICALACCOUNTEMAIL: ${{ secrets.AIO_TECHNICAL_ACCOUNT_EMAIL }}
+          IMSORGID: ${{ secrets.AIO_IMS_ORG_ID }}
+          SCOPES: ${{ secrets.AIO_SCOPES }}
+
+      - name: Secure Actions
+        env:
+          AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE }}
+          AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH }}
+          AIO_PROJECT_ID: ${{ vars.AIO_PROJECT_ID }}
+          AIO_PROJECT_NAME: ${{ vars.AIO_PROJECT_NAME }}
+          AIO_PROJECT_ORG_ID: ${{ vars.AIO_PROJECT_ORG_ID }}
+          AIO_PROJECT_WORKSPACE_ID: ${{ vars.AIO_PROJECT_WORKSPACE_ID }}
+          AIO_PROJECT_WORKSPACE_NAME: ${{ vars.AIO_PROJECT_WORKSPACE_NAME }}
+          ACTIONS: ${{ inputs.actions }}
+          AIO_ACTION_AUTH_HASH: ${{ secrets.AIO_ACTION_AUTH_HASH }}
+        run: |
+          ACTION_LIST=$(aio runtime action list --json)
+
+          while IFS= read -r action; do
+            action=$(echo "$action" | tr -d '[:space:]')
+            [ -z "$action" ] && continue
+
+            JQ_FILTER='.[] | select(.name == $name) | "\(.namespace)/\(.name)"'
+            action_path=$(echo "$ACTION_LIST" | jq -r --arg name "$action" "$JQ_FILTER")
+
+            if [ -z "$action_path" ]; then
+              echo "Warning: action '$action' not found in runtime action list, skipping"
+              continue
+            fi
+
+            echo "Securing action: $action_path"
+            aio runtime action update "$action_path" --web=true --web-secure="$AIO_ACTION_AUTH_HASH"
+          done <<< "$ACTIONS"
