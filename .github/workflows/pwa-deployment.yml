@@ -124,8 +124,8 @@ jobs:
         id: validate-inputs
         env:
           ENVIRONMENT: ${{ inputs.environment }}
-          S3_BUCKET: ${{ vars.S3_BUCKET }} || ${{ inputs.s3-bucket }}
-          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} || ${{ inputs.cloudfront-distribution-id }}
+          S3_BUCKET: ${{ vars.S3_BUCKET || inputs.s3-bucket }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID || inputs.cloudfront-distribution-id }}
           VAR_AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
           SECRET_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           VAR_AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
@@ -261,7 +261,7 @@ jobs:
           fi
         env:
           INPUTS_PREVIEW_BASE_URL: ${{ inputs.preview-base-url }}
-          INPUTS_S3_BUCKET: ${{ vars.S3_BUCKET }} || ${{ inputs.s3-bucket }}
+          INPUTS_S3_BUCKET: ${{ vars.S3_BUCKET || inputs.s3-bucket }}
 
       - name: Configure multi-brand matrix
         id: brand-config
@@ -395,7 +395,7 @@ jobs:
         env:
           NEEDS_PREPARE_OUTPUTS_S3_PREFIX: ${{ needs.prepare.outputs.s3-prefix }}
           MATRIX_BRAND: ${{ matrix.brand }}
-          INPUTS_S3_BUCKET: ${{ vars.S3_BUCKET }} || ${{ inputs.s3-bucket }}
+          INPUTS_S3_BUCKET: ${{ vars.S3_BUCKET || inputs.s3-bucket }}
 
       - name: Deploy static assets to S3
         run: |
@@ -412,7 +412,7 @@ jobs:
             ${INPUTS_EXTRA_SYNC_ARGS}
         env:
           INPUTS_BUILD_DIRECTORY: ${{ inputs.build-directory }}
-          INPUTS_S3_BUCKET: ${{ vars.S3_BUCKET }} || ${{ inputs.s3-bucket }}
+          INPUTS_S3_BUCKET: ${{ vars.S3_BUCKET || inputs.s3-bucket }}
           STEPS_S3_CONFIG_OUTPUTS_S3_PATH: ${{ steps.s3-config.outputs.s3-path }}
           NEEDS_PREPARE_OUTPUTS_CACHE_CONTROL_STATIC: ${{ needs.prepare.outputs.cache-control-static }}
           INPUTS_EXTRA_SYNC_ARGS: ${{ inputs.extra-sync-args }}
@@ -432,7 +432,7 @@ jobs:
             ${INPUTS_EXTRA_SYNC_ARGS}
         env:
           INPUTS_BUILD_DIRECTORY: ${{ inputs.build-directory }}
-          INPUTS_S3_BUCKET: ${{ vars.S3_BUCKET }} || ${{ inputs.s3-bucket }}
+          INPUTS_S3_BUCKET: ${{ vars.S3_BUCKET || inputs.s3-bucket }}
           STEPS_S3_CONFIG_OUTPUTS_S3_PATH: ${{ steps.s3-config.outputs.s3-path }}
           NEEDS_PREPARE_OUTPUTS_CACHE_CONTROL_HTML: ${{ needs.prepare.outputs.cache-control-html }}
           INPUTS_EXTRA_SYNC_ARGS: ${{ inputs.extra-sync-args }}
@@ -512,7 +512,7 @@ jobs:
         env:
           INPUTS_ENVIRONMENT: ${{ inputs.environment }}
           MATRIX_BRAND: ${{ matrix.brand }}
-          INPUTS_S3_BUCKET: ${{ vars.S3_BUCKET }} || ${{ inputs.s3-bucket }}
+          INPUTS_S3_BUCKET: ${{ vars.S3_BUCKET || inputs.s3-bucket }}
           STEPS_S3_CONFIG_OUTPUTS_S3_PATH: ${{ steps.s3-config.outputs.s3-path }}
           INPUTS_CACHE_STRATEGY: ${{ inputs.cache-strategy }}
           NEEDS_PREPARE_OUTPUTS_DEPLOYMENT_URL: ${{ needs.prepare.outputs.deployment-url }}
