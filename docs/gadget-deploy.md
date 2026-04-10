@@ -17,11 +17,10 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 | **Core Configuration** |
 | app-name | ✅ | string | | Gadget App name to deploy to |
 | working-directory | ❌ | string | . | Working directory of Gadget App |
-| environment-name | ❌ | string | staging | Main _development_ environment name |
+| environment-name | ⚠️ | string | | Gadget environment name (required when `action: push`) |
 | **Deployment Control** |
-| push-staging | ❌ | boolean | false | Enable production deployment |
+| action | ✅ | string | | Deployment action: `push` (push to environment) or `deploy` (deploy to production) |
 | test | ❌ | boolean | false | Enable testing on development environment |
-| deploy-production | ❌ | boolean | false | Enable production deployment |
 
 #### **Secrets**
 | Name | Required | Description |
@@ -52,7 +51,7 @@ jobs:
       app-name: my-gadget-app
       working-directory: apps/gadget-app
       environment-name: staging
-      push-staging: true
+      action: push
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
 ```
@@ -73,6 +72,7 @@ jobs:
     with:
       app-name: my-gadget-app
       environment-name: development
+      action: push
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
 ```
@@ -93,7 +93,7 @@ jobs:
       app-name: my-gadget-app
       working-directory: apps/gadget-app
       environment-name: staging
-      push-staging: true
+      action: push
       test: true
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
@@ -114,18 +114,16 @@ jobs:
     with:
       app-name: my-gadget-app
       working-directory: apps/gadget-app
-      environment-name: ${{ github.event.release.tag_name }}
-      deploy-production: true
+      action: deploy
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
 ```
 
-When `deploy-production: true`, the workflow uses a temporary environment strategy to safely promote code to production:
+When `action: deploy`, the workflow uses a temporary environment strategy to safely promote code to production:
 
-1. **Sanitize** — The `environment-name` is sanitized to meet Gadget's naming requirements (lowercase `a-z`, `0-9`, and dashes only). For example, `v1.2.0` becomes `v1-2-0`.
-2. **Create** — A temporary Gadget environment is created using the sanitized name. This ensures the deployment is isolated from the main development/staging environment.
-3. **Push** — The checked-out code is pushed to this temporary environment using `ggt push`.
-4. **Deploy** — The temporary environment is promoted to production using `ggt deploy`.
-5. **Cleanup** — The temporary environment is deleted after deployment, regardless of success or failure.
+1. **Create** — A temporary Gadget environment named `deploy-<run_id>` is created (e.g. `deploy-12345678`), using the GitHub Actions run ID for uniqueness. This ensures the deployment is isolated from the main development/staging environment.
+2. **Push** — The checked-out code is pushed to this temporary environment using `ggt push`.
+3. **Deploy** — The temporary environment is promoted to production using `ggt deploy`.
+4. **Cleanup** — The temporary environment is deleted after deployment, regardless of success or failure.
 
 This approach avoids deploying uncommitted or unreviewed changes that may exist in the shared staging environment, ensuring only the exact code from the Git ref is promoted to production.

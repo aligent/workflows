@@ -12,22 +12,18 @@ on:
         type: string
         required: false
         default: "."
-      environment-name: 
-        description: "Staging/Development environment of Gadget App to push code"
+      environment-name:
+        description: "Staging/Development environment of Gadget App to push code (required when action is 'push')"
         type: string
-        default: "staging"
+        required: false
 
       # Deployment Control
-      push-staging:
-        description: "Boolean to check if push to staging/development Gadget environment"
-        type: boolean
-        default: false
+      action:
+        description: "Deployment action to perform: 'push' (push to environment) or 'deploy' (deploy to production)"
+        type: string
+        required: true
       test:
         description: "Boolean to check if run tests"
-        type: boolean
-        default: false    
-      deploy-production:
-        description: "Boolean to check if promot from staging/development to production"
         type: boolean
         default: false
 
@@ -43,12 +39,21 @@ jobs:
   push:
     name: 🫸 Push to Gadget
     runs-on: ubuntu-latest
+    if: inputs.action == 'push'
     env:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
     outputs:
       push-environment-status: ${{ steps.push-environment.outcome }}
-    if: inputs.push-staging == true
     steps:
+      - name: Validate environment-name
+        run: |
+          if [ -z "${INPUTS_ENVIRONMENT_NAME}" ]; then
+            echo "::error::environment-name is required when action is 'push'"
+            exit 1
+          fi
+        env:
+          INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           persist-credentials: false
@@ -73,10 +78,10 @@ jobs:
   test:
     name: 🧪 Test from Gadget
     runs-on: ubuntu-latest
+    if: inputs.test == true
+    needs: push
     env:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
-    needs: push
-    if: inputs.test == true
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -124,10 +129,11 @@ jobs:
   deploy:
     name: 🚀 Deploying Gadget
     runs-on: ubuntu-latest
+    if: inputs.action == 'deploy'
     env:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
       INPUTS_APP_NAME: ${{ inputs.app-name }}
-    if: inputs.deploy-production == true
+      TEMP_ENV_NAME: deploy-${{ github.run_id }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -138,46 +144,30 @@ jobs:
           npm install -g ggt
           ggt version
 
-      - name: Sanitize environment name
-        id: sanitize-env
-        run: |
-          SANITIZED=$(echo "${INPUTS_ENVIRONMENT_NAME}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
-          echo "env-name=${SANITIZED}" >> "$GITHUB_OUTPUT"
-        env:
-          INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
-
       - name: Create temp Gadget environment
         run: |
-          ggt env create ${SANITIZED_ENV} \
+          ggt env create ${TEMP_ENV_NAME} \
             --app ${INPUTS_APP_NAME}
-        env:
-          SANITIZED_ENV_NAME: ${{ steps.sanitize-env.outputs.env-name }}
 
       - name: Push code to temp Gadget environment
         working-directory: ${{ inputs.working-directory }}
         run: |
           ggt push \
             --app=${INPUTS_APP_NAME} \
-            --env=${SANITIZED_ENV_NAME} \
+            --env=${TEMP_ENV_NAME} \
             --force --allow-unknown-directory
-        env:
-          SANITIZED_ENV_NAME: ${{ steps.sanitize-env.outputs.env-name }}
 
       - name: Deploy (promote) to Production environment in Gadget
         working-directory: ${{ inputs.working-directory }}
         run: |
           ggt deploy \
             --app=${INPUTS_APP_NAME} \
-            --env=${SANITIZED_ENV_NAME} \
+            --env=${TEMP_ENV_NAME} \
             --force --allow-unknown-directory --allow-problems
-        env:
-          SANITIZED_ENV_NAME: ${{ steps.sanitize-env.outputs.env-name }}
 
       - name: Remove temp Gadget environment
         if: always()
         run: |
-          ggt env delete ${SANITIZED_ENV_NAME} \
+          ggt env delete ${TEMP_ENV_NAME} \
             --app ${INPUTS_APP_NAME} \
             --force
-        env:
-          SANITIZED_ENV_NAME: ${{ steps.sanitize-env.outputs.env-name }}
