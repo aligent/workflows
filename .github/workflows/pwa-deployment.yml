@@ -210,7 +210,7 @@ jobs:
           # Prepare invalidation paths (use heredoc to preserve JSON special characters)
           {
             echo 'invalidation-paths<<INVALIDATION_EOF'
-            echo '${INPUTS_CLOUDFRONT_INVALIDATION_PATHS}'
+            echo "${INPUTS_CLOUDFRONT_INVALIDATION_PATHS}"
             echo 'INVALIDATION_EOF'
           } >> $GITHUB_OUTPUT
 
@@ -449,7 +449,7 @@ jobs:
           echo "🔄 Invalidating CloudFront cache..."
 
           # Parse invalidation paths
-          PATHS=$(echo '${NEEDS_PREPARE_OUTPUTS_INVALIDATION_PATHS}' | jq -r '.[]')
+          PATHS=$(echo "${NEEDS_PREPARE_OUTPUTS_INVALIDATION_PATHS}" | jq -r '.[]')
 
           # Add brand prefix if multi-brand deployment
           if [ "${MATRIX_BRAND}" != "default" ]; then
