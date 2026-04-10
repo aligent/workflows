@@ -262,19 +262,31 @@ jobs:
 
       - name: Validate composer.json and composer.lock
         if: steps.check-files.outputs.has-composer == 'true' && inputs.skip-composer-validate != true
-        run: composer validate ${{ inputs.debug && '--verbose' || '' }}
+        run: |
+          debug=""
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
+            debug="--verbose"
+          fi
+          composer validate $debug
+        env:
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
       - name: Install Composer Dependencies
         if: steps.check-files.outputs.has-composer == 'true'
         run: |
+          debug=""
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
+            debug="--verbose"
+          fi
           composer install \
             --dev \
             --no-progress \
             --no-interaction \
             ${INPUTS_COMPOSER_ARGS} \
-            ${{ inputs.debug && '--verbose' || '' }}
+            $debug
         env:
           INPUTS_COMPOSER_ARGS: ${{ inputs.composer-args }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
       - name: Run Magento setup if needed
         if: steps.check-files.outputs.has-composer == 'true'
@@ -397,10 +409,10 @@ jobs:
           echo "🔍 Running PHPStan analysis (Level ${INPUTS_PHPSTAN_LEVEL})..."
 
           # Check for custom phpstan script first (unless use-custom-config is set)
-          if [ "${{ inputs.use-custom-config }}" == "false" ] && composer run-script --list | grep -q "phpstan"; then
+          if [ "${INPUTS_USE_CUSTOM_CONFIG}" == "false" ] && composer run-script --list | grep -q "phpstan"; then
             echo "✅ Using composer phpstan script"
             composer run-script phpstan
-          elif [ "${{ inputs.use-custom-config }}" == "false" ] && [ -f "phpstan.sh" ]; then
+          elif [ "${INPUTS_USE_CUSTOM_CONFIG}" == "false" ] && [ -f "phpstan.sh" ]; then
             echo "✅ Using phpstan.sh script"
             chmod +x phpstan.sh
             ./phpstan.sh
@@ -420,7 +432,7 @@ jobs:
             fi
 
             # Add debug flags if enabled
-            if [ "${{ inputs.debug }}" = "true" ]; then
+            if [ "${INPUTS_DEBUG}" = "true" ]; then
               cmd="$cmd --verbose --debug"
             fi
 
@@ -436,7 +448,7 @@ jobs:
             cmd="$cmd --level=${INPUTS_PHPSTAN_LEVEL} src/ app/"
 
             # Add debug flags if enabled
-            if [ "${{ inputs.debug }}" = "true" ]; then
+            if [ "${INPUTS_DEBUG}" = "true" ]; then
               cmd="$cmd --verbose --debug"
             fi
 
@@ -448,6 +460,8 @@ jobs:
           INPUTS_PHPSTAN_LEVEL: ${{ inputs.phpstan-level }}
           INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
           NEEDS_INSTALL_OUTPUTS_HAS_PHPSTAN_CONFIG: ${{ needs.install.outputs.has-phpstan-config }}
+          INPUTS_USE_CUSTOM_CONFIG: ${{ inputs.use-custom-config }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
   # PHP CodeSniffer style checks
   phpcs:
@@ -504,7 +518,7 @@ jobs:
           echo "🎨 Running PHP CodeSniffer (${INPUTS_CODING_STANDARD} standard)..."
 
           # Check for custom check-style script first (unless use-custom-config is set)
-          if [ "${{ inputs.use-custom-config }}" == "false" ] && \
+          if [ "${INPUTS_USE_CUSTOM_CONFIG}" == "false" ] && \
              composer run-script --list | grep -q "check-style"; then
             echo "✅ Using composer check-style script"
             composer run-script check-style
@@ -519,7 +533,7 @@ jobs:
             fi
 
             cmd="php -d memory_limit=${INPUTS_MEMORY_LIMIT} $phpcs_cmd --report=full --colors"
-            if [ "${{ inputs.debug }}" = "true" ]; then
+            if [ "${INPUTS_DEBUG}" = "true" ]; then
               cmd="$cmd --verbose"
             fi
             eval $cmd
@@ -532,7 +546,7 @@ jobs:
             cmd="$cmd --standard=${INPUTS_CODING_STANDARD} src/ app/"
             cmd="$cmd --report=full --colors"
 
-            if [ "${{ inputs.debug }}" = "true" ]; then
+            if [ "${INPUTS_DEBUG}" = "true" ]; then
               cmd="$cmd --verbose"
             fi
 
@@ -552,7 +566,7 @@ jobs:
             cmd="$cmd --standard=${INPUTS_CODING_STANDARD} src/ app/"
             cmd="$cmd --report=full --colors"
 
-            if [ "${{ inputs.debug }}" = "true" ]; then
+            if [ "${INPUTS_DEBUG}" = "true" ]; then
               cmd="$cmd --verbose"
             fi
 
@@ -563,6 +577,8 @@ jobs:
           INPUTS_CODING_STANDARD: ${{ inputs.coding-standard }}
           NEEDS_INSTALL_OUTPUTS_HAS_PHPCS_CONFIG: ${{ needs.install.outputs.has-phpcs-config }}
           INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
+          INPUTS_USE_CUSTOM_CONFIG: ${{ inputs.use-custom-config }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
   # PHPUnit testing with coverage
   test:
@@ -639,7 +655,7 @@ jobs:
           cmd="$cmd --coverage-text --coverage-clover=coverage.xml"
 
           # Add debug flags if enabled
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
             cmd="$cmd --verbose"
           fi
 
@@ -647,6 +663,7 @@ jobs:
           eval $cmd
         env:
           INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
       - name: Check coverage threshold
         run: |
@@ -796,18 +813,23 @@ jobs:
           fi
 
           # Run integration tests
+          debug=""
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
+            debug="--verbose"
+          fi
           if [ -f "vendor/bin/phpunit" ]; then
             php -d memory_limit=${INPUTS_MEMORY_LIMIT} vendor/bin/phpunit \
               -c $(pwd)/dev/tests/integration/phpunit.xml \
               --log-junit ./test-results/integration-report.xml \
               --testsuite="Integration Tests" \
-              ${{ inputs.debug && '--verbose' || '' }}
+              $debug
           else
             echo "❌ PHPUnit not found in vendor/bin/"
             exit 1
           fi
         env:
           INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
       - name: Upload test results
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
@@ -935,11 +957,15 @@ jobs:
 
           # Run REST API tests
           if [ -f "vendor/bin/phpunit" ]; then
+            debug=""
+            if [ "${INPUTS_DEBUG}" = "true" ]; then
+              debug="--verbose"
+            fi
             php -d memory_limit=${INPUTS_MEMORY_LIMIT} vendor/bin/phpunit \
               -c $(pwd)/dev/tests/api-functional/phpunit_rest.xml \
               --log-junit ./test-results/rest-api-report.xml \
               --testsuite="REST API Tests" \
-              ${{ inputs.debug && '--verbose' || '' }}
+              $debug
           else
             echo "❌ PHPUnit not found in vendor/bin/"
             exit 1
@@ -951,6 +977,7 @@ jobs:
           fi
         env:
           INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
       - name: Upload test results
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
@@ -1078,11 +1105,15 @@ jobs:
 
           # Run GraphQL tests
           if [ -f "vendor/bin/phpunit" ]; then
+            debug=""
+            if [ "${INPUTS_DEBUG}" = "true" ]; then
+              debug="--verbose"
+            fi
             php -d memory_limit=${INPUTS_MEMORY_LIMIT} vendor/bin/phpunit \
               -c $(pwd)/dev/tests/api-functional/phpunit_graphql.xml \
               --log-junit ./test-results/graphql-report.xml \
               --testsuite="GraphQL API Tests" \
-              ${{ inputs.debug && '--verbose' || '' }}
+              $debug
           else
             echo "❌ PHPUnit not found in vendor/bin/"
             exit 1
@@ -1094,6 +1125,7 @@ jobs:
           fi
         env:
           INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
       - name: Upload test results
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0

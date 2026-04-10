@@ -88,9 +88,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          debug=${{ inputs.debug && '--verbose' || '' }}
+          debug=""
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
+            debug="--verbose"
+          fi
           if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
-            lock_flag=${{ inputs.is-yarn-classic && '--frozen-lockfile' || '--immutable' }}
+            lock_flag="--immutable"
+            if [ "${INPUTS_IS_YARN_CLASSIC}" = "true" ]; then
+              lock_flag="--frozen-lockfile"
+            fi
             yarn install $lock_flag $debug
           elif [ "${INPUTS_PACKAGE_MANAGER}" = "pnpm" ]; then
             pnpm install --frozen-lockfile $debug
@@ -100,6 +106,8 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
+          INPUTS_IS_YARN_CLASSIC: ${{ inputs.is-yarn-classic }}
 
       - name: Get Changed Files
         id: changed-files

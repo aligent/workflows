@@ -113,12 +113,14 @@ jobs:
           echo "🧪 Running Maven tests..."
 
           verbose=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
             verbose="-X"
           fi
 
           mvn -B verify $verbose
           echo "✅ Tests completed successfully"
+        env:
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
   build:
     name: 🔨 Build
@@ -150,12 +152,14 @@ jobs:
           echo "🔨 Building AEM project with Maven..."
 
           verbose=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
             verbose="-X"
           fi
 
           mvn -B clean install $verbose
           echo "✅ Build completed successfully"
+        env:
+          INPUTS_DEBUG: ${{ inputs.debug }}
 
   sync-to-cloudmanager:
     name: 📤 Sync to Cloud Manager
@@ -228,7 +232,7 @@ jobs:
             echo "| **Target Branch** | ${GITHUB_REF_NAME} |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          echo "| **Git Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Git Commit** | ${GITHUB_SHA} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Triggered By** | ${GITHUB_ACTOR} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### ✅ Sync Complete" >> $GITHUB_STEP_SUMMARY

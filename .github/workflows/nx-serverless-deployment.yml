@@ -105,12 +105,12 @@ jobs:
       - name: Install dependencies
         run: |
           debug=""
-          if [ "${{ inputs.debug }}" = "true" ]; then
+          if [ "${INPUTS_DEBUG}" = "true" ]; then
             debug="--verbose"
           fi
 
           lock_dependencies="--immutable"
-          if [ "${{ inputs.is-yarn-classic }}" = "true" ]; then
+          if [ "${INPUTS_IS_YARN_CLASSIC}" = "true" ]; then
             lock_dependencies="--frozen-lockfile"
           elif [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
             debug=""
@@ -124,6 +124,8 @@ jobs:
           fi
         env:
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          INPUTS_DEBUG: ${{ inputs.debug }}
+          INPUTS_IS_YARN_CLASSIC: ${{ inputs.is-yarn-classic }}
 
       - name: 🔍 Check repository type
         id: repo-type
