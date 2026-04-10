@@ -1,24 +1,16 @@
 # Shopify App Deployment
 
-A reusable workflow for deploying Shopify apps using the Shopify CLI with support for staging and production environments.
+A reusable workflow for deploying Shopify apps using the Shopify CLI.
 
 #### **Features**
-- **Multi-environment support**: Deploy to staging or production using different TOML configuration files
 - **Configurable working directory**: Support for monorepo structures with custom app locations
-- **Build artifact integration**: Downloads pre-built artifacts before deployment
 - **Shopify CLI integration**: Uses Shopify CLI for configuration and deployment
-- **Deployment validation**: Ensures at least one deployment target is selected
 
 #### **Inputs**
 | Name | Required | Type | Default | Description |
 |------|----------|------|---------|-------------|
-| **Core Configuration** |
 | working-directory | ❌ | string | . | Working directory for the app |
-| development-toml-name | ❌ | string | shopify.app.development.toml | Name of development TOML config file |
-| production-toml-name | ❌ | string | shopify.app.toml | Name of production TOML config file |
-| **Deployment Control** |
-| deploy-staging | ❌ | boolean | false | Enable staging deployment |
-| deploy-production | ❌ | boolean | false | Enable production deployment |
+| shopify-toml-name | ✅ | string | | Name of Shopify TOML configuration file |
 
 #### **Secrets**
 | Name | Required | Description |
@@ -46,7 +38,7 @@ jobs:
     uses: aligent/workflows/.github/workflows/shopify-deploy.yml@main
     with:
       working-directory: apps/shopify-app
-      deploy-staging: true
+      shopify-toml-name: shopify.app.development.toml
     secrets:
       shopify_cli_token: ${{ secrets.SHOPIFY_CLI_TOKEN }}
 ```
@@ -60,26 +52,11 @@ on:
 ...
 
 jobs:
-  build:
   deploy-production:
     uses: aligent/workflows/.github/workflows/shopify-deploy.yml@main
     with:
       working-directory: apps/shopify-app
-      deploy-production: true
-    secrets:
-      shopify_cli_token: ${{ secrets.SHOPIFY_CLI_TOKEN }}
-```
-
-**Custom TOML Configuration:**
-```yaml
-jobs:
-  deploy:
-    uses: aligent/workflows/.github/workflows/shopify-deploy.yml@main
-    with:
-      working-directory: apps/shopify-app
-      development-toml-name: shopify.app.dev.toml
-      production-toml-name: shopify.app.prod.toml
-      deploy-staging: true
+      shopify-toml-name: shopify.app.toml
     secrets:
       shopify_cli_token: ${{ secrets.SHOPIFY_CLI_TOKEN }}
 ```
