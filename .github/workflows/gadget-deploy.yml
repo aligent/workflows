@@ -62,7 +62,10 @@ jobs:
         id: push-environment
         working-directory: ${{ inputs.working-directory }}
         run: |
-          ggt push --app=${INPUTS_APP_NAME} --env=${INPUTS_ENVIRONMENT_NAME} --force --allow-unknown-directory
+          ggt push \
+            --app=${INPUTS_APP_NAME} \
+            --env=${INPUTS_ENVIRONMENT_NAME} \
+            --force --allow-unknown-directory
         env:
           INPUTS_APP_NAME: ${{ inputs.app-name }}
           INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }} 
@@ -87,7 +90,10 @@ jobs:
       - name: Pull client files into env # pull .gadget folder into test runner
         working-directory: ${{ inputs.working-directory }}
         run: |
-          ggt pull --app=${INPUTS_APP_NAME} --env=${INPUTS_ENVIRONMENT_NAME} --force --allow-unknown-directory
+          ggt pull \
+            --app=${INPUTS_APP_NAME} \
+            --env=${INPUTS_ENVIRONMENT_NAME} \
+            --force --allow-unknown-directory
         env:
           INPUTS_APP_NAME: ${{ inputs.app-name }}
           INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
@@ -120,6 +126,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
+      INPUTS_APP_NAME: ${{ inputs.app-name }}
     if: inputs.deploy-production == true
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
@@ -131,14 +138,46 @@ jobs:
           npm install -g ggt
           ggt version
 
+      - name: Sanitize environment name
+        id: sanitize-env
+        run: |
+          SANITIZED=$(echo "${INPUTS_ENVIRONMENT_NAME}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
+          echo "env-name=${SANITIZED}" >> "$GITHUB_OUTPUT"
+        env:
+          INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
+
+      - name: Create temp Gadget environment
+        run: |
+          ggt env create ${SANITIZED_ENV} \
+            --app ${INPUTS_APP_NAME}
+        env:
+          SANITIZED_ENV_NAME: ${{ steps.sanitize-env.outputs.env-name }}
+
+      - name: Push code to temp Gadget environment
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          ggt push \
+            --app=${INPUTS_APP_NAME} \
+            --env=${SANITIZED_ENV_NAME} \
+            --force --allow-unknown-directory
+        env:
+          SANITIZED_ENV_NAME: ${{ steps.sanitize-env.outputs.env-name }}
+
       - name: Deploy (promote) to Production environment in Gadget
         working-directory: ${{ inputs.working-directory }}
         run: |
           ggt deploy \
             --app=${INPUTS_APP_NAME} \
-            --env=${INPUTS_ENVIRONMENT_NAME} \
+            --env=${SANITIZED_ENV_NAME} \
             --force --allow-unknown-directory --allow-problems
-
         env:
-          INPUTS_APP_NAME: ${{ inputs.app-name }}
-          INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
+          SANITIZED_ENV_NAME: ${{ steps.sanitize-env.outputs.env-name }}
+
+      - name: Remove temp Gadget environment
+        if: always()
+        run: |
+          ggt env delete ${SANITIZED_ENV_NAME} \
+            --app ${INPUTS_APP_NAME} \
+            --force
+        env:
+          SANITIZED_ENV_NAME: ${{ steps.sanitize-env.outputs.env-name }}
