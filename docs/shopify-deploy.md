@@ -38,7 +38,7 @@ jobs:
     uses: aligent/workflows/.github/workflows/shopify-deploy.yml@main
     with:
       working-directory: apps/shopify-app
-      shopify-toml-name: shopify.app.development.toml
+      shopify-toml-name: shopify.app.staging.toml
     secrets:
       shopify_cli_token: ${{ secrets.SHOPIFY_CLI_TOKEN }}
 ```
