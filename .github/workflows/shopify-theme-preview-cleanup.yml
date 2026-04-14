@@ -1,0 +1,37 @@
+name: Shopify Theme Preview Cleanup
+
+on:
+  workflow_call:
+    inputs:
+      shopify-store:
+        description: 'Shopify store URL (e.g. example.myshopify.com)'
+        required: true
+        type: string
+      pr-number:
+        description: 'The pull request number from the caller. Pass github.event.pull_request.number.'
+        required: true
+        type: string
+    secrets:
+      SHOPIFY_CLI_THEME_TOKEN:
+        description: 'Theme Access app password'
+        required: true
+
+jobs:
+  cleanup:
+    name: Cleanup preview
+    runs-on: ubuntu-latest
+    env:
+      SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_CLI_THEME_TOKEN }}
+      SHOPIFY_FLAG_STORE: ${{ inputs.shopify-store }}
+      PR_THEME_NAME: "PR-#${{ inputs.pr-number }}"
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 'lts/*'
+
+      - name: Install Shopify CLI
+        run: npm install -g @shopify/cli@latest
+
+      - name: Delete preview theme (ignore if missing)
+        run: shopify theme delete --theme "$PR_THEME_NAME" --force || true
