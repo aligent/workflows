@@ -1,4 +1,4 @@
-name: Shopify Theme Preview Cleanup
+name: 🧹 Shopify Theme Preview Cleanup
 
 on:
   workflow_call:
