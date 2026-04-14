@@ -78,12 +78,13 @@ jobs:
           AIO_PROJECT_ORG_ID: ${{ vars.AIO_PROJECT_ORG_ID }}
           AIO_PROJECT_WORKSPACE_ID: ${{ vars.AIO_PROJECT_WORKSPACE_ID }}
           AIO_PROJECT_WORKSPACE_NAME: ${{ vars.AIO_PROJECT_WORKSPACE_NAME }}
-          ACTIONS: ${{ inputs.actions }}
+          ACTIONS: |
+           ${{ inputs.actions }}
           AIO_ACTION_AUTH_HASH: ${{ secrets.AIO_ACTION_AUTH_HASH }}
         run: |
           ACTION_LIST=$(aio runtime action list --json)
 
-          while IFS= read -r action; do
+          while IFS= read -r action <&3; do
             action=$(echo "$action" | tr -d '[:space:]')
             [ -z "$action" ] && continue
 
@@ -97,4 +98,4 @@ jobs:
 
             echo "Securing action: $action_path"
             aio runtime action update "$action_path" --web=true --web-secure="$AIO_ACTION_AUTH_HASH"
-          done <<< "$ACTIONS"
+          done 3<<< "$ACTIONS"
