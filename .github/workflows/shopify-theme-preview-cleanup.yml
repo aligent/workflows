@@ -21,7 +21,7 @@ jobs:
     name: Cleanup preview
     runs-on: ubuntu-latest
     env:
-      SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_CLI_THEME_TOKEN }}
+      SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_CLI_THEME_TOKEN }} # zizmor: ignore[secrets-outside-env] reusable workflow; caller controls environment scoping
       SHOPIFY_FLAG_STORE: ${{ inputs.shopify-store }}
       PR_THEME_NAME: "PR-#${{ inputs.pr-number }}"
     steps:

@@ -95,7 +95,7 @@ jobs:
     if: inputs.deploy-preview
     runs-on: ubuntu-latest
     env:
-      SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_CLI_THEME_TOKEN }}
+      SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_CLI_THEME_TOKEN }} # zizmor: ignore[secrets-outside-env] reusable workflow; caller controls environment scoping
       SHOPIFY_FLAG_STORE: ${{ inputs.shopify-store }}
       PR_THEME_NAME: "PR-#${{ inputs.pr-number }}"
     steps:
@@ -134,8 +134,10 @@ jobs:
 
       - name: Extract preview URL
         id: preview
+        env:
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
         run: |
-          url=$(jq -r '.theme.preview_url // empty' "${{ inputs.working-directory }}/push.json")
+          url=$(jq -r '.theme.preview_url // empty' "$WORKING_DIRECTORY/push.json")
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Comment preview link on PR
