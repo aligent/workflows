@@ -78,7 +78,7 @@ jobs:
   test:
     name: 🧪 Test from Gadget
     runs-on: ubuntu-latest
-    if: inputs.test == true
+    if: inputs.test == true && inputs.action == 'push'
     needs: push
     env:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
