@@ -48,6 +48,15 @@ Configure these in the GitHub Environment (or at the repository level if not usi
 
 Both extra fields accept multiline `KEY=VALUE` pairs — one per line. Use these for app-specific runtime configuration that varies per project, such as third-party API credentials, AWS credentials, or feature flags.
 
+**Backport Configuration** — optional:
+
+| Name | Type | Description |
+|------|------|-------------|
+| `BACKPORT_TO_STAGING` | Variable | Set to `true` to enable backporting |
+| `BACKPORT_TARGET_BRANCH` | Variable | Target branch for backport (defaults to `staging`) |
+
+**Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
+
 Example `AIO_DEPLOY_EXTRA_VARS` value:
 ```
 AWS_REGION=ap-southeast-2

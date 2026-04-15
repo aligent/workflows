@@ -105,3 +105,9 @@ jobs:
           AIO_PROJECT_WORKSPACE_NAME: ${{ vars.AIO_PROJECT_WORKSPACE_NAME }}
           VERBOSE: ${{ inputs.debug && '--verbose' || '' }}
         run: aio app deploy${VERBOSE:+ $VERBOSE}
+
+      - name: Backport to staging
+        if: success() && vars.BACKPORT_TO_STAGING == 'true'
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ vars.BACKPORT_TARGET_BRANCH || 'staging' }}

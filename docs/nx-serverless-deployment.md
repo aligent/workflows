@@ -21,6 +21,14 @@ These should be configured in your GitHub Environment (or at the repository leve
 | `CFN_ROLE` | ✅ | Secret | CloudFormation role ARN to assume |
 | `AWS_REGION` | ❌ | Variable | AWS Region to deploy to (defaults to ap-southeast-2) |
 
+**Backport Configuration** — optional:
+
+| Name | Type | Description |
+|------|------|-------------|
+| `BACKPORT_TO_STAGING` | Variable | Set to `true` to enable backporting |
+| `BACKPORT_TARGET_BRANCH` | Variable | Target branch for backport (defaults to `staging`) |
+
+**Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
 
 **Note:** If calling this workflow from an external GitHub organisation, you will need to pass the AWS_SECRET_ACCESS_KEY explicitly (see example below).
 

@@ -84,3 +84,9 @@ jobs:
           INPUTS_S3_PATH: ${{inputs.s3-path}}
           INPUTS_EXTRA_ARGS: ${{inputs.extra-args}}
           INPUTS_DELETE_FLAG: ${{ inputs.delete-flag }}
+
+      - name: Backport to staging
+        if: success() && vars.BACKPORT_TO_STAGING == 'true'
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ vars.BACKPORT_TARGET_BRANCH || 'staging' }}

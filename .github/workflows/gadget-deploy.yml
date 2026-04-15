@@ -142,3 +142,9 @@ jobs:
         env:
           INPUTS_APP_NAME: ${{ inputs.app-name }}
           INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
+
+      - name: Backport to staging
+        if: success() && vars.BACKPORT_TO_STAGING == 'true'
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ vars.BACKPORT_TARGET_BRANCH || 'staging' }}

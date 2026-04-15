@@ -11,6 +11,7 @@ A comprehensive Progressive Web Application deployment workflow supporting S3 st
 - **Node.js 16-22 support**: Compatible with Yarn and npm package managers
 - **Manual production gates**: Environment-based deployment protection
 - **Comprehensive caching**: Build artifact optimisation and cleanup
+- **Automatic backporting**: Optional PR creation to backport changes to staging branch
 
 #### **GitHub Environment Variables and Secrets**
 
@@ -28,6 +29,17 @@ Environment-specific values are read directly from the GitHub Environment (set v
 | `AWS_ROLE_ARN` | variable | :white_check_mark: | IAM role ARN to assume via OIDC (alternative to static credentials) |
 
 Either `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` **or** `AWS_ROLE_ARN` must be configured. The workflow detects which to use automatically.
+
+#### **Backport Configuration (Optional)**
+
+Enable automatic PR creation to backport changes to a staging branch after successful deployments.
+
+| Name | Type | Description |
+|------|------|-------------|
+| `BACKPORT_TO_STAGING` | variable | Set to `true` to enable backporting |
+| `BACKPORT_TARGET_BRANCH` | variable | Target branch for backport (defaults to `staging`) |
+
+**Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
 
 #### **Inputs**
 | Name | Required | Type | Default | Description |

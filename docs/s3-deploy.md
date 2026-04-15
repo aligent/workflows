@@ -17,6 +17,17 @@
 |--------------------- |----------|--------------------------------------------|
 | aws-secret-access-key| ✅       | AWS Secret Access Key                      |
 
+#### **Backport Configuration (Optional)**
+
+Enable automatic PR creation to backport changes to a staging branch after successful deployments.
+
+| Name | Type | Description |
+|------|------|-------------|
+| `BACKPORT_TO_STAGING` | Variable | Set to `true` to enable backporting |
+| `BACKPORT_TARGET_BRANCH` | Variable | Target branch for backport (defaults to `staging`) |
+
+**Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
+
 #### Example Usage
 
 ```yaml

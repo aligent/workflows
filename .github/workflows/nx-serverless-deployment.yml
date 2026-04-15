@@ -197,3 +197,9 @@ jobs:
           DEBUG: ${{ inputs.debug }}
 
           STEPS_REPO_TYPE_OUTPUTS_IS_MONOREPO: ${{ steps.repo-type.outputs.is_monorepo }}
+
+      - name: Backport to staging
+        if: success() && vars.BACKPORT_TO_STAGING == 'true'
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ vars.BACKPORT_TARGET_BRANCH || 'staging' }}

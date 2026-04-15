@@ -105,3 +105,9 @@ jobs:
           LOCAL_PATH: ${{ inputs.LOCAL_PATH }}
           CACHE_CONTROL: ${{ inputs.CACHE_CONTROL }}
           EXTRA_ARGS: ${{ inputs.EXTRA_ARGS }}
+
+      - name: Backport to staging
+        if: success() && vars.BACKPORT_TO_STAGING == 'true'
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ vars.BACKPORT_TARGET_BRANCH || 'staging' }}

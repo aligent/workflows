@@ -369,3 +369,9 @@ jobs:
           GITHUB_EVENT_REPOSITORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           SECRETS_CST_REPORTING_TOKEN_INPUT: ${{ secrets.cst-reporting-token }}
           SECRETS_CST_REPORTING_TOKEN: ${{ secrets.CST_REPORTING_TOKEN }}
+
+      - name: Backport to staging
+        if: success() && vars.BACKPORT_TO_STAGING == 'true'
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ vars.BACKPORT_TARGET_BRANCH || 'staging' }}

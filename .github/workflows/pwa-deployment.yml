@@ -529,3 +529,9 @@ jobs:
           INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
           INPUTS_BUILD_DIRECTORY: ${{ inputs.build-directory }}
           INPUTS_PREVIEW_MODE: ${{ inputs.preview-mode }}
+
+      - name: Backport to staging
+        if: success() && vars.BACKPORT_TO_STAGING == 'true'
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ vars.BACKPORT_TARGET_BRANCH || 'staging' }}
