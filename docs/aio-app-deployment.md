@@ -11,6 +11,8 @@ Deploys an Adobe I/O App Builder application using `aio app deploy`. Supports bo
 | `app-directory` | ❌ | string | `.` | Working directory for the app, relative to the repo root. Use for NX monorepo subdirectory apps. |
 | `package-manager` | ❌ | string | `yarn` | Node package manager to use (`npm` or `yarn`) |
 | `debug` | ❌ | boolean | `false` | Enable verbose logging |
+| `create-backport-pr` | ❌ | boolean | `false` | Create a backport PR after deployment |
+| `backport-target-branch` | ❌ | string | `staging` | Target branch for backport PR |
 
 #### **Variables and Secrets**
 
@@ -47,13 +49,6 @@ Configure these in the GitHub Environment (or at the repository level if not usi
 | `AIO_DEPLOY_EXTRA_SECRETS` | Secret | Additional secret environment variables to inject into the deploy step |
 
 Both extra fields accept multiline `KEY=VALUE` pairs — one per line. Use these for app-specific runtime configuration that varies per project, such as third-party API credentials, AWS credentials, or feature flags.
-
-**Backport Configuration** — optional:
-
-| Name | Type | Description |
-|------|------|-------------|
-| `BACKPORT_TO_STAGING` | Variable | Set to `true` to enable backporting |
-| `BACKPORT_TARGET_BRANCH` | Variable | Target branch for backport (defaults to `staging`) |
 
 **Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
 

@@ -30,15 +30,6 @@ Environment-specific values are read directly from the GitHub Environment (set v
 
 Either `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` **or** `AWS_ROLE_ARN` must be configured. The workflow detects which to use automatically.
 
-#### **Backport Configuration (Optional)**
-
-Enable automatic PR creation to backport changes to a staging branch after successful deployments.
-
-| Name | Type | Description |
-|------|------|-------------|
-| `BACKPORT_TO_STAGING` | variable | Set to `true` to enable backporting |
-| `BACKPORT_TARGET_BRANCH` | variable | Target branch for backport (defaults to `staging`) |
-
 **Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
 
 #### **Inputs**
@@ -66,6 +57,9 @@ Enable automatic PR creation to backport changes to a staging branch after succe
 | extra-sync-args | :x: | string | | Additional AWS S3 sync arguments |
 | **Debug and Control** |
 | debug | :x: | boolean | false | Enable verbose logging and debug output |
+| **Backport Configuration** |
+| create-backport-pr | :x: | boolean | false | Create a backport PR after deployment |
+| backport-target-branch | :x: | string | staging | Target branch for backport PR |
 
 #### **Outputs**
 | Name | Description |

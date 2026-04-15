@@ -22,6 +22,9 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 | push-staging | ❌ | boolean | false | Enable production deployment |
 | test | ❌ | boolean | false | Enable testing on development environment |
 | deploy-production | ❌ | boolean | false | Enable production deployment |
+| **Backport Configuration** |
+| create-backport-pr | ❌ | boolean | false | Create a backport PR after deployment |
+| backport-target-branch | ❌ | string | staging | Target branch for backport PR |
 
 #### **Secrets**
 | Name | Required | Description |
@@ -33,15 +36,6 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 | Name | Description |
 |------|-------------|
 | push-environment-status | Status of test environment push (success/failure) |
-
-#### **Backport Configuration (Optional)**
-
-Enable automatic PR creation to backport changes to a staging branch after successful deployments.
-
-| Name | Type | Description |
-|------|------|-------------|
-| `BACKPORT_TO_STAGING` | Variable | Set to `true` to enable backporting |
-| `BACKPORT_TARGET_BRANCH` | Variable | Target branch for backport (defaults to `staging`) |
 
 **Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
 

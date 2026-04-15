@@ -8,6 +8,8 @@
 | package-manager      | ❌       | string  | yarn            | Node package manager to use                |
 | build-command        | ❌       | string  | build           | Command to override the build command      |
 | debug                | ❌       | boolean | false           | If verbose logging should be enabled       |
+| create-backport-pr   | ❌       | boolean | false           | Create a backport PR after deployment      |
+| backport-target-branch | ❌     | string  | staging         | Target branch for backport PR              |
 
 #### **Variables and Secrets**
 
@@ -20,13 +22,6 @@ These should be configured in your GitHub Environment (or at the repository leve
 | `AWS_SECRET_ACCESS_KEY` | ✅ | Secret | AWS Secret Access Key for authentication |
 | `CFN_ROLE` | ✅ | Secret | CloudFormation role ARN to assume |
 | `AWS_REGION` | ❌ | Variable | AWS Region to deploy to (defaults to ap-southeast-2) |
-
-**Backport Configuration** — optional:
-
-| Name | Type | Description |
-|------|------|-------------|
-| `BACKPORT_TO_STAGING` | Variable | Set to `true` to enable backporting |
-| `BACKPORT_TARGET_BRANCH` | Variable | Target branch for backport (defaults to `staging`) |
 
 **Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
 

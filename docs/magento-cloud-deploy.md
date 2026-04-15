@@ -25,6 +25,9 @@ A simple Magento Cloud deployment workflow that pushes code to your Magento Clou
 | cst-branch | ❌ | string | | CST branch to report against (optional, defaults to repository default branch) |
 | **Advanced Configuration** |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
+| **Backport Configuration** |
+| create-backport-pr | ❌ | boolean | false | Create a backport PR after deployment |
+| backport-target-branch | ❌ | string | staging | Target branch for backport PR |
 
 #### **Secrets**
 | Name | Required | Description |
@@ -38,15 +41,6 @@ A simple Magento Cloud deployment workflow that pushes code to your Magento Clou
 |------|-------------|
 | CST_ENDPOINT | CST endpoint base URL (e.g., `https://package.report.aligent.consulting`) |
 | CST_PROJECT_KEY | CST project identifier for your organization |
-
-#### **Backport Configuration (Optional)**
-
-Enable automatic PR creation to backport changes to a staging branch after successful deployments.
-
-| Name | Type | Description |
-|------|------|-------------|
-| `BACKPORT_TO_STAGING` | Variable | Set to `true` to enable backporting |
-| `BACKPORT_TARGET_BRANCH` | Variable | Target branch for backport (defaults to `staging`) |
 
 **Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
 

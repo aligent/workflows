@@ -39,6 +39,19 @@ on:
         description: "AWS Access Key ID"
         type: string
         required: true
+
+      # Backport Configuration
+      create-backport-pr:
+        description: "Create a backport PR to staging after deployment"
+        type: boolean
+        required: false
+        default: false
+      backport-target-branch:
+        description: "Target branch for backport PR"
+        type: string
+        required: false
+        default: "staging"
+
     secrets:
       aws-secret-access-key:
         description: "AWS Secret Access Key"
@@ -86,7 +99,7 @@ jobs:
           INPUTS_DELETE_FLAG: ${{ inputs.delete-flag }}
 
       - name: Backport to staging
-        if: success() && vars.BACKPORT_TO_STAGING == 'true'
+        if: success() && inputs.create-backport-pr
         uses: aligent/workflows/.github/actions/backport@main
         with:
-          target-branch: ${{ vars.BACKPORT_TARGET_BRANCH || 'staging' }}
+          target-branch: ${{ inputs.backport-target-branch }}
