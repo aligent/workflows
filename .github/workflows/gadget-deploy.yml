@@ -31,6 +31,16 @@ on:
         type: boolean
         default: false
 
+      # Backport Configuration
+      create-backport-pr:
+        description: "Create a backport PR to staging after deployment"
+        type: boolean
+        default: false
+      backport-target-branch:
+        description: "Target branch for backport PR"
+        type: string
+        default: "staging"
+
     secrets:
       gadget-api-token:
         description: "Gadget API token"
@@ -142,3 +152,9 @@ jobs:
         env:
           INPUTS_APP_NAME: ${{ inputs.app-name }}
           INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
+
+      - name: Backport to staging
+        if: success() && inputs.create-backport-pr
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ inputs.backport-target-branch }}

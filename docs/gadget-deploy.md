@@ -9,6 +9,7 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 - **Force push capabilities**: Ensures code synchronization with `--force` flag
 - **Gadget CLI integration**: Uses `ggt` CLI tool for all operations
 - **Test validation**: Runs full test suite before production deployment
+- **Automatic backporting**: Optional PR creation to backport changes to staging branch
 
 #### **Inputs**
 | Name | Required | Type | Default | Description |
@@ -21,6 +22,9 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 | push-staging | ❌ | boolean | false | Enable production deployment |
 | test | ❌ | boolean | false | Enable testing on development environment |
 | deploy-production | ❌ | boolean | false | Enable production deployment |
+| **Backport Configuration** |
+| create-backport-pr | ❌ | boolean | false | Create a backport PR after deployment |
+| backport-target-branch | ❌ | string | staging | Target branch for backport PR |
 
 #### **Secrets**
 | Name | Required | Description |
@@ -32,6 +36,8 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 | Name | Description |
 |------|-------------|
 | push-environment-status | Status of test environment push (success/failure) |
+
+**Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
 
 #### **Example Usage**
 

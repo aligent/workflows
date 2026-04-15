@@ -11,11 +11,15 @@
 | cache-control        | ❌       | string  |                 | Cache control headers                      |
 | extra-args           | ❌       | string  |                 | Additional AWS CLI args                    |
 | aws-access-key-id    | ✅       | string  |                 | AWS Access Key ID                          |
+| create-backport-pr   | ❌       | boolean | false           | Create a backport PR after deployment      |
+| backport-target-branch | ❌     | string  | staging         | Target branch for backport PR              |
 
 #### **Secrets**
 | Name                  | Required | Description                               |
 |--------------------- |----------|--------------------------------------------|
 | aws-secret-access-key| ✅       | AWS Secret Access Key                      |
+
+**Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
 
 #### Example Usage
 
