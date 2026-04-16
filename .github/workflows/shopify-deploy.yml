@@ -13,6 +13,16 @@ on:
         required: true
         type: string
 
+      # Backport Configuration
+      create-backport-pr:
+        description: "Create a backport PR to staging after deployment"
+        type: boolean
+        default: false
+      backport-target-branch:
+        description: "Target branch for backport PR"
+        type: string
+        default: "staging"
+
     secrets:
       shopify_cli_token:
         description: 'Shopify CLI authentication token'
@@ -56,3 +66,9 @@ jobs:
         env:
           SHOPIFY_CLI_TOKEN: ${{ secrets.shopify_cli_token }}
           SHOPIFY_FLAG_PATH: ${{ inputs.working-directory }}
+
+      - name: Backport to staging
+        if: success() && inputs.create-backport-pr
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ inputs.backport-target-branch }}

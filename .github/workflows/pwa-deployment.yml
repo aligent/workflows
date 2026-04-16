@@ -96,6 +96,18 @@ on:
         required: false
         default: false
 
+      # Backport Configuration
+      create-backport-pr:
+        description: "Create a backport PR to staging after deployment"
+        type: boolean
+        required: false
+        default: false
+      backport-target-branch:
+        description: "Target branch for backport PR"
+        type: string
+        required: false
+        default: "staging"
+
     outputs:
       deployment-url:
         description: "URL of the deployed application"
@@ -374,7 +386,7 @@ jobs:
           INPUTS_BUILD_DIRECTORY: ${{ inputs.build-directory }}
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 #v6.0.0
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 #v6.1.0
         with:
           aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -382,7 +394,7 @@ jobs:
 
       - name: Configure AWS credentials (OIDC)
         if: needs.prepare.outputs.auth-mode == 'oidc'
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 #v6.0.0
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 #v6.1.0
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           role-session-name: ${{ needs.prepare.outputs.role-session-name }}
@@ -529,3 +541,9 @@ jobs:
           INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
           INPUTS_BUILD_DIRECTORY: ${{ inputs.build-directory }}
           INPUTS_PREVIEW_MODE: ${{ inputs.preview-mode }}
+
+      - name: Backport to staging
+        if: success() && inputs.create-backport-pr
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ inputs.backport-target-branch }}

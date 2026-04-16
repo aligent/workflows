@@ -39,6 +39,19 @@ on:
         description: "AWS Access Key ID"
         type: string
         required: true
+
+      # Backport Configuration
+      create-backport-pr:
+        description: "Create a backport PR to staging after deployment"
+        type: boolean
+        required: false
+        default: false
+      backport-target-branch:
+        description: "Target branch for backport PR"
+        type: string
+        required: false
+        default: "staging"
+
     secrets:
       aws-secret-access-key:
         description: "AWS Secret Access Key"
@@ -53,7 +66,7 @@ jobs:
           persist-credentials: false
 
       - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 #v6.0.0
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 #v6.1.0
         with:
           aws-access-key-id: ${{ inputs.aws-access-key-id }}
           aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
@@ -84,3 +97,9 @@ jobs:
           INPUTS_S3_PATH: ${{inputs.s3-path}}
           INPUTS_EXTRA_ARGS: ${{inputs.extra-args}}
           INPUTS_DELETE_FLAG: ${{ inputs.delete-flag }}
+
+      - name: Backport to staging
+        if: success() && inputs.create-backport-pr
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ inputs.backport-target-branch }}

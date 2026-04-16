@@ -12,24 +12,30 @@ on:
         type: string
         required: false
         default: "."
-      environment-name: 
-        description: "Staging/Development environment of Gadget App to push code"
+      environment-name:
+        description: "Staging/Development environment of Gadget App to push code (required when action is 'push')"
         type: string
-        default: "staging"
+        required: false
 
       # Deployment Control
-      push-staging:
-        description: "Boolean to check if push to staging/development Gadget environment"
-        type: boolean
-        default: false
+      action:
+        description: "Deployment action to perform: 'push' (push to environment) or 'deploy' (deploy to production)"
+        type: string
+        required: true
       test:
         description: "Boolean to check if run tests"
         type: boolean
-        default: false    
-      deploy-production:
-        description: "Boolean to check if promot from staging/development to production"
+        default: false
+
+      # Backport Configuration
+      create-backport-pr:
+        description: "Create a backport PR to staging after deployment"
         type: boolean
         default: false
+      backport-target-branch:
+        description: "Target branch for backport PR"
+        type: string
+        default: "staging"
 
     secrets:
       gadget-api-token:
@@ -43,12 +49,21 @@ jobs:
   push:
     name: 🫸 Push to Gadget
     runs-on: ubuntu-latest
+    if: inputs.action == 'push'
     env:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
     outputs:
       push-environment-status: ${{ steps.push-environment.outcome }}
-    if: inputs.push-staging == true
     steps:
+      - name: Validate environment-name
+        run: |
+          if [ -z "${INPUTS_ENVIRONMENT_NAME}" ]; then
+            echo "::error::environment-name is required when action is 'push'"
+            exit 1
+          fi
+        env:
+          INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
           persist-credentials: false
@@ -62,7 +77,10 @@ jobs:
         id: push-environment
         working-directory: ${{ inputs.working-directory }}
         run: |
-          ggt push --app=${INPUTS_APP_NAME} --env=${INPUTS_ENVIRONMENT_NAME} --force --allow-unknown-directory
+          ggt push \
+            --app=${INPUTS_APP_NAME} \
+            --env=${INPUTS_ENVIRONMENT_NAME} \
+            --force --allow-unknown-directory
         env:
           INPUTS_APP_NAME: ${{ inputs.app-name }}
           INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }} 
@@ -70,10 +88,10 @@ jobs:
   test:
     name: 🧪 Test from Gadget
     runs-on: ubuntu-latest
+    if: inputs.test == true && inputs.action == 'push'
+    needs: push
     env:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
-    needs: push
-    if: inputs.test == true
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -87,7 +105,10 @@ jobs:
       - name: Pull client files into env # pull .gadget folder into test runner
         working-directory: ${{ inputs.working-directory }}
         run: |
-          ggt pull --app=${INPUTS_APP_NAME} --env=${INPUTS_ENVIRONMENT_NAME} --force --allow-unknown-directory
+          ggt pull \
+            --app=${INPUTS_APP_NAME} \
+            --env=${INPUTS_ENVIRONMENT_NAME} \
+            --force --allow-unknown-directory
         env:
           INPUTS_APP_NAME: ${{ inputs.app-name }}
           INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
@@ -118,9 +139,11 @@ jobs:
   deploy:
     name: 🚀 Deploying Gadget
     runs-on: ubuntu-latest
+    if: inputs.action == 'deploy'
     env:
       GGT_TOKEN: ${{ secrets.gadget-api-token }}
-    if: inputs.deploy-production == true
+      INPUTS_APP_NAME: ${{ inputs.app-name }}
+      TEMP_ENV_NAME: deploy-${{ github.run_id }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -131,14 +154,36 @@ jobs:
           npm install -g ggt
           ggt version
 
+      - name: Create temp Gadget environment
+        run: |
+          ggt env create ${TEMP_ENV_NAME} \
+            --app ${INPUTS_APP_NAME}
+
+      - name: Push code to temp Gadget environment
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          ggt push \
+            --app=${INPUTS_APP_NAME} \
+            --env=${TEMP_ENV_NAME} \
+            --force --allow-unknown-directory
+
       - name: Deploy (promote) to Production environment in Gadget
         working-directory: ${{ inputs.working-directory }}
         run: |
           ggt deploy \
             --app=${INPUTS_APP_NAME} \
-            --env=${INPUTS_ENVIRONMENT_NAME} \
+            --env=${TEMP_ENV_NAME} \
             --force --allow-unknown-directory --allow-problems
 
-        env:
-          INPUTS_APP_NAME: ${{ inputs.app-name }}
-          INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
+      - name: Remove temp Gadget environment
+        if: always()
+        run: |
+          ggt env delete ${TEMP_ENV_NAME} \
+            --app ${INPUTS_APP_NAME} \
+            --force
+
+      - name: Backport to staging
+        if: success() && inputs.create-backport-pr
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ inputs.backport-target-branch }}
