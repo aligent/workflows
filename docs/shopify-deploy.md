@@ -8,6 +8,7 @@ A reusable workflow for deploying Shopify apps using the Shopify CLI with suppor
 - **Build artifact integration**: Downloads pre-built artifacts before deployment
 - **Shopify CLI integration**: Uses Shopify CLI for configuration and deployment
 - **Deployment validation**: Ensures at least one deployment target is selected
+- **Automatic backporting**: Optional PR creation to backport changes to staging branch
 
 #### **Inputs**
 | Name | Required | Type | Default | Description |
@@ -19,11 +20,16 @@ A reusable workflow for deploying Shopify apps using the Shopify CLI with suppor
 | **Deployment Control** |
 | deploy-staging | ❌ | boolean | false | Enable staging deployment |
 | deploy-production | ❌ | boolean | false | Enable production deployment |
+| **Backport Configuration** |
+| create-backport-pr | ❌ | boolean | false | Create a backport PR after deployment |
+| backport-target-branch | ❌ | string | staging | Target branch for backport PR |
 
 #### **Secrets**
 | Name | Required | Description |
 |------|----------|-------------|
 | shopify_cli_token | ✅ | Shopify CLI authentication token |
+
+**Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
 
 #### **Prerequisites**
 - A `.nvmrc` file in the repository root specifying the Node.js version

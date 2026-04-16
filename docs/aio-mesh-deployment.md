@@ -14,6 +14,8 @@ Creates or updates an Adobe I/O API Mesh. Automatically detects whether the mesh
 | `build-command` | ❌ | string | | Command to run before deploying (e.g. `yarn build:resolvers`). Required when the mesh uses custom resolvers that must be compiled first. |
 | `provisioning-timeout` | ❌ | number | `300` | Seconds to wait for provisioning before failing |
 | `debug` | ❌ | boolean | `false` | Enable verbose logging |
+| `create-backport-pr` | ❌ | boolean | `false` | Create a backport PR after deployment |
+| `backport-target-branch` | ❌ | string | `staging` | Target branch for backport PR |
 
 #### **Variables and Secrets**
 
@@ -46,6 +48,8 @@ Configure these in the GitHub Environment (or at the repository level if not usi
 | `AIO_MESH_SECRETS` | Secret | Secrets to inject into the mesh via `secrets.yaml` (passed as `--secrets=secrets.yaml`) |
 
 Both fields accept multiline `KEY=VALUE` pairs — one per line. If neither is set, the `--env` and `--secrets` flags are omitted from the mesh command.
+
+**Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
 
 Example `AIO_MESH_ENV_VARS` value:
 ```

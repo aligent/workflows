@@ -30,6 +30,18 @@ on:
         required: false
         default: false
 
+      # Backport Configuration
+      create-backport-pr:
+        description: Create a backport PR to staging after deployment
+        type: boolean
+        required: false
+        default: false
+      backport-target-branch:
+        description: Target branch for backport PR
+        type: string
+        required: false
+        default: staging
+
 jobs:
   deploy:
     name: Deploy AIO App
@@ -105,3 +117,9 @@ jobs:
           AIO_PROJECT_WORKSPACE_NAME: ${{ vars.AIO_PROJECT_WORKSPACE_NAME }}
           VERBOSE: ${{ inputs.debug && '--verbose' || '' }}
         run: aio app deploy${VERBOSE:+ $VERBOSE}
+
+      - name: Backport to staging
+        if: success() && inputs.create-backport-pr
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ inputs.backport-target-branch }}

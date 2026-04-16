@@ -50,6 +50,18 @@ on:
         type: string
         required: false
 
+      # Backport Configuration
+      create-backport-pr:
+        description: "Create a backport PR to staging after deployment"
+        type: boolean
+        required: false
+        default: false
+      backport-target-branch:
+        description: "Target branch for backport PR"
+        type: string
+        required: false
+        default: "staging"
+
 permissions: {}
 
 jobs:
@@ -105,3 +117,9 @@ jobs:
           LOCAL_PATH: ${{ inputs.LOCAL_PATH }}
           CACHE_CONTROL: ${{ inputs.CACHE_CONTROL }}
           EXTRA_ARGS: ${{ inputs.EXTRA_ARGS }}
+
+      - name: Backport to staging
+        if: success() && inputs.create-backport-pr
+        uses: aligent/workflows/.github/actions/backport@main
+        with:
+          target-branch: ${{ inputs.backport-target-branch }}
