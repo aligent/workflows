@@ -6,6 +6,7 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 - **Custom-environment support**: Support for custom development environment name
 - **Conditional automated testing**: Automatic test execution controlled by boolean flag
 - **Conditional deployment**: Production deployment controlled by boolean flag
+- **Temporary environment deployment**: Production deploys create a temporary Gadget environment, push code to it, promote to production, and clean up automatically
 - **Force push capabilities**: Ensures code synchronization with `--force` flag
 - **Gadget CLI integration**: Uses `ggt` CLI tool for all operations
 - **Test validation**: Runs full test suite before production deployment
@@ -17,11 +18,10 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 | **Core Configuration** |
 | app-name | ✅ | string | | Gadget App name to deploy to |
 | working-directory | ❌ | string | . | Working directory of Gadget App |
-| environment-name | ❌ | string | staging | Main _development_ environment name |
+| environment-name | ⚠️ | string | | Gadget environment name (required when `action: push`) |
 | **Deployment Control** |
-| push-staging | ❌ | boolean | false | Enable production deployment |
+| action | ✅ | string | | Deployment action: `push` (push to environment) or `deploy` (deploy to production) |
 | test | ❌ | boolean | false | Enable testing on development environment |
-| deploy-production | ❌ | boolean | false | Enable production deployment |
 | **Backport Configuration** |
 | create-backport-pr | ❌ | boolean | false | Create a backport PR after deployment |
 | backport-target-branch | ❌ | string | staging | Target branch for backport PR |
@@ -57,7 +57,7 @@ jobs:
       app-name: my-gadget-app
       working-directory: apps/gadget-app
       environment-name: staging
-      push-staging: true
+      action: push
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
 ```
@@ -78,6 +78,7 @@ jobs:
     with:
       app-name: my-gadget-app
       environment-name: development
+      action: push
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
 ```
@@ -98,7 +99,7 @@ jobs:
       app-name: my-gadget-app
       working-directory: apps/gadget-app
       environment-name: staging
-      push-staging: true
+      action: push
       test: true
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
@@ -119,8 +120,16 @@ jobs:
     with:
       app-name: my-gadget-app
       working-directory: apps/gadget-app
-      environment-name: staging
-      deploy-production: true
+      action: deploy
     secrets:
       gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
 ```
+
+When `action: deploy`, the workflow uses a temporary environment strategy to safely promote code to production:
+
+1. **Create** — A temporary Gadget environment named `deploy-<run_id>` is created (e.g. `deploy-12345678`), using the GitHub Actions run ID for uniqueness. This ensures the deployment is isolated from the main development/staging environment.
+2. **Push** — The checked-out code is pushed to this temporary environment using `ggt push`.
+3. **Deploy** — The temporary environment is promoted to production using `ggt deploy`.
+4. **Cleanup** — The temporary environment is deleted after deployment, regardless of success or failure.
+
+This approach avoids deploying uncommitted or unreviewed changes that may exist in the shared staging environment, ensuring only the exact code from the Git ref is promoted to production.
