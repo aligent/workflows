@@ -7,6 +7,7 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 - **Multi-environment support**: development, staging, and production deployments
 - **Bootstrap validation**: Automatic CDK environment preparation and validation
 - **Changeset preview**: CloudFormation diff analysis before deployment
+- **PR diff comments**: When running a diff on a pull request, the result is posted (or updated) as a PR comment
 - **Smart Node.js setup**: Automatic detection from .nvmrc file with dependency caching
 - **Package manager detection**: Automatic support for npm, yarn (classic/berry), and pnpm
 - **Debug support**: Verbose logging and debug output for troubleshooting
@@ -80,11 +81,18 @@ jobs:
 ```
 
 **PR Diff (No Environment):**
+
+> **Note:** `pull-requests: write` is required for the workflow to post diff comments on the PR.
+
 ```yaml
 on:
   pull_request:
     branches:
       - '**'
+
+permissions:
+  pull-requests: write
+  contents: read
 
 jobs:
   diff:
@@ -97,14 +105,18 @@ jobs:
 **PR Diff (Multiple Environments):**
 
 - Each environment should have its own `STACK_NAME`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` configured.
-
-- `github.base_ref` references the name of the target branch for staging and production 
+- `github.base_ref` references the name of the target branch for staging and production.
+- Each environment posts its own comment keyed on the stack name, so multiple diffs can coexist on the same PR.
 
 ```yaml
 on:
   pull_request:
     branches:
       - '**'
+
+permissions:
+  pull-requests: write
+  contents: read
 
 jobs:
   diff-staging:

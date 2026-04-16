@@ -412,6 +412,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      pull-requests: write
     environment: ${{ inputs.github-environment }}
     outputs:
       stack-outputs: ${{ steps.deploy.outputs.stack-outputs }}
@@ -583,6 +584,79 @@ jobs:
           name: deployment-diff-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: deployment-diff.txt
           retention-days: 7
+
+      - name: Post diff to PR comment
+        if: inputs.diff == true && github.event_name == 'pull_request'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd #v8.0.0
+        env:
+          STACK_NAME: ${{ needs.prepare.outputs.stack-name }}
+          ENVIRONMENT: ${{ inputs.github-environment }}
+          HAS_CHANGES: ${{ steps.diff-analysis.outputs.has-changes }}
+        with:
+          script: |
+            const fs = require('fs');
+            const stackName = process.env.STACK_NAME;
+            const environment = process.env.ENVIRONMENT;
+            const hasChanges = process.env.HAS_CHANGES === 'true';
+
+            const commentHeader = `CDK Diff: ${stackName}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+
+            let diffContent = '';
+            try {
+              diffContent = fs.readFileSync('deployment-diff.txt', 'utf8').trim();
+            } catch (e) {
+              diffContent = 'No diff output available';
+            }
+
+            const statusIcon = hasChanges ? '⚠️' : '✅';
+            const statusText = hasChanges ? 'Infrastructure changes detected' : 'No infrastructure changes detected';
+
+            const lines = [
+              `## ${commentHeader}`,
+              '',
+              `${statusIcon} **${statusText}**`,
+              '',
+              `**Stack:** \`${stackName}\``,
+            ];
+
+            if (environment) {
+              lines.push(`**Environment:** ${environment}`);
+            }
+
+            lines.push(
+              '',
+              '<details>',
+              '<summary>Full diff</summary>',
+              '',
+              '```',
+              diffContent,
+              '```',
+              '',
+              '</details>'
+            );
+
+            const commentBody = lines.join('\n');
+
+            const comments = await github.rest.issues.listComments({
+              owner, repo, issue_number,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes(commentHeader)
+            );
+
+            if (!botComment) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number, body: commentBody
+              });
+            } else {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: botComment.id, body: commentBody
+              });
+            }
 
       - name: Execute CDK deployment
         if: inputs.deploy == true
