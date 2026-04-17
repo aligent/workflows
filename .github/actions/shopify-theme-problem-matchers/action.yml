@@ -1,0 +1,20 @@
+name: "Register Shopify Theme Problem Matchers"
+description: "Registers or removes problem matchers for Shopify Theme Check"
+
+inputs:
+  action:
+    description: "Whether to add or remove matchers"
+    required: false
+    default: "add"
+
+runs:
+  using: composite
+  steps:
+    - if: inputs.action == 'add'
+      shell: bash
+      run: |
+        echo "::add-matcher::${{ github.action_path }}/theme-check.json"
+    - if: inputs.action == 'remove'
+      shell: bash
+      run: |
+        echo "::remove-matcher owner=theme-check::"
