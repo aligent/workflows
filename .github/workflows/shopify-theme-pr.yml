@@ -136,14 +136,27 @@ jobs:
       - name: Install Shopify CLI
         run: npm install -g @shopify/cli@latest
 
-      - name: Push unpublished theme
+      - name: Push theme
         working-directory: ${{ inputs.working-directory }}
         run: |
-          shopify theme push \
-            --unpublished \
-            --json \
-            --theme "$PR_THEME_NAME" \
-            > push.json
+          # Check if a theme with this name already exists
+          EXISTING_ID=$(shopify theme list --json \
+            | jq -r --arg name "$PR_THEME_NAME" '.[] | select(.name == $name) | .id // empty')
+
+          if [ -n "$EXISTING_ID" ]; then
+            echo "Updating existing preview theme (ID: $EXISTING_ID)"
+            shopify theme push \
+              --json \
+              --theme "$EXISTING_ID" \
+              > push.json
+          else
+            echo "Creating new preview theme"
+            shopify theme push \
+              --unpublished \
+              --json \
+              --theme "$PR_THEME_NAME" \
+              > push.json
+          fi
 
       - name: Extract preview URL
         id: preview
