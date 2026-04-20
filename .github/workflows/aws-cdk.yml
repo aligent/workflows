@@ -653,7 +653,11 @@ jobs:
 
             if (commentBody.length > SAFE_LIMIT) {
               const originalLength = commentBody.length;
-              const truncationNotice = `**Note:** Diff output exceeded GitHub's ${GITHUB_COMMENT_LIMIT}-character comment limit (${originalLength} chars). Download the full diff from the [workflow run artifacts](${runUrl}).`;
+              const truncationNotice = [
+                `**Note:** Diff output exceeded GitHub's ${GITHUB_COMMENT_LIMIT}-character`,
+                `comment limit (${originalLength} chars).`,
+                `Download the full diff from the [workflow run artifacts](${runUrl}).`,
+              ].join(' ');
               const overhead = buildBody('', truncationNotice).length;
               const availableForDiff = Math.max(0, SAFE_LIMIT - overhead - 20);
               const truncatedDiff = diffContent.slice(0, availableForDiff) + '\n...[truncated]';
