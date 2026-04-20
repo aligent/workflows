@@ -613,31 +613,52 @@ jobs:
             const statusIcon = hasChanges ? '⚠️' : '✅';
             const statusText = hasChanges ? 'Infrastructure changes detected' : 'No infrastructure changes detected';
 
-            const lines = [
-              `## ${commentHeader}`,
-              '',
-              `${statusIcon} **${statusText}**`,
-              '',
-              `**Stack:** \`${stackName}\``,
-            ];
+            const GITHUB_COMMENT_LIMIT = 65536;
+            const SAFE_LIMIT = 60000;
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
 
-            if (environment) {
-              lines.push(`**Environment:** ${environment}`);
+            function buildBody(diff, truncationNotice) {
+              const lines = [
+                `## ${commentHeader}`,
+                '',
+                `${statusIcon} **${statusText}**`,
+                '',
+                `**Stack:** \`${stackName}\``,
+              ];
+
+              if (environment) {
+                lines.push(`**Environment:** ${environment}`);
+              }
+
+              if (truncationNotice) {
+                lines.push('', truncationNotice);
+              }
+
+              lines.push(
+                '',
+                '<details>',
+                `<summary>Full diff${truncationNotice ? ' (truncated)' : ''}</summary>`,
+                '',
+                '```',
+                diff,
+                '```',
+                '',
+                '</details>'
+              );
+
+              return lines.join('\n');
             }
 
-            lines.push(
-              '',
-              '<details>',
-              '<summary>Full diff</summary>',
-              '',
-              '```',
-              diffContent,
-              '```',
-              '',
-              '</details>'
-            );
+            let commentBody = buildBody(diffContent, null);
 
-            const commentBody = lines.join('\n');
+            if (commentBody.length > SAFE_LIMIT) {
+              const originalLength = commentBody.length;
+              const truncationNotice = `**Note:** Diff output exceeded GitHub's ${GITHUB_COMMENT_LIMIT}-character comment limit (${originalLength} chars). Download the full diff from the [workflow run artifacts](${runUrl}).`;
+              const overhead = buildBody('', truncationNotice).length;
+              const availableForDiff = Math.max(0, SAFE_LIMIT - overhead - 20);
+              const truncatedDiff = diffContent.slice(0, availableForDiff) + '\n...[truncated]';
+              commentBody = buildBody(truncatedDiff, truncationNotice);
+            }
 
             const comments = await github.rest.issues.listComments({
               owner, repo, issue_number,
