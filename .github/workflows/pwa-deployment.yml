@@ -40,6 +40,11 @@ on:
         type: boolean
         required: false
         default: false
+      build-env:
+        description: "BUILD_ENV value (falls back to vars.BUILD_ENV if not provided)"
+        type: string
+        required: false
+        default: ""
       build-command:
         description: "Build command to execute"
         type: string
@@ -348,6 +353,7 @@ jobs:
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
           INPUTS_DEBUG: ${{ inputs.debug }}
           INPUTS_IS_YARN_CLASSIC: ${{ inputs.is-yarn-classic }}
+          BUILD_ENV: ${{ inputs.build-env || vars.BUILD_ENV }}
 
       - name: Build application
         run: |
@@ -369,6 +375,7 @@ jobs:
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
           INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
           INPUTS_DEBUG: ${{ inputs.debug }}
+          BUILD_ENV: ${{ inputs.build-env || vars.BUILD_ENV }}
 
       - name: Verify build output
         run: |
