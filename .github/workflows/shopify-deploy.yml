@@ -8,26 +8,10 @@ on:
         required: false
         type: string
         default: '.'
-      development-toml-name:
-        description: 'Name of development.toml'
-        required: false
+      shopify-toml-name:
+        description: 'Name of Shopify TOML file'
+        required: true
         type: string
-        default: 'shopify.app.development.toml'
-      production-toml-name:
-        description: 'Name of .toml'
-        required: false
-        type: string
-        default: 'shopify.app.toml'
-
-      # Deployment Control
-      deploy-staging:
-        description: "Boolean to check if deploy to staging"
-        type: boolean
-        default: false
-      deploy-production:
-        description: "Boolean to check if deploy to production"
-        type: boolean
-        default: false
 
       # Backport Configuration
       create-backport-pr:
@@ -49,13 +33,6 @@ jobs:
     name: Deploy to Shopify
     runs-on: ubuntu-latest
     steps:
-      - name: Check deployment selection
-        if: ${{ inputs.deploy-staging == false && inputs.deploy-production == false }}
-        run: |
-          echo "Error: Neither 'deploy-staging' nor 'deploy-production' is selected."
-          echo "Please select at least one deployment target."
-          exit 1
-
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -79,16 +56,9 @@ jobs:
 
       - name: Configure Shopify CLI
         working-directory: ${{ inputs.working-directory }}
-        run: |
-          if [ "${INPUTS_DEPLOY_PRODUCTION}" = "true" ]; then
-            yarn shopify app config use ${INPUTS_PRODUCTION_TOML_NAME}
-          else
-            yarn shopify app config use ${INPUTS_DEVELOPMENT_TOML_NAME}
-          fi
+        run: yarn shopify app config use ${SHOPIFY_TOML_NAME}
         env:
-          INPUTS_PRODUCTION_TOML_NAME: ${{ inputs.production-toml-name }}
-          INPUTS_DEVELOPMENT_TOML_NAME: ${{ inputs.development-toml-name }}
-          INPUTS_DEPLOY_PRODUCTION: ${{ inputs.deploy-production }}
+          SHOPIFY_TOML_NAME: ${{ inputs.shopify-toml-name }}
 
       - name: Deploy to Shopify
         working-directory: ${{ inputs.working-directory }}
