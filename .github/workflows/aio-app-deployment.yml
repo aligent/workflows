@@ -2,6 +2,37 @@ name: AIO App Deployment
 
 on:
   workflow_call:
+    secrets:
+      NPM_TOKEN:
+        description: "NPM authentication token for private registries"
+        required: false
+      AIO_CLIENT_ID:
+        description: "Adobe I/O client ID"
+        required: false
+      AIO_CLIENT_SECRET:
+        description: "Adobe I/O client secret"
+        required: false
+      AIO_TECHNICAL_ACCOUNT_ID:
+        description: "Adobe I/O technical account ID"
+        required: false
+      AIO_TECHNICAL_ACCOUNT_EMAIL:
+        description: "Adobe I/O technical account email"
+        required: false
+      AIO_IMS_ORG_ID:
+        description: "Adobe I/O IMS org ID"
+        required: false
+      AIO_SCOPES:
+        description: "Adobe I/O scopes"
+        required: false
+      AIO_DEPLOY_EXTRA_SECRETS:
+        description: "Additional secrets as key=value pairs for deployment"
+        required: false
+      AIO_RUNTIME_NAMESPACE:
+        description: "Adobe I/O Runtime namespace"
+        required: false
+      AIO_RUNTIME_AUTH:
+        description: "Adobe I/O Runtime auth"
+        required: false
     inputs:
       environment:
         description: GitHub environment to run in
@@ -47,6 +78,8 @@ jobs:
     name: Deploy AIO App
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
