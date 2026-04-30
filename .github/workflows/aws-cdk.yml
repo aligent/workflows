@@ -399,7 +399,7 @@ jobs:
           echo "✅ node_modules packaged ($(du -h node_modules.tar.gz | cut -f1))"
 
       - name: Upload node_modules artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
           name: node_modules-${{ steps.sanitise.outputs.sanitised-cdk-stack-name }}
           path: node_modules.tar.gz
@@ -533,7 +533,7 @@ jobs:
 
       - name: Upload synthesis artifacts
         if: inputs.synth == true
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
           name: cdk-synthesis-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: cdk.out/
@@ -579,7 +579,7 @@ jobs:
 
       - name: Upload diff analysis
         if: inputs.diff == true
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
           name: deployment-diff-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: deployment-diff.txt
@@ -721,7 +721,7 @@ jobs:
 
       - name: Upload deployment artifacts
         if: inputs.deploy == true && steps.deploy.outputs.status == 'success'
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
           name: deployment-outputs-${{ needs.prepare.outputs.sanitised-cdk-stack-name }}
           path: stack-outputs.json
