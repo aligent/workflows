@@ -109,7 +109,7 @@ jobs:
           fetch-depth: ${{ inputs.fetch-depth }}
           persist-credentials: false
       - name: Install Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
         with:
           package-manager-cache: false
           node-version-file: .nvmrc
@@ -121,7 +121,7 @@ jobs:
             corepack enable
           fi
       - name: Configure Dependency Cache
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
         with:
           cache: ${{ inputs.package-manager }}
           node-version-file: .nvmrc
@@ -223,7 +223,7 @@ jobs:
           fetch-depth: ${{ inputs.fetch-depth }}
           persist-credentials: false
       - name: Install Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
@@ -235,7 +235,7 @@ jobs:
             corepack enable
           fi
       - name: Configure Dependency Cache
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
         with:
           cache: ${{ inputs.package-manager }}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c #v8.0.1
@@ -348,7 +348,7 @@ jobs:
           fetch-depth: ${{ inputs.fetch-depth }}
           persist-credentials: false
       - name: Install Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
@@ -360,7 +360,7 @@ jobs:
             corepack enable
           fi
       - name: Configure Dependency Cache
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f #v6.3.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
         with:
           cache: ${{ inputs.package-manager }}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c #v8.0.1
