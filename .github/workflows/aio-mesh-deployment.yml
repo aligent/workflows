@@ -57,11 +57,18 @@ on:
         required: false
         default: staging
 
+    secrets:
+      NPM_TOKEN:
+        description: "NPM authentication token for private registries"
+        required: false
+
 jobs:
   deploy:
     name: Deploy API Mesh
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
