@@ -25,7 +25,7 @@ on:
 
     secrets:
       shopify_cli_token:
-        description: 'Shopify CLI authentication token'
+        description: 'Shopify CLI partner authentication token'
         required: true
 
 jobs:
@@ -64,7 +64,7 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         run: yarn shopify app deploy --allow-updates
         env:
-          SHOPIFY_CLI_TOKEN: ${{ secrets.shopify_cli_token }}
+          SHOPIFY_CLI_PARTNERS_TOKEN: ${{ secrets.shopify_cli_token }}
           SHOPIFY_FLAG_PATH: ${{ inputs.working-directory }}
 
       - name: Backport to staging
