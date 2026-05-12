@@ -467,6 +467,9 @@ jobs:
         run: |
           echo "🔄 Invalidating CloudFront cache..."
 
+          # Disable glob expansion so /* is never expanded to filesystem paths
+          set -f
+
           # Parse invalidation paths
           PATHS=$(echo "${NEEDS_PREPARE_OUTPUTS_INVALIDATION_PATHS}" | jq -r '.[]')
 
@@ -490,6 +493,7 @@ jobs:
             --paths $PATHS \
             --query 'Invalidation.Id' \
             --output text)
+          set +f
 
           echo "✅ CloudFront invalidation created: $INVALIDATION_ID"
 
