@@ -58,7 +58,7 @@ jobs:
           version: ${{ inputs.aio-cli-version }}
 
       - name: Authenticate with Adobe I/O
-        uses: adobe/aio-apps-action@0a7e7eb813fbdf73faea7ee7d03fd20e6dd7badb #v4.0.0
+        uses: adobe/aio-apps-action@6d7fdea67de9ef5ee3bf4c730aeaa5eaa7e2c533 #v4.1.0
         with:
           os: ubuntu-latest
           command: oauth_sts
