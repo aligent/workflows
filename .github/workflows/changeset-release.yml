@@ -172,7 +172,7 @@ jobs:
         if: steps.changesets.outputs.published == 'true'
         run: |
           echo "Published packages:"
-          echo '${STEPS_CHANGESETS_OUTPUTS_PUBLISHEDPACKAGES}' | jq -r '.[] | "- \(.name)@\(.version)"'
+          echo "${STEPS_CHANGESETS_OUTPUTS_PUBLISHEDPACKAGES}" | jq -r '.[] | "- \(.name)@\(.version)"'
         env:
           STEPS_CHANGESETS_OUTPUTS_PUBLISHEDPACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
 
