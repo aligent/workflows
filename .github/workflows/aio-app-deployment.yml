@@ -129,12 +129,12 @@ jobs:
         run: |
           if [ -n "$EXTRA_VARS" ]; then
             while IFS= read -r line; do
-              [ -n "$line" ] && echo "$line" >> "$GITHUB_ENV"
+              [ -n "$line" ] && echo "$line" | tr -d '\r' >> "$GITHUB_ENV"
             done <<< "$EXTRA_VARS"
           fi
           if [ -n "$EXTRA_SECRETS" ]; then
             while IFS= read -r line; do
-              [ -n "$line" ] && echo "$line" >> "$GITHUB_ENV"
+              [ -n "$line" ] && echo "$line" | tr -d '\r' >> "$GITHUB_ENV"
             done <<< "$EXTRA_SECRETS"
           fi
 
