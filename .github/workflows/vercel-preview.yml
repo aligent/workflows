@@ -1,0 +1,99 @@
+name: Vercel Preview Deployment
+
+on:
+  workflow_call:
+    inputs:
+      vercel-org-id:
+        description: "Vercel organisation ID"
+        type: string
+        required: true
+      vercel-project-id:
+        description: "Vercel project ID"
+        type: string
+        required: true
+      working-directory:
+        description: "Directory to run the Vercel deploy from"
+        type: string
+        required: false
+        default: "."
+      environment-name:
+        description: "GitHub Environment to deploy to"
+        type: string
+        required: false
+        default: "Preview"
+    secrets:
+      vercel-token:
+        description: "Vercel deployment token"
+        required: true
+
+concurrency:
+  group: vercel-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: write
+  pull-requests: write
+
+jobs:
+  deploy-preview:
+    name: Deploy Preview to Vercel
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment-name }}
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ inputs.vercel-org-id }}
+      VERCEL_PROJECT_ID: ${{ inputs.vercel-project-id }}
+      VERCEL_TELEMETRY_DISABLED: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Deploy to Vercel (preview)
+        id: deploy
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.vercel-token }}
+        run: |
+          vercel deploy --yes --no-wait --token="$VERCEL_TOKEN" \
+            > deployment-url.txt 2> >(tee vercel-output.log >&2)
+          url="$(cat deployment-url.txt)"
+          inspect_url="$(grep -m1 -o 'https://vercel.com/[^[:space:]]*' vercel-output.log || true)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "inspect_url=$inspect_url" >> "$GITHUB_OUTPUT"
+
+      # Posts (or updates in place) a single comment on the PR with the preview URL.
+      - name: Comment preview URL on PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          DEPLOY_URL: ${{ steps.deploy.outputs.url }}
+          INSPECT_URL: ${{ steps.deploy.outputs.inspect_url }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          marker='<!-- vercel-preview -->'
+          body="$marker
+          ### ⚡ Preview environment is deploying
+
+          Wait ~5 minutes for completion, or monitor progress using the Inspect URL.
+
+          **Preview URL:** ${DEPLOY_URL}
+          **Inspect:** ${INSPECT_URL}
+
+          _Deployed commit ${COMMIT_SHA}_"
+
+          comment_id="$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+            --jq "[.[] | select(.body | startswith(\"${marker}\"))][0].id")"
+
+          if [ -n "$comment_id" ] && [ "$comment_id" != "null" ]; then
+            gh api -X PATCH "repos/${REPO}/issues/comments/${comment_id}" -f body="$body"
+          else
+            gh api -X POST "repos/${REPO}/issues/${PR_NUMBER}/comments" -f body="$body"
+          fi
