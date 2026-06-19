@@ -30,14 +30,13 @@ concurrency:
   group: vercel-production-${{ github.ref }}
   cancel-in-progress: false
 
-permissions:
-  contents: read
-  deployments: write
-
 jobs:
   deploy-production:
     name: Deploy Production to Vercel
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
     environment:
       name: ${{ inputs.environment-name }}
       url: ${{ steps.deploy.outputs.url }}

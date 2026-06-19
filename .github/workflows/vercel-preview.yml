@@ -30,15 +30,14 @@ concurrency:
   group: vercel-preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  deployments: write
-  pull-requests: write
-
 jobs:
   deploy-preview:
     name: Deploy Preview to Vercel
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+      pull-requests: write
     environment:
       name: ${{ inputs.environment-name }}
       url: ${{ steps.deploy.outputs.url }}
