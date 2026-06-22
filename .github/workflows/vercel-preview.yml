@@ -51,6 +51,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install safe-chain
+        run: |
+          SAFE_CHAIN_URL="https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh"
+          curl -fsSL "$SAFE_CHAIN_URL" | sh -s -- --ci
+
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
