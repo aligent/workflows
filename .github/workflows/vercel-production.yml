@@ -1,0 +1,68 @@
+name: Vercel Production Deployment
+
+on:
+  workflow_call:
+    inputs:
+      vercel-org-id:
+        description: "Vercel organisation ID"
+        type: string
+        required: true
+      vercel-project-id:
+        description: "Vercel project ID"
+        type: string
+        required: true
+      working-directory:
+        description: "Directory to run the Vercel deploy from"
+        type: string
+        required: false
+        default: "."
+      environment-name:
+        description: "GitHub Environment to deploy to"
+        type: string
+        required: false
+        default: "Production"
+    secrets:
+      vercel-token:
+        description: "Vercel deployment token"
+        required: true
+
+concurrency:
+  group: vercel-production-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: Deploy Production to Vercel
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    environment:
+      name: ${{ inputs.environment-name }}
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ inputs.vercel-org-id }}
+      VERCEL_PROJECT_ID: ${{ inputs.vercel-project-id }}
+      VERCEL_TELEMETRY_DISABLED: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install safe-chain
+        run: |
+          SAFE_CHAIN_URL="https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh"
+          curl -fsSL "$SAFE_CHAIN_URL" | sh -s -- --ci
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Deploy to Vercel (production)
+        id: deploy
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.vercel-token }}
+        run: |
+          url="$(vercel deploy --prod --yes --no-wait --token="$VERCEL_TOKEN")"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
