@@ -104,7 +104,7 @@ jobs:
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
         with:
           fetch-depth: ${{ inputs.fetch-depth }}
           persist-credentials: false
@@ -218,7 +218,7 @@ jobs:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       NODE_OPTIONS: ${{ inputs.node-options }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
         with:
           fetch-depth: ${{ inputs.fetch-depth }}
           persist-credentials: false
@@ -299,7 +299,7 @@ jobs:
 
       - name: Fetch all commits for Nx
         if: steps.check-build.outputs.exists-nx-target == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -343,7 +343,7 @@ jobs:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       NODE_OPTIONS: ${{ inputs.node-options }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
         with:
           fetch-depth: ${{ inputs.fetch-depth }}
           persist-credentials: false
@@ -449,7 +449,7 @@ jobs:
           steps.check-format.outputs.exists-nx-target == 'true' ||
           steps.check-test-storybook.outputs.exists-nx-target == 'true' ||
           steps.check-check-types.outputs.exists-nx-target == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
