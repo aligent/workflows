@@ -1,0 +1,149 @@
+name: Docker Build and Push
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: "Docker image name (e.g., aligent/my-app)"
+        type: string
+        required: true
+      registry:
+        description: "Docker registry"
+        type: string
+        required: false
+        default: "docker.io"
+      context:
+        description: "Build context path"
+        type: string
+        required: false
+        default: "."
+      dockerfile:
+        description: "Path to Dockerfile"
+        type: string
+        required: false
+        default: "Dockerfile"
+      build-args:
+        description: "Build arguments (newline-separated KEY=value pairs)"
+        type: string
+        required: false
+        default: ""
+      platforms:
+        description: "Target platforms (e.g., linux/amd64,linux/arm64)"
+        type: string
+        required: false
+        default: ""
+      push:
+        description: "Push image to registry"
+        type: boolean
+        required: false
+        default: true
+      tags:
+        description: "Custom tags configuration for docker/metadata-action"
+        type: string
+        required: false
+        default: |
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=sha,prefix=
+      no-cache:
+        description: "Disable build cache"
+        type: boolean
+        required: false
+        default: false
+      cache-from:
+        description: "Cache source (e.g., type=gha)"
+        type: string
+        required: false
+        default: "type=gha"
+      cache-to:
+        description: "Cache destination (e.g., type=gha,mode=max)"
+        type: string
+        required: false
+        default: "type=gha,mode=max"
+      provenance:
+        description: "Generate provenance attestation"
+        type: boolean
+        required: false
+        default: false
+      timeout-minutes:
+        description: "Job timeout in minutes"
+        type: number
+        required: false
+        default: 60
+      dockerhub-username:
+        description: "Docker Hub username (from vars)"
+        type: string
+        required: true
+
+    secrets:
+      dockerhub-token:
+        description: "Docker Hub access token"
+        required: true
+      build-secrets:
+        description: "Docker BuildKit secrets (newline-separated KEY=value pairs)"
+        required: false
+      build-args-secrets:
+        description: "Secret build arguments appended to build-args (newline-separated KEY=value pairs)"
+        required: false
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up QEMU
+        if: inputs.platforms != ''
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ inputs.dockerhub-username }}
+          password: ${{ secrets.dockerhub-token }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
+        with:
+          images: ${{ inputs.registry }}/${{ inputs.image-name }}
+          tags: ${{ inputs.tags }}
+
+      - name: Prepare build args
+        id: build-args
+        run: |
+          {
+            echo 'args<<EOF'
+            echo "$BUILD_ARGS"
+            echo "$BUILD_ARGS_SECRETS"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+        env:
+          BUILD_ARGS: ${{ inputs.build-args }}
+          BUILD_ARGS_SECRETS: ${{ secrets.build-args-secrets }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.context }}/${{ inputs.dockerfile }}
+          push: ${{ inputs.push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ steps.build-args.outputs.args }}
+          platforms: ${{ inputs.platforms || '' }}
+          no-cache: ${{ inputs.no-cache }}
+          cache-from: ${{ inputs.no-cache && '' || inputs.cache-from }}
+          cache-to: ${{ inputs.cache-to }}
+          provenance: ${{ inputs.provenance }}
+          secrets: ${{ secrets.build-secrets }}
