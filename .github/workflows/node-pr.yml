@@ -455,6 +455,20 @@ jobs:
           persist-credentials: false
           clean: false
 
+      - name: Install Playwright
+        if: >-
+          inputs.skip-test-storybook == false &&
+          steps.check-test-storybook.outputs.exists == 'true'
+        run: |
+          # Ensure playwright dependencies are installed before story blok test execution begins
+          if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
+            yarn playwright install --with-deps
+          else
+            npx playwright install --with-deps
+          fi
+        env:
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+
       - name: Build commands list
         id: build-commands
         run: |
@@ -470,12 +484,6 @@ jobs:
           fi
           if [ "${INPUTS_SKIP_TEST_STORYBOOK}" != "true" ] && \
              [ "${STEPS_CHECK_TEST_STORYBOOK_OUTPUTS_EXISTS}" == "true" ]; then
-            # Ensure playwright dependencies are installed before story blok test execution begins
-            if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
-              yarn playwright install --with-deps
-            else
-              npx playwright install --with-deps
-            fi
             commands+=("${INPUTS_TEST_STORYBOOK_COMMAND}")
           fi
           if [ "${INPUTS_SKIP_CHECK_TYPES}" != "true" ] && \
@@ -493,7 +501,6 @@ jobs:
           STEPS_CHECK_FORMAT_OUTPUTS_EXISTS: ${{ steps.check-format.outputs.exists }}
           INPUTS_FORMAT_COMMAND: ${{ inputs.format-command }}
           STEPS_CHECK_TEST_STORYBOOK_OUTPUTS_EXISTS: ${{ steps.check-test-storybook.outputs.exists }}
-          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
           INPUTS_TEST_STORYBOOK_COMMAND: ${{ inputs.test-storybook-command }}
           STEPS_CHECK_CHECK_TYPES_OUTPUTS_EXISTS: ${{ steps.check-check-types.outputs.exists }}
           INPUTS_CHECK_TYPES_COMMAND: ${{ inputs.check-types-command }}
