@@ -72,6 +72,11 @@ on:
         type: boolean
         required: false
         default: false
+      runs-on:
+        description: "GitHub runner to use (e.g. ubuntu-latest, ubuntu-24.04-arm for ARM64 builds)"
+        type: string
+        required: false
+        default: "ubuntu-latest"
 
       # Custom CDK Commands
       bootstrap-command:
@@ -106,7 +111,7 @@ on:
 jobs:
   prepare:
     name: 🔍 Prepare CDK Deployment
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs-on }}
     environment: ${{ inputs.github-environment }}
     outputs:
       node-version: ${{ steps.node-version.outputs.version }}
@@ -407,7 +412,7 @@ jobs:
 
   cdk:
     name: ☁️ CDK Operations
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs-on }}
     needs: [prepare]
     permissions:
       id-token: write

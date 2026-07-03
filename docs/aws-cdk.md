@@ -10,6 +10,7 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 - **PR diff comments**: When running a diff on a pull request, the result is posted (or updated) as a PR comment
 - **Smart Node.js setup**: Automatic detection from .nvmrc file with dependency caching
 - **Package manager detection**: Automatic support for npm, yarn (classic/berry), and pnpm
+- **Cross-platform Docker builds**: ARM64 container support via native ARM runners
 - **Debug support**: Verbose logging and debug output for troubleshooting
 - **GitHub Environments support**: Credentials and stack names can be configured per-environment via GitHub Environment variables/secrets 
 
@@ -32,6 +33,7 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 | extra-arguments | ❌ | string |  | Extra arguments as string |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 | lfs | ❌ | boolean | false | Enable Git LFS support for checkout |
+| runs-on | ❌ | string | ubuntu-latest | GitHub runner (use `ubuntu-24.04-arm` for native ARM64 builds) |
 | **Custom CDK Commands** |
 | bootstrap-command | ❌ | string | npx cdk bootstrap | Custom bootstrap command |
 | synth-command | ❌ | string | npx cdk synth | Custom synth command |
