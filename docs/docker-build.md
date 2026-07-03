@@ -18,12 +18,12 @@ Build and push Docker images to Docker Hub with support for multi-platform build
 | cache-to          | ❌       | string  | `type=gha,mode=max`                                  | Cache destination                                |
 | provenance        | ❌       | boolean | `false`                                              | Generate provenance attestation                  |
 | timeout-minutes   | ❌       | number  | `60`                                                 | Job timeout in minutes                           |
-| dockerhub-username| ✅       | string  |                                                      | Docker Hub username (from vars)                  |
+| dockerhub-username| ❌       | string  |                                                      | Docker Hub username (from vars). Required when `push: true` (default). |
 
 #### **Secrets**
 | Name              | Required | Description                                          |
 |-------------------|----------|------------------------------------------------------|
-| dockerhub-token   | ✅       | Docker Hub access token                              |
+| dockerhub-token   | ❌       | Docker Hub access token. Required when `push: true` (default). |
 | build-secrets     | ❌       | Docker BuildKit secrets (newline-separated KEY=value)|
 | build-args-secrets| ❌       | Secret build arguments appended to build-args        |
 
