@@ -226,6 +226,22 @@ jobs:
               ;;
           esac
 
+      - name: Export extra environment variables
+        env:
+          EXTRA_VARS: ${{ vars.EXTRA_VARS }}
+          EXTRA_SECRETS: ${{ secrets.EXTRA_SECRETS }}
+        run: |
+          if [ -n "$EXTRA_VARS" ]; then
+            while IFS= read -r line; do
+              [ -n "$line" ] && echo "$line" | tr -d '\r' >> "$GITHUB_ENV"
+            done <<< "$EXTRA_VARS"
+          fi
+          if [ -n "$EXTRA_SECRETS" ]; then
+            while IFS= read -r line; do
+              [ -n "$line" ] && echo "$line" | tr -d '\r' >> "$GITHUB_ENV"
+            done <<< "$EXTRA_SECRETS"
+          fi
+
       - name: Set CDK commands
         id: parse-cdk-config
         env:

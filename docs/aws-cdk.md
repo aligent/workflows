@@ -55,6 +55,12 @@ These should be configured in your GitHub Environment (or at the repository leve
 
 > **Authentication:** Configure either static credentials (`AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`) **or** OIDC (`AWS_ROLE_ARN`). The workflow auto-detects which method to use.
 
+**Extras** — optional:
+
+| Name | Type | Description |
+|------|------|-------------|
+| `EXTRA_VARS` | Variable | Additional non-secret environment variables to inject into the deploy step |
+| `EXTRA_SECRETS` | Secret | Additional secret environment variables to inject into the deploy step |
 
 #### **Outputs**
 | Name | Description |
