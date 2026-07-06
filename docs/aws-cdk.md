@@ -62,6 +62,8 @@ These should be configured in your GitHub Environment (or at the repository leve
 | `EXTRA_VARS` | Variable | Additional non-secret environment variables to inject into the deploy step |
 | `EXTRA_SECRETS` | Secret | Additional secret environment variables to inject into the deploy step |
 
+Both extra fields accept multiline `KEY=VALUE` pairs — one per line. Use these for runtime configuration that varies per project, such as feature flags.
+
 #### **Outputs**
 | Name | Description |
 |------|-------------|
