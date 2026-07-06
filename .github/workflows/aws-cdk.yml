@@ -475,6 +475,22 @@ jobs:
           rm node_modules.tar.gz
           echo "✅ node_modules extracted"
 
+      - name: Export extra environment variables
+        env:
+          EXTRA_VARS: ${{ vars.EXTRA_VARS }}
+          EXTRA_SECRETS: ${{ secrets.EXTRA_SECRETS }}
+        run: |
+          if [ -n "$EXTRA_VARS" ]; then
+            while IFS= read -r line; do
+              [ -n "$line" ] && echo "$line" | tr -d '\r' >> "$GITHUB_ENV"
+            done <<< "$EXTRA_VARS"
+          fi
+          if [ -n "$EXTRA_SECRETS" ]; then
+            while IFS= read -r line; do
+              [ -n "$line" ] && echo "$line" | tr -d '\r' >> "$GITHUB_ENV"
+            done <<< "$EXTRA_SECRETS"
+          fi
+
       - name: Configure AWS credentials (Static)
         if: needs.prepare.outputs.auth-mode == 'static'
         uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 #v6.1.0
