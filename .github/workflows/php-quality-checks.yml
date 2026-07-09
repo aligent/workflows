@@ -146,6 +146,14 @@ on:
         required: false
         default: "opensearchproject/opensearch"
 
+      opensearch-plugins:
+        description: >-
+          Space-separated OpenSearch plugins to install into the search service
+          before tests run (e.g., "analysis-icu analysis-phonetic")
+        type: string
+        required: false
+        default: ""
+
 jobs:
   # Install Composer dependencies with caching and detect available tools
   install:
@@ -804,6 +812,22 @@ jobs:
             [ -d "pub" ] && echo "  ✅ pub/"
           fi
 
+      - name: Install OpenSearch plugins
+        if: inputs.opensearch-plugins != ''
+        env:
+          OPENSEARCH_PLUGINS: ${{ inputs.opensearch-plugins }}
+          SEARCH_CONTAINER_ID: ${{ job.services.search.id }}
+        run: |
+          echo "🔌 Installing OpenSearch plugins: $OPENSEARCH_PLUGINS"
+          for plugin in $OPENSEARCH_PLUGINS; do
+            docker exec "$SEARCH_CONTAINER_ID" \
+              bin/opensearch-plugin install --batch "$plugin"
+          done
+          docker restart "$SEARCH_CONTAINER_ID"
+          echo "⏳ Waiting for OpenSearch to restart..."
+          timeout 120 bash -c 'until curl -sf http://localhost:9200/_cluster/health; do sleep 3; done'
+          echo "✅ OpenSearch is up with plugins installed"
+
       - name: Run Integration Tests
         run: |
           echo "🔗 Running integration tests..."
@@ -930,6 +954,22 @@ jobs:
             [ -d "setup" ] && echo "  ✅ setup/"
             [ -d "pub" ] && echo "  ✅ pub/"
           fi
+
+      - name: Install OpenSearch plugins
+        if: inputs.opensearch-plugins != ''
+        env:
+          OPENSEARCH_PLUGINS: ${{ inputs.opensearch-plugins }}
+          SEARCH_CONTAINER_ID: ${{ job.services.search.id }}
+        run: |
+          echo "🔌 Installing OpenSearch plugins: $OPENSEARCH_PLUGINS"
+          for plugin in $OPENSEARCH_PLUGINS; do
+            docker exec "$SEARCH_CONTAINER_ID" \
+              bin/opensearch-plugin install --batch "$plugin"
+          done
+          docker restart "$SEARCH_CONTAINER_ID"
+          echo "⏳ Waiting for OpenSearch to restart..."
+          timeout 120 bash -c 'until curl -sf http://localhost:9200/_cluster/health; do sleep 3; done'
+          echo "✅ OpenSearch is up with plugins installed"
 
       - name: Run REST API Tests
         run: |
@@ -1078,6 +1118,22 @@ jobs:
             [ -d "setup" ] && echo "  ✅ setup/"
             [ -d "pub" ] && echo "  ✅ pub/"
           fi
+
+      - name: Install OpenSearch plugins
+        if: inputs.opensearch-plugins != ''
+        env:
+          OPENSEARCH_PLUGINS: ${{ inputs.opensearch-plugins }}
+          SEARCH_CONTAINER_ID: ${{ job.services.search.id }}
+        run: |
+          echo "🔌 Installing OpenSearch plugins: $OPENSEARCH_PLUGINS"
+          for plugin in $OPENSEARCH_PLUGINS; do
+            docker exec "$SEARCH_CONTAINER_ID" \
+              bin/opensearch-plugin install --batch "$plugin"
+          done
+          docker restart "$SEARCH_CONTAINER_ID"
+          echo "⏳ Waiting for OpenSearch to restart..."
+          timeout 120 bash -c 'until curl -sf http://localhost:9200/_cluster/health; do sleep 3; done'
+          echo "✅ OpenSearch is up with plugins installed"
 
       - name: Run GraphQL API Tests
         run: |
