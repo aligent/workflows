@@ -814,13 +814,16 @@ jobs:
 
       - name: Install OpenSearch plugins
         if: inputs.opensearch-plugins != ''
+        env:
+          OPENSEARCH_PLUGINS: ${{ inputs.opensearch-plugins }}
+          SEARCH_CONTAINER_ID: ${{ job.services.search.id }}
         run: |
-          echo "🔌 Installing OpenSearch plugins: ${{ inputs.opensearch-plugins }}"
-          for plugin in ${{ inputs.opensearch-plugins }}; do
-            docker exec ${{ job.services.search.id }} \
+          echo "🔌 Installing OpenSearch plugins: $OPENSEARCH_PLUGINS"
+          for plugin in $OPENSEARCH_PLUGINS; do
+            docker exec "$SEARCH_CONTAINER_ID" \
               bin/opensearch-plugin install --batch "$plugin"
           done
-          docker restart ${{ job.services.search.id }}
+          docker restart "$SEARCH_CONTAINER_ID"
           echo "⏳ Waiting for OpenSearch to restart..."
           timeout 120 bash -c 'until curl -sf http://localhost:9200/_cluster/health; do sleep 3; done'
           echo "✅ OpenSearch is up with plugins installed"
@@ -954,13 +957,16 @@ jobs:
 
       - name: Install OpenSearch plugins
         if: inputs.opensearch-plugins != ''
+        env:
+          OPENSEARCH_PLUGINS: ${{ inputs.opensearch-plugins }}
+          SEARCH_CONTAINER_ID: ${{ job.services.search.id }}
         run: |
-          echo "🔌 Installing OpenSearch plugins: ${{ inputs.opensearch-plugins }}"
-          for plugin in ${{ inputs.opensearch-plugins }}; do
-            docker exec ${{ job.services.search.id }} \
+          echo "🔌 Installing OpenSearch plugins: $OPENSEARCH_PLUGINS"
+          for plugin in $OPENSEARCH_PLUGINS; do
+            docker exec "$SEARCH_CONTAINER_ID" \
               bin/opensearch-plugin install --batch "$plugin"
           done
-          docker restart ${{ job.services.search.id }}
+          docker restart "$SEARCH_CONTAINER_ID"
           echo "⏳ Waiting for OpenSearch to restart..."
           timeout 120 bash -c 'until curl -sf http://localhost:9200/_cluster/health; do sleep 3; done'
           echo "✅ OpenSearch is up with plugins installed"
@@ -1115,13 +1121,16 @@ jobs:
 
       - name: Install OpenSearch plugins
         if: inputs.opensearch-plugins != ''
+        env:
+          OPENSEARCH_PLUGINS: ${{ inputs.opensearch-plugins }}
+          SEARCH_CONTAINER_ID: ${{ job.services.search.id }}
         run: |
-          echo "🔌 Installing OpenSearch plugins: ${{ inputs.opensearch-plugins }}"
-          for plugin in ${{ inputs.opensearch-plugins }}; do
-            docker exec ${{ job.services.search.id }} \
+          echo "🔌 Installing OpenSearch plugins: $OPENSEARCH_PLUGINS"
+          for plugin in $OPENSEARCH_PLUGINS; do
+            docker exec "$SEARCH_CONTAINER_ID" \
               bin/opensearch-plugin install --batch "$plugin"
           done
-          docker restart ${{ job.services.search.id }}
+          docker restart "$SEARCH_CONTAINER_ID"
           echo "⏳ Waiting for OpenSearch to restart..."
           timeout 120 bash -c 'until curl -sf http://localhost:9200/_cluster/health; do sleep 3; done'
           echo "✅ OpenSearch is up with plugins installed"
