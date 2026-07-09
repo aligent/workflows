@@ -36,6 +36,7 @@ A comprehensive PHP quality assurance workflow supporting static analysis, codin
 | rabbitmq-version | ❌ | string | 4.1-management | RabbitMQ Docker image tag. |
 | opensearch-image | ❌ | string | opensearchproject/opensearch | OpenSearch Docker image name, combined with `opensearch-version` as the tag. |
 | opensearch-version | ❌ | string | 2 | OpenSearch Docker image tag. |
+| opensearch-plugins | ❌ | string | "" | Space-separated OpenSearch plugins to install into the search service before tests run (e.g., `analysis-icu analysis-phonetic`). |
 | **Advanced Configuration** |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 
@@ -77,15 +78,15 @@ jobs:
       phpstan-level: "9"
 ```
 
-**Custom Service Images (e.g., OpenSearch with plugins):**
+**OpenSearch with plugins (e.g., Adobe Commerce):**
 ```yaml
 jobs:
   magento-quality:
     uses: aligent/workflows/.github/workflows/php-quality-checks.yml@main
     with:
       php-version: "8.4"
-      opensearch-image: "aligent/bitbucket-opensearch"
       opensearch-version: "3.1.0"
+      opensearch-plugins: "analysis-icu analysis-phonetic"
 ```
 
 **Magento project with pre-commit hook scripts (use-custom-config):**
