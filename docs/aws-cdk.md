@@ -28,9 +28,9 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 | diff | ❌ | boolean | false | Diff stack |
 | synth | ❌ | boolean | false | Synth stack |
 | **Advanced Configuration** |
-| context-values | ❌ | string | {} | CDK context values as JSON object |
+| context-values | ❌ | string | {} | CDK context values as JSON object. Supports `$VAR` / `${VAR}` shell variable interpolation via `envsubst`. |
 | environment-target | ❌ | string |  | Target environment for CDK context (stg/prd/dev) - passed as `--context environment=<value>` |
-| extra-arguments | ❌ | string |  | Extra arguments as string |
+| extra-arguments | ❌ | string |  | Extra arguments as string. Supports `$VAR` / `${VAR}` shell variable interpolation via `envsubst`. |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 | lfs | ❌ | boolean | false | Enable Git LFS support for checkout |
 | runs-on | ❌ | string | ubuntu-latest | GitHub runner (use `ubuntu-24.04-arm` for native ARM64 builds) |
@@ -217,6 +217,24 @@ jobs:
       deploy: true
     secrets: inherit
 ```
+
+**Variable Interpolation in Context Values:**
+
+`context-values` and `extra-arguments` support shell variable interpolation via `envsubst`. Variables are expanded after `EXTRA_VARS` and `EXTRA_SECRETS` are loaded into the environment, so you can reference any variable defined there.
+
+```yaml
+jobs:
+  deploy:
+    uses: aligent/workflows/.github/workflows/aws-cdk.yml@main
+    with:
+      github-environment: Staging
+      deploy: true
+      context-values: '{"api-url": "${API_BASE_URL}", "version": "${BUILD_VERSION}"}'
+      extra-arguments: --tags project=${PROJECT_NAME}
+    secrets: inherit
+```
+
+In this example, `API_BASE_URL`, `BUILD_VERSION`, and `PROJECT_NAME` would be set via `EXTRA_VARS` in the GitHub Environment.
 
 **Deploy Production in NX Monorepo from Release:**
 ```yaml
