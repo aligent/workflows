@@ -222,6 +222,8 @@ jobs:
 
 `context-values` and `extra-arguments` support shell variable interpolation via `envsubst`. Variables are expanded after `EXTRA_VARS` and `EXTRA_SECRETS` are loaded into the environment, so you can reference any variable defined there.
 
+> **Why is this needed?** GitHub Actions evaluates `${{ vars.* }}` expressions in the **caller's** context, which only has access to repository-level variables. Environment-scoped variables (configured via `github-environment`) are only available **inside** the reusable workflow at runtime. Variable interpolation bridges this gap, letting you reference environment-scoped values in `context-values` and `extra-arguments`.
+
 ```yaml
 jobs:
   deploy:
