@@ -49,7 +49,7 @@ on:
 
       # Advanced Configuration
       context-values:
-        description: "CDK context values as JSON object"
+        description: "CDK context as JSON. Supports $VAR/${VAR} interpolation (expanded after EXTRA_VARS/EXTRA_SECRETS)"
         type: string
         required: false
         default: "{}"
@@ -59,7 +59,7 @@ on:
         required: false
         default: ""
       extra-arguments:
-        description: "Extra arguments"
+        description: "Extra arguments. Supports $VAR/${VAR} interpolation (expanded after EXTRA_VARS/EXTRA_SECRETS)."
         type: string
         required: false
       debug:
@@ -234,10 +234,26 @@ jobs:
             done <<< "$EXTRA_SECRETS"
           fi
 
+      - name: Expand shell variables in inputs
+        id: expand-inputs
+        env:
+          RAW_CONTEXT_VALUES: ${{ inputs.context-values }}
+          RAW_EXTRA_ARGUMENTS: ${{ inputs.extra-arguments }}
+        run: |
+          echo "🔄 Expanding environment variables in inputs..."
+
+          expanded_context=$(echo "$RAW_CONTEXT_VALUES" | envsubst)
+          expanded_args=$(echo "$RAW_EXTRA_ARGUMENTS" | envsubst)
+
+          echo "context-values=$expanded_context" >> $GITHUB_OUTPUT
+          echo "extra-arguments=$expanded_args" >> $GITHUB_OUTPUT
+
+          echo "✅ Variable expansion complete"
+
       - name: Validate required inputs
         id: validate-inputs
         env:
-          CONTEXT_VALUES: ${{ inputs.context-values }}
+          CONTEXT_VALUES: ${{ steps.expand-inputs.outputs.context-values }}
           ENVIRONMENT_TARGET: ${{ inputs.environment-target }}
           ENVIRONMENT: ${{ inputs.github-environment || 'Repository' }}
           INPUT_DEPLOY: ${{ inputs.deploy }}
@@ -336,7 +352,7 @@ jobs:
       - name: Configure CDK context
         id: context-config
         env:
-          CONTEXT_VALUES: ${{ inputs.context-values }}
+          CONTEXT_VALUES: ${{ steps.expand-inputs.outputs.context-values }}
           ENVIRONMENT_TARGET: ${{ inputs.environment-target }}
         run: |
           echo "⚙️ Configuring CDK context..."
@@ -384,7 +400,7 @@ jobs:
           AWS_REGION: ${{ inputs.aws-region }}
           BOOTSTRAP_CMD: ${{ inputs.bootstrap-command }}
           CFN_EXECUTION_ROLE: ${{ secrets.CFN_EXECUTION_ROLE }}
-          EXTRA_ARGUMENTS: ${{ inputs.extra-arguments }}
+          EXTRA_ARGUMENTS: ${{ steps.expand-inputs.outputs.extra-arguments }}
           FLAG_CFN_EXECUTION_POLICY: |-
             ${{ case(
               secrets.CFN_EXECUTION_ROLE != '',
@@ -411,7 +427,7 @@ jobs:
         if: inputs.synth == true
         env:
           CONTEXT_ARGS: ${{ steps.context-config.outputs.args }}
-          EXTRA_ARGUMENTS: ${{ inputs.extra-arguments }}
+          EXTRA_ARGUMENTS: ${{ steps.expand-inputs.outputs.extra-arguments }}
           FLAG_VERBOSE: ${{ case(inputs.debug == true, '--verbose', '') }}
           STACK_NAME: ${{ inputs.stack-name || vars.STACK_NAME }}
           SYNTH_CMD: ${{ inputs.synth-command }}
@@ -439,7 +455,7 @@ jobs:
         env:
           CONTEXT_ARGS: ${{ steps.context-config.outputs.args }}
           DIFF_CMD: ${{ inputs.diff-command }}
-          EXTRA_ARGUMENTS: ${{ inputs.extra-arguments }}
+          EXTRA_ARGUMENTS: ${{ steps.expand-inputs.outputs.extra-arguments }}
           STACK_NAME: ${{ inputs.stack-name || vars.STACK_NAME }}
         run: |
           echo "📊 Analysing deployment changes..."
@@ -583,7 +599,7 @@ jobs:
         env:
           CONTEXT_ARGS: ${{ steps.context-config.outputs.args }}
           DEPLOY_CMD: ${{ inputs.deploy-command }}
-          EXTRA_ARGUMENTS: ${{ inputs.extra-arguments }}
+          EXTRA_ARGUMENTS: ${{ steps.expand-inputs.outputs.extra-arguments }}
           FLAG_VERBOSE: ${{ case(inputs.debug == true, '--verbose', '') }}
           STACK_NAME: ${{ inputs.stack-name || vars.STACK_NAME }}
         run: |
