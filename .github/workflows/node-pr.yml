@@ -14,10 +14,6 @@ on:
         description: "Node package manager to use"
         default: yarn
         type: string
-      has-env-vars:
-        description: "Whether environment variables are provided"
-        default: false
-        type: boolean
       is-yarn-classic:
         description: "If Yarn (pre-Berry) should be used"
         default: false
@@ -82,10 +78,6 @@ on:
         description: "If debug flags should be set"
         default: false
         type: boolean
-      fetch-depth:
-        description: "Number of commits to fetch. 0 indicates all history for all branches and tags"
-        default: 1
-        type: number
       pre-test-command:
         description: >-
           A script to run before the test checks (e.g., generate:types for code generation).
@@ -96,6 +88,14 @@ on:
         description: "Value for NODE_OPTIONS environment variable (e.g., --max-old-space-size=4096)"
         default: ""
         type: string
+      has-env-vars:
+        description: "Deprecated: ignored"
+        default: false
+        type: boolean
+      fetch-depth:
+        description: "Deprecated: ignored"
+        default: 1
+        type: number
 
 jobs:
   build:
@@ -103,36 +103,50 @@ jobs:
     if: inputs.skip-build == false
     runs-on: ubuntu-latest
     env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      HAVE_SECRETS_ENV_VARS: ${{ secrets.ENV_VARS != '' }}
       NODE_OPTIONS: ${{ inputs.node-options }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
         with:
-          fetch-depth: ${{ inputs.fetch-depth }}
           persist-credentials: false
+
+      - name: Fetch all commit history for Nx
+        if: hashFiles('nx.json') != ''
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
+        with:
+          # Nx requires that we have a full Git history available.
+          fetch-depth: 0
+          persist-credentials: false
+
       - name: Install Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
+
       - name: Enable Corepack
+        if: hashFiles('package.json') != ''
         run: |
           # Enable corepack if packageManager is specified in package.json
-          if [ -f package.json ] && jq -e '.packageManager' package.json > /dev/null 2>&1; then
+          if jq -e '.packageManager' package.json >/dev/null 2>&1; then
             echo "packageManager field detected in package.json, enabling corepack"
             corepack enable
           fi
+
       - name: Configure Dependency Cache
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
         with:
           cache: ${{ inputs.package-manager }}
           node-version-file: .nvmrc
+
       - name: Install safe-chain
         run: |
           SAFE_CHAIN_URL="https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh"
           curl -fsSL "$SAFE_CHAIN_URL" | sh -s -- --ci
+
       - name: Setup additional environment variables
-        if: inputs.has-env-vars
+        if: env.HAVE_SECRETS_ENV_VARS == 'true'
         run: |
           # Parse and set additional environment variables securely
           # Supports multiline values (e.g., SSH keys)
@@ -162,6 +176,7 @@ jobs:
         env:
           # zizmor: ignore[secrets-outside-env]
           SECRETS_ENV_VARS: ${{ secrets.ENV_VARS }}
+
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''
         run: |
@@ -174,80 +189,36 @@ jobs:
           done
         env:
           INPUTS_PRE_INSTALL_COMMANDS: ${{ inputs.pre-install-commands }}
+
       - name: Install dependencies
         run: |
-          debug=""
-          if [ "${INPUTS_DEBUG}" = "true" ]; then
-            debug="--verbose"
-          fi
           if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
-            lock_dependencies="--immutable"
-            if [ "${INPUTS_IS_YARN_CLASSIC}" = "true" ]; then
-              lock_dependencies="--frozen-lockfile"
-            fi
-            skip_cache=""
-            if [ "${INPUTS_SKIP_CACHE}" = "true" ]; then
-              skip_cache="--force"
-            fi
-
-            yarn config get nodeLinker
-            yarn install $lock_dependencies $skip_cache $debug
+            yarn install ${FLAG_LOCK_DEPENDENCIES} ${FLAG_SKIP_CACHE} ${FLAG_DEBUG}
           else
-            npm ci $debug
+            npm ci ${FLAG_DEBUG}
           fi
         env:
+          FLAG_DEBUG: ${{ case(inputs.debug == true, '--verbose', '') }}
+          FLAG_LOCK_DEPENDENCIES: ${{ case(inputs.is-yarn-classic == true, '--frozen-lockfile', '--immutable') }}
+          FLAG_SKIP_CACHE: ${{ case(inputs.skip-cache == true, '--force', '') }}
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
-          INPUTS_DEBUG: ${{ inputs.debug }}
-          INPUTS_IS_YARN_CLASSIC: ${{ inputs.is-yarn-classic }}
-          INPUTS_SKIP_CACHE: ${{ inputs.skip-cache }}
 
       - name: Register problem matchers
         uses: aligent/workflows/.github/actions/node-problem-matchers@main
 
-      - name: Check build command exists
-        id: check-build
-        uses: aligent/workflows/.github/actions/command-exists@main
-        with:
-          command: ${{ inputs.build-command }}
-
-      - name: Build (script)
-        if: steps.check-build.outputs.exists-script == 'true'
+      - name: Build
         run: |
-          debug=""
-          if [ "${INPUTS_DEBUG}" = "true" ]; then
-            debug="--verbose"
+          # Check Nx targets if this is an Nx workspace
+          if [ -f "nx.json" ] && \
+             npx nx show projects --with-target "${INPUTS_BUILD_COMMAND}" 2>/dev/null | grep -q .; then
+            npx nx run-many -t ${INPUTS_BUILD_COMMAND} ${FLAG_DEBUG}
+          else
+            ${INPUTS_PACKAGE_MANAGER} run ${INPUTS_BUILD_COMMAND} ${FLAG_DEBUG}
           fi
-          ${INPUTS_PACKAGE_MANAGER} run ${INPUTS_BUILD_COMMAND} $debug
         env:
+          FLAG_DEBUG: ${{ case(inputs.debug == true, '--verbose', '') }}
+          INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
-          INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
-          INPUTS_DEBUG: ${{ inputs.debug }}
-
-      - name: Fetch all commits for Nx
-        if: steps.check-build.outputs.exists-nx-target == 'true'
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-          clean: false
-
-      - name: Build (nx)
-        if: steps.check-build.outputs.exists-script != 'true' && steps.check-build.outputs.exists-nx-target == 'true'
-        run: |
-          debug=""
-          if [ "${INPUTS_DEBUG}" = "true" ]; then
-            debug="--verbose"
-          fi
-          npx nx run-many -t ${INPUTS_BUILD_COMMAND} $debug
-        env:
-          INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
-          INPUTS_DEBUG: ${{ inputs.debug }}
-
-      - name: Skip build (command not found)
-        if: steps.check-build.outputs.exists-script != 'true' && steps.check-build.outputs.exists-nx-target != 'true'
-        run: echo "Build command '${INPUTS_BUILD_COMMAND}' not found, skipping"
-        env:
-          INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
 
       - name: Remove problem matchers
         if: always()
@@ -265,36 +236,50 @@ jobs:
       inputs.skip-check-types == false
     runs-on: ubuntu-latest
     env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      HAVE_SECRETS_ENV_VARS: ${{ secrets.ENV_VARS != '' }}
       NODE_OPTIONS: ${{ inputs.node-options }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
         with:
-          fetch-depth: ${{ inputs.fetch-depth }}
           persist-credentials: false
+
+      - name: Fetch all commit history for Nx
+        if: hashFiles('nx.json') != ''
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
+        with:
+          # Nx requires that we have a full Git history available.
+          fetch-depth: 0
+          persist-credentials: false
+
       - name: Install Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
+
       - name: Enable Corepack
+        if: hashFiles('package.json') != ''
         run: |
           # Enable corepack if packageManager is specified in package.json
-          if [ -f package.json ] && jq -e '.packageManager' package.json > /dev/null 2>&1; then
+          if jq -e '.packageManager' package.json >/dev/null 2>&1; then
             echo "packageManager field detected in package.json, enabling corepack"
             corepack enable
           fi
+
       - name: Configure Dependency Cache
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
         with:
           cache: ${{ inputs.package-manager }}
           node-version-file: .nvmrc
+
       - name: Install safe-chain
         run: |
           SAFE_CHAIN_URL="https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh"
           curl -fsSL "$SAFE_CHAIN_URL" | sh -s -- --ci
+
       - name: Setup additional environment variables
-        if: inputs.has-env-vars
+        if: env.HAVE_SECRETS_ENV_VARS == 'true'
         run: |
           # Parse and set additional environment variables securely
           # Supports multiline values (e.g., SSH keys)
@@ -324,6 +309,7 @@ jobs:
         env:
           # zizmor: ignore[secrets-outside-env]
           SECRETS_ENV_VARS: ${{ secrets.ENV_VARS }}
+
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''
         run: |
@@ -336,92 +322,22 @@ jobs:
           done
         env:
           INPUTS_PRE_INSTALL_COMMANDS: ${{ inputs.pre-install-commands }}
+
       - name: Install dependencies
         run: |
-          debug=""
-          if [ "${INPUTS_DEBUG}" = "true" ]; then
-            debug="--verbose"
-          fi
           if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
-            lock_dependencies="--immutable"
-            if [ "${INPUTS_IS_YARN_CLASSIC}" = "true" ]; then
-              lock_dependencies="--frozen-lockfile"
-            fi
-            skip_cache=""
-            if [ "${INPUTS_SKIP_CACHE}" = "true" ]; then
-              skip_cache="--force"
-            fi
-
-            yarn config get nodeLinker
-            yarn install $lock_dependencies $skip_cache $debug
+            yarn install ${FLAG_LOCK_DEPENDENCIES} ${FLAG_SKIP_CACHE} ${FLAG_DEBUG}
           else
-            npm ci $debug
+            npm ci ${FLAG_DEBUG}
           fi
         env:
+          FLAG_DEBUG: ${{ case(inputs.debug == true, '--verbose', '') }}
+          FLAG_LOCK_DEPENDENCIES: ${{ case(inputs.is-yarn-classic == true, '--frozen-lockfile', '--immutable') }}
+          FLAG_SKIP_CACHE: ${{ case(inputs.skip-cache == true, '--force', '') }}
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
-          INPUTS_DEBUG: ${{ inputs.debug }}
-          INPUTS_IS_YARN_CLASSIC: ${{ inputs.is-yarn-classic }}
-          INPUTS_SKIP_CACHE: ${{ inputs.skip-cache }}
-
-      - name: Run pre-test command
-        if: inputs.pre-test-command != ''
-        run: ${INPUTS_PACKAGE_MANAGER} run ${INPUTS_PRE_TEST_COMMAND}
-        env:
-          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
-          INPUTS_PRE_TEST_COMMAND: ${{ inputs.pre-test-command }}
-
-      - name: Check test command exists
-        id: check-test
-        if: inputs.skip-test == false
-        uses: aligent/workflows/.github/actions/command-exists@main
-        with:
-          command: ${{ inputs.test-command }}
-
-      - name: Check lint command exists
-        id: check-lint
-        if: inputs.skip-lint == false
-        uses: aligent/workflows/.github/actions/command-exists@main
-        with:
-          command: ${{ inputs.lint-command }}
-
-      - name: Check format command exists
-        id: check-format
-        if: inputs.skip-format == false
-        uses: aligent/workflows/.github/actions/command-exists@main
-        with:
-          command: ${{ inputs.format-command }}
-
-      - name: Check test-storybook command exists
-        id: check-test-storybook
-        if: inputs.skip-test-storybook == false
-        uses: aligent/workflows/.github/actions/command-exists@main
-        with:
-          command: ${{ inputs.test-storybook-command }}
-
-      - name: Check check-types command exists
-        id: check-check-types
-        if: inputs.skip-check-types == false
-        uses: aligent/workflows/.github/actions/command-exists@main
-        with:
-          command: ${{ inputs.check-types-command }}
-
-      - name: Fetch all commits for Nx
-        if: >-
-          steps.check-test.outputs.exists-nx-target == 'true' ||
-          steps.check-lint.outputs.exists-nx-target == 'true' ||
-          steps.check-format.outputs.exists-nx-target == 'true' ||
-          steps.check-test-storybook.outputs.exists-nx-target == 'true' ||
-          steps.check-check-types.outputs.exists-nx-target == 'true'
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-          clean: false
 
       - name: Install Playwright
-        if: >-
-          inputs.skip-test-storybook == false &&
-          steps.check-test-storybook.outputs.exists == 'true'
+        if: inputs.skip-test-storybook == false
         run: |
           # Ensure playwright dependencies are installed before story blok test execution begins
           if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
@@ -432,50 +348,57 @@ jobs:
         env:
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
 
-      - name: Build commands list
-        id: build-commands
+      - name: Run pre-test command
+        if: inputs.pre-test-command != ''
+        run: ${INPUTS_PACKAGE_MANAGER} run ${INPUTS_PRE_TEST_COMMAND}
+        env:
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          INPUTS_PRE_TEST_COMMAND: ${{ inputs.pre-test-command }}
+
+      - id: add-matchers
+        uses: aligent/workflows/.github/actions/node-problem-matchers@main
+
+      - name: Run checks
         run: |
           commands=()
-          if [ "${INPUTS_SKIP_TEST}" != "true" ] && [ "${STEPS_CHECK_TEST_OUTPUTS_EXISTS}" == "true" ]; then
-            commands+=("${INPUTS_TEST_COMMAND}")
+          if [ "${INPUTS_SKIP_TEST}" != "true" ]; then
+            commands+=("${INPUTS_PACKAGE_MANAGER} run ${INPUTS_TEST_COMMAND} ${FLAG_DEBUG}")
           fi
-          if [ "${INPUTS_SKIP_LINT}" != "true" ] && [ "${STEPS_CHECK_LINT_OUTPUTS_EXISTS}" == "true" ]; then
-            commands+=("${INPUTS_LINT_COMMAND}")
+          if [ "${INPUTS_SKIP_LINT}" != "true" ]; then
+            commands+=("${INPUTS_PACKAGE_MANAGER} run ${INPUTS_LINT_COMMAND} ${FLAG_DEBUG}")
           fi
-          if [ "${INPUTS_SKIP_FORMAT}" != "true" ] && [ "${STEPS_CHECK_FORMAT_OUTPUTS_EXISTS}" == "true" ]; then
-            commands+=("${INPUTS_FORMAT_COMMAND}")
+          if [ "${INPUTS_SKIP_FORMAT}" != "true" ]; then
+            commands+=("${INPUTS_PACKAGE_MANAGER} run ${INPUTS_FORMAT_COMMAND} ${FLAG_DEBUG}")
           fi
-          if [ "${INPUTS_SKIP_TEST_STORYBOOK}" != "true" ] && \
-             [ "${STEPS_CHECK_TEST_STORYBOOK_OUTPUTS_EXISTS}" == "true" ]; then
-            commands+=("${INPUTS_TEST_STORYBOOK_COMMAND}")
+          if [ "${INPUTS_SKIP_TEST_STORYBOOK}" != "true" ]; then
+            commands+=("${INPUTS_PACKAGE_MANAGER} run ${INPUTS_TEST_STORYBOOK_COMMAND} ${FLAG_DEBUG}")
           fi
-          if [ "${INPUTS_SKIP_CHECK_TYPES}" != "true" ] && \
-             [ "${STEPS_CHECK_CHECK_TYPES_OUTPUTS_EXISTS}" == "true" ]; then
-            commands+=("${INPUTS_CHECK_TYPES_COMMAND}")
+          if [ "${INPUTS_SKIP_CHECK_TYPES}" != "true" ]; then
+            commands+=("${INPUTS_PACKAGE_MANAGER} run ${INPUTS_CHECK_TYPES_COMMAND} ${FLAG_DEBUG}")
           fi
-          # Convert to JSON array
-          json=$(printf '%s\n' "${commands[@]}" | jq -R . | jq -s -c .)
-          echo "commands=$json" >> $GITHUB_OUTPUT
-        env:
-          STEPS_CHECK_TEST_OUTPUTS_EXISTS: ${{ steps.check-test.outputs.exists }}
-          INPUTS_TEST_COMMAND: ${{ inputs.test-command }}
-          STEPS_CHECK_LINT_OUTPUTS_EXISTS: ${{ steps.check-lint.outputs.exists }}
-          INPUTS_LINT_COMMAND: ${{ inputs.lint-command }}
-          STEPS_CHECK_FORMAT_OUTPUTS_EXISTS: ${{ steps.check-format.outputs.exists }}
-          INPUTS_FORMAT_COMMAND: ${{ inputs.format-command }}
-          STEPS_CHECK_TEST_STORYBOOK_OUTPUTS_EXISTS: ${{ steps.check-test-storybook.outputs.exists }}
-          INPUTS_TEST_STORYBOOK_COMMAND: ${{ inputs.test-storybook-command }}
-          STEPS_CHECK_CHECK_TYPES_OUTPUTS_EXISTS: ${{ steps.check-check-types.outputs.exists }}
-          INPUTS_CHECK_TYPES_COMMAND: ${{ inputs.check-types-command }}
-          INPUTS_SKIP_TEST: ${{ inputs.skip-test }}
-          INPUTS_SKIP_LINT: ${{ inputs.skip-lint }}
-          INPUTS_SKIP_FORMAT: ${{ inputs.skip-format }}
-          INPUTS_SKIP_TEST_STORYBOOK: ${{ inputs.skip-test-storybook }}
-          INPUTS_SKIP_CHECK_TYPES: ${{ inputs.skip-check-types }}
+          if [ ${#commands[@]} -eq 0 ]; then
+            echo "missing commands, job should have been skipped"
+            exit 1
+          fi
 
-      - name: Run checks concurrently
-        uses: aligent/workflows/.github/actions/run-checks@main
+          echo "Running ${#commands[@]} check(s) in parallel..."
+          parallel --tag --keep-order --line-buffer ::: "${commands[@]}"
+        env:
+          FLAG_DEBUG: ${{ case(inputs.debug == true, '--verbose', '') }}
+          INPUTS_CHECK_TYPES_COMMAND: ${{ inputs.check-types-command }}
+          INPUTS_FORMAT_COMMAND: ${{ inputs.format-command }}
+          INPUTS_LINT_COMMAND: ${{ inputs.lint-command }}
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          INPUTS_SKIP_CHECK_TYPES: ${{ inputs.skip-check-types }}
+          INPUTS_SKIP_FORMAT: ${{ inputs.skip-format }}
+          INPUTS_SKIP_LINT: ${{ inputs.skip-lint }}
+          INPUTS_SKIP_TEST_STORYBOOK: ${{ inputs.skip-test-storybook }}
+          INPUTS_SKIP_TEST: ${{ inputs.skip-test }}
+          INPUTS_TEST_COMMAND: ${{ inputs.test-command }}
+          INPUTS_TEST_STORYBOOK_COMMAND: ${{ inputs.test-storybook-command }}
+
+      - id: remove-matchers
+        if: always()
+        uses: aligent/workflows/.github/actions/node-problem-matchers@main
         with:
-          package-manager: ${{ inputs.package-manager }}
-          debug: ${{ inputs.debug }}
-          commands: ${{ steps.build-commands.outputs.commands }}
+          action: remove
