@@ -164,7 +164,7 @@ jobs:
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 #v6.0.0
         with:
           node-version-file: ${{ inputs.node-version-file }}
-          package-manager-cache: false
+          package-manager-cache: true
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
