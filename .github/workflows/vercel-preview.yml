@@ -139,8 +139,7 @@ jobs:
 
   # Opt-in: measures Core Web Vitals against the preview deployment and
   # comments the median results on the pull request. Skipped entirely unless
-  # the caller sets performance-check and provides measured-paths, so existing
-  # callers are unaffected.
+  # the caller sets performance-check and provides measured-paths.
   performance:
     name: Preview Performance
     needs: deploy-preview
@@ -159,17 +158,19 @@ jobs:
         with:
           persist-credentials: false
 
+      # `package-manager-cache: false` because this job never installs project
+      # dependencies — it only needs Node to summarise the Lighthouse results.
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 #v6.0.0
         with:
           node-version-file: ${{ inputs.node-version-file }}
+          package-manager-cache: false
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
       # The deploy job uses `--no-wait`, so the deployment is still building
-      # when this job starts. `--wait` blocks until the build completes and
-      # exits non-zero if it fails, so no polling loop is needed.
+      # when this job starts. Wait for it to finish so the performance check can run against a fully built preview.
       - name: Wait for preview deployment
         id: deployment
         env:
@@ -184,12 +185,6 @@ jobs:
             exit 1
           fi
 
-          # `vercel inspect` takes a deployment URL rather than a linked
-          # project, so it resolves scope from the token's default team
-          # instead of from VERCEL_ORG_ID the way `vercel deploy` does. Name
-          # the owning team explicitly or the deployment reads as out of
-          # scope. `--scope` accepts the team ID that VERCEL_ORG_ID holds,
-          # despite the docs describing it as a slug; `--team` is deprecated.
           echo "Waiting for ${DEPLOY_URL} to become ready."
           if ! vercel inspect "$DEPLOY_URL" \
             --token="$VERCEL_TOKEN" \
@@ -271,8 +266,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Written out rather than inlined with `node -e` so the quoting stays
-          # manageable and the script is readable.
           cat > summarise.mjs <<'SUMMARISE_EOF'
           import { readFileSync } from 'node:fs';
           import { join } from 'node:path';

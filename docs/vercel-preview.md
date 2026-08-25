@@ -58,6 +58,40 @@ The check is **off by default**. It runs only when `performance-check` is true
    otherwise be measured as page latency.
 3. Runs Lighthouse against every path and comments the median of each metric.
 
+### Deployment Protection
+
+If the Vercel project has [Deployment
+Protection](https://vercel.com/docs/deployment-protection) enabled, preview URLs
+require a Vercel login. Automated requests receive an authentication page rather
+than the site, so Lighthouse would score the login screen instead of the page
+under test.
+
+To allow the check through, generate a [Protection Bypass for
+Automation](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation)
+secret in the Vercel project's Deployment Protection settings, add it to the
+calling repository as a secret, and pass it as
+`vercel-automation-bypass-secret`. The workflow sends it as the
+`x-vercel-protection-bypass` header on both the warm-up requests and the
+Lighthouse runs.
+
+Generating the secret requires at least the **member** team role, or the
+**Project Administrator** role on the project. Note that regenerating or
+deleting a secret invalidates it for existing deployments, which then need to
+be redeployed.
+
+The secret is optional and is omitted from requests entirely when unset, which
+is correct for a project without Deployment Protection. If protection *is*
+enabled and the secret is missing, the warm-up step fails with a non-200 status
+rather than reporting misleading scores.
+
+To check whether a project needs it, open a preview URL in a private browser
+window: a login prompt means protection is enabled.
+
+> Vercel also exposes this value to the running deployment as the
+> `VERCEL_AUTOMATION_BYPASS_SECRET` system environment variable, but that is not
+> usable here — the workflow needs the secret *before* it can reach the
+> deployment, so it must come from repository secrets.
+
 ### Reading the results
 
 Preview deployments are cold and run on shared CI runners, so treat the numbers
