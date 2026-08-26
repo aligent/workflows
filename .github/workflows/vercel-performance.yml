@@ -34,6 +34,16 @@ on:
         type: string
         required: false
         default: "none"
+      baseline-key:
+        description: >-
+          Name distinguishing this baseline from others in the same repository.
+          A repository measuring more than one deployment must give each its
+          own key, or they overwrite each other and pull requests compare
+          against whichever ran last. Must match between the recording and
+          comparing callers.
+        type: string
+        required: false
+        default: "default"
       lighthouse-config-path:
         description: >-
           Path to a Lighthouse CI config file in the calling repository,
@@ -221,9 +231,12 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: baseline.json
-          key: lh-baseline-${{ matrix.form-factor }}-${{ github.event.pull_request.base.sha }}
+          # Baselines are keyed by the commit that recorded them. An exact hit
+          # is unlikely, so the prefix in restore-keys picks up whichever is
+          # most recent.
+          key: lh-baseline-${{ inputs.baseline-key }}-${{ matrix.form-factor }}-
           restore-keys: |
-            lh-baseline-${{ matrix.form-factor }}-
+            lh-baseline-${{ inputs.baseline-key }}-${{ matrix.form-factor }}-
 
       - name: Summarise results
         id: summary
@@ -445,7 +458,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: baseline.json
-          key: lh-baseline-${{ matrix.form-factor }}-${{ github.sha }}
+          key: lh-baseline-${{ inputs.baseline-key }}-${{ matrix.form-factor }}-${{ github.sha }}
 
       - name: Comment performance results on PR
         if: github.event.pull_request.number && inputs.baseline-mode != 'record'

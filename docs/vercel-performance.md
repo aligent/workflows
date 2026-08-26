@@ -18,6 +18,7 @@ baseline current.
 | vercel-org-id          | ✅       | string |                                               | Vercel organisation ID owning the deployment   |
 | measured-paths         | ✅       | string |                                               | Paths to measure, one per line                 |
 | baseline-mode          | ❌       | string | none                                          | `compare`, `record` or `none`                  |
+| baseline-key           | ❌       | string | default                                       | Names the baseline; give each measured deployment its own |
 | lighthouse-config-path | ❌       | string | .github/lighthouse/lighthouserc.{form-factor}.json | Lighthouse CI config in the caller repo   |
 | regression-threshold   | ❌       | number | 20                                            | Percent a metric may worsen before flagging    |
 | node-version-file      | ❌       | string | .nvmrc                                        | File to read the Node version from             |
@@ -49,8 +50,41 @@ the default branch wrote, but not the reverse. So the two modes live in two
 caller workflows — `compare` on `pull_request`, `record` on push to the default
 branch.
 
-Note that a cache expires after 7 days without being read. After a quiet period
-the first pull request reports no baseline until the next merge records one.
+A repository measuring more than one deployment must give each its own
+`baseline-key`. Baselines are cached per key and form factor, so without it two
+deployments overwrite each other and pull requests compare against whichever
+recorded last. The key must match between the recording and comparing callers.
+
+#### Keeping the baseline alive
+
+GitHub evicts a cache that has not been read for 7 days. Because the baseline
+is only rewritten on a merge, a quiet fortnight drops it silently and pull
+requests report no baseline until the next merge.
+
+`vercel-performance-keepalive.yml` restores the baselines and does nothing
+else, which resets that clock for seconds of runner time. It knows which form
+factors are measured, so the caller supplies only its baseline keys:
+
+```yaml
+on:
+  schedule:
+    # Every third day, against a 7 day expiry. Scheduled runs are delayed under
+    # load and can be dropped, so this leaves slack rather than sitting at the
+    # boundary.
+    - cron: '0 17 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  keep-baselines-alive:
+    uses: aligent/workflows/.github/workflows/vercel-performance-keepalive.yml@main
+    with:
+      baseline-keys: |
+        paas
+        accs
+```
+
+A missing baseline is reported as a warning rather than a failure: pull
+requests degrade gracefully without one, and the next merge records it again.
 
 ### Example Usage
 
@@ -76,6 +110,9 @@ jobs:
       deployment-url: ${{ needs.deploy-preview.outputs.url }}
       vercel-org-id: ${{ vars.VERCEL_ORG_ID }}
       baseline-mode: compare
+      # Names this baseline. Required only when measuring more than one
+      # deployment, but explicit here to show the pairing.
+      baseline-key: paas
       measured-paths: |
         /
         /category/example
@@ -110,6 +147,9 @@ jobs:
       deployment-url: ${{ needs.deploy-preview.outputs.url }}
       vercel-org-id: ${{ vars.VERCEL_ORG_ID }}
       baseline-mode: record
+      # Names this baseline. Required only when measuring more than one
+      # deployment, but explicit here to show the pairing.
+      baseline-key: paas
       measured-paths: |
         /
         /category/example
