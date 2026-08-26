@@ -130,7 +130,9 @@ jobs:
           set -euo pipefail
 
           if [ -z "$DEPLOY_URL" ]; then
-            echo "::error::The deploy job did not produce a preview URL."
+            echo "::error::No deployment URL was passed in."
+            echo "::error::The deploy this depends on may have failed or been cancelled;"
+            echo "::error::check its result rather than this job."
             exit 1
           fi
 

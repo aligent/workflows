@@ -27,9 +27,12 @@ on:
         required: true
 
 concurrency:
-  # Falls back to the ref so a run on a branch rather than a pull request,
-  # which has no pull request number, still gets its own group.
-  group: vercel-preview-${{ github.event.pull_request.number || github.ref }}
+  # Scoped by project as well as by pull request, because a caller may deploy
+  # several projects from one workflow. Without the project, two such calls
+  # share a group and `cancel-in-progress` makes the second cancel the first.
+  # Falls back to the ref for a run on a branch rather than a pull request,
+  # which has no pull request number.
+  group: vercel-preview-${{ inputs.vercel-project-id }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -88,10 +91,11 @@ jobs:
           DEPLOY_URL: ${{ steps.deploy.outputs.url }}
           INSPECT_URL: ${{ steps.deploy.outputs.inspect_url }}
           COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          ENVIRONMENT_NAME: ${{ inputs.environment-name }}
         run: |
           marker='<!-- vercel-preview -->'
           body="$marker
-          ### ⚡ Preview environment is deploying
+          ### ⚡ ${ENVIRONMENT_NAME} environment is deploying
 
           Wait ~5 minutes for completion, or monitor progress using the Inspect URL.
 

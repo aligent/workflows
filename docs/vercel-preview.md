@@ -10,7 +10,7 @@ pull request with the preview and inspect URLs. Intended to be called from a
 | vercel-org-id      | ✅       | string |          | Vercel organisation ID                  |
 | vercel-project-id  | ✅       | string |          | Vercel project ID                       |
 | working-directory  | ❌       | string | .        | Directory to run the Vercel deploy from |
-| environment-name   | ❌       | string | Preview  | GitHub Environment to deploy to         |
+| environment-name   | ❌       | string | Preview  | GitHub Environment to deploy to. Also used as the heading of the pull request comment |
 
 #### **Outputs**
 | Name | Description                                                             |
@@ -36,6 +36,34 @@ jobs:
     with:
       vercel-org-id: ${{ vars.VERCEL_ORG_ID }}
       vercel-project-id: ${{ vars.VERCEL_PROJECT_ID }}
+    secrets:
+      vercel-token: ${{ secrets.VERCEL_TOKEN }}
+```
+
+#### Deploying more than one project
+
+Call the workflow once per project and give each call a distinct
+`environment-name`. The name keeps the deployments separate in the repository's
+Environments list and labels each pull request comment, so the two are
+distinguishable.
+
+```yaml
+jobs:
+  deploy-paas-preview:
+    uses: aligent/workflows/.github/workflows/vercel-preview.yml@main
+    with:
+      vercel-org-id: ${{ vars.VERCEL_ORG_ID }}
+      vercel-project-id: ${{ vars.VERCEL_PROJECT_ID }}
+      environment-name: "Preview PaaS"
+    secrets:
+      vercel-token: ${{ secrets.VERCEL_TOKEN }}
+
+  deploy-accs-preview:
+    uses: aligent/workflows/.github/workflows/vercel-preview.yml@main
+    with:
+      vercel-org-id: ${{ vars.VERCEL_ORG_ID }}
+      vercel-project-id: ${{ vars.VERCEL_ACCS_PROJECT_ID }}
+      environment-name: "Preview ACCS"
     secrets:
       vercel-token: ${{ secrets.VERCEL_TOKEN }}
 ```
