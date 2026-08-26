@@ -36,11 +36,12 @@ on:
         default: "none"
       baseline-key:
         description: >-
-          Name distinguishing this baseline from others in the same repository.
-          A repository measuring more than one deployment must give each its
-          own key, or they overwrite each other and pull requests compare
-          against whichever ran last. Must match between the recording and
-          comparing callers.
+          Name distinguishing this measurement from others in the same
+          repository. A repository measuring more than one deployment must give
+          each its own key: it namespaces both the cached baseline and the
+          concurrency group, so without it the deployments overwrite each
+          other's baselines and cancel each other's runs. Must match between
+          the recording and comparing callers.
         type: string
         required: false
         default: "default"
@@ -78,9 +79,11 @@ on:
         required: false
 
 concurrency:
-  # Keyed by deployment so two callers measuring different deployments in the
-  # same pull request do not cancel each other.
-  group: vercel-performance-${{ inputs.deployment-url }}
+  # Keyed by baseline-key rather than by deployment-url: the URL is only known
+  # once the deploy this depends on has finished, but the group is evaluated
+  # when the call is queued, so it would still be empty and every caller in the
+  # workflow would share one group and cancel each other.
+  group: vercel-performance-${{ inputs.baseline-key }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
