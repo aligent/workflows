@@ -51,9 +51,10 @@ caller workflows — `compare` on `pull_request`, `record` on push to the defaul
 branch.
 
 A repository measuring more than one deployment must give each its own
-`baseline-key`. Baselines are cached per key and form factor, so without it two
-deployments overwrite each other and pull requests compare against whichever
-recorded last. The key must match between the recording and comparing callers.
+`baseline-key`. It namespaces the cached baseline, the concurrency group, and
+the pull request comment, so without it two deployments overwrite each other's
+baselines, cancel each other's runs, and fight over one comment. The key must
+match between the recording and comparing callers.
 
 #### Keeping the baseline alive
 

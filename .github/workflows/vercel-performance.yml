@@ -473,13 +473,23 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BASELINE_KEY: ${{ inputs.baseline-key }}
         run: |
           set -euo pipefail
 
-          marker='<!-- vercel-preview-performance -->'
+          # Scoped by baseline-key so a repository measuring several
+          # deployments gets one comment each, rather than overwriting a
+          # shared one. The heading is only labelled when a key was given.
+          marker="<!-- vercel-preview-performance:${BASELINE_KEY} -->"
+          if [ "$BASELINE_KEY" = "default" ]; then
+            heading="### 📊 Preview performance"
+          else
+            heading="### 📊 Preview performance (${BASELINE_KEY})"
+          fi
+
           {
             echo "$marker"
-            echo "### 📊 Preview performance"
+            echo "$heading"
             echo
             cat lighthouse-summary.md
             echo
