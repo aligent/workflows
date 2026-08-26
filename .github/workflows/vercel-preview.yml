@@ -21,6 +21,12 @@ on:
         type: string
         required: false
         default: "Preview"
+    outputs:
+      url:
+        description: >-
+          The preview deployment URL. Still building when the job ends, as the
+          deploy uses --no-wait.
+        value: ${{ jobs.deploy-preview.outputs.url }}
     secrets:
       vercel-token:
         description: "Vercel deployment token"
