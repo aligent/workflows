@@ -32,13 +32,13 @@ on:
         description: "Vercel deployment token"
         required: true
 
+# Scoped per project so a repo deploying several Vercel projects from one PR
+# gets an independent group per project instead of the jobs cancelling each other.
 concurrency:
-  # Scoped by project as well as by pull request, because a caller may deploy
-  # several projects from one workflow. Without the project, two such calls
-  # share a group and `cancel-in-progress` makes the second cancel the first.
   # Falls back to the ref for a run on a branch rather than a pull request,
-  # which has no pull request number.
-  group: vercel-preview-${{ inputs.vercel-project-id }}-${{ github.event.pull_request.number || github.ref }}
+  # which has no pull request number: this workflow is also called on pushes
+  # to the default branch to record a performance baseline.
+  group: vercel-preview-${{ github.event.pull_request.number || github.ref }}-${{ inputs.vercel-project-id }}
   cancel-in-progress: true
 
 jobs:
@@ -86,8 +86,10 @@ jobs:
           echo "inspect_url=$inspect_url" >> "$GITHUB_OUTPUT"
 
       # Posts (or updates in place) a single comment on the PR with the preview URL.
-      # Skipped when there is no pull request, e.g. a deploy triggered by a
-      # push to the default branch.
+      # The marker is scoped per project so each Vercel project keeps its own
+      # comment rather than overwriting another project's. Skipped when there
+      # is no pull request, e.g. a deploy triggered by a push to the default
+      # branch.
       - name: Comment preview URL on PR
         if: github.event.pull_request.number
         env:
@@ -99,7 +101,7 @@ jobs:
           COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
           ENVIRONMENT_NAME: ${{ inputs.environment-name }}
         run: |
-          marker='<!-- vercel-preview -->'
+          marker="<!-- vercel-preview:${VERCEL_PROJECT_ID} -->"
           body="$marker
           ### ⚡ ${ENVIRONMENT_NAME} environment is deploying
 
@@ -108,7 +110,7 @@ jobs:
           **Preview URL:** ${DEPLOY_URL}
           **Inspect:** ${INSPECT_URL}
 
-          _Deployed commit ${COMMIT_SHA}_"
+          _Project ${VERCEL_PROJECT_ID}, deployed commit ${COMMIT_SHA}_"
 
           comment_id="$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
             --jq "[.[] | select(.body | startswith(\"${marker}\"))][0].id")"

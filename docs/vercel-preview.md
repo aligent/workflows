@@ -22,6 +22,12 @@ pull request with the preview and inspect URLs. Intended to be called from a
 |---------------|----------|--------------------------|
 | vercel-token  | ✅       | Vercel deployment token  |
 
+#### Concurrency
+
+Runs are grouped by pull request **and** `vercel-project-id`, with
+`cancel-in-progress: true`. A new commit supersedes the in-flight preview for
+that project, while previews for other projects are left alone.
+
 #### Example Usage
 
 ```yaml
@@ -40,33 +46,34 @@ jobs:
       vercel-token: ${{ secrets.VERCEL_TOKEN }}
 ```
 
-#### Deploying more than one project
+#### Deploying more than one Vercel project
 
-Call the workflow once per project and give each call a distinct
-`environment-name`. The name keeps the deployments separate in the repository's
-Environments list and labels each pull request comment, so the two are
-distinguishable.
+Call the workflow once per project. Give each call a distinct
+`environment-name`, otherwise every job writes its deployment status and URL to
+the same GitHub Environment and the last one to finish wins.
 
 ```yaml
 jobs:
-  deploy-paas-preview:
+  deploy-storefront-preview:
     uses: aligent/workflows/.github/workflows/vercel-preview.yml@main
     with:
       vercel-org-id: ${{ vars.VERCEL_ORG_ID }}
       vercel-project-id: ${{ vars.VERCEL_PROJECT_ID }}
-      environment-name: "Preview PaaS"
+      environment-name: Preview
     secrets:
       vercel-token: ${{ secrets.VERCEL_TOKEN }}
 
-  deploy-accs-preview:
+  deploy-admin-preview:
     uses: aligent/workflows/.github/workflows/vercel-preview.yml@main
     with:
       vercel-org-id: ${{ vars.VERCEL_ORG_ID }}
-      vercel-project-id: ${{ vars.VERCEL_ACCS_PROJECT_ID }}
-      environment-name: "Preview ACCS"
+      vercel-project-id: ${{ vars.VERCEL_ADMIN_PROJECT_ID }}
+      environment-name: Preview - admin
     secrets:
       vercel-token: ${{ secrets.VERCEL_TOKEN }}
 ```
+
+Each project gets its own PR comment, keyed on the project ID.
 
 To measure the performance of the resulting preview, pair this with
 [Vercel Preview Performance](vercel-performance.md), which takes the `url`
