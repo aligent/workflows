@@ -1,0 +1,506 @@
+name: Vercel Preview Performance
+
+# Measures Core Web Vitals against an already-deployed Vercel preview and
+# either comments the results on a pull request or records them as a baseline.
+#
+# The caller decides what to measure and when: pair it with a deploy workflow
+# via `needs`, and call it again from a push-to-default-branch workflow with
+# `baseline-mode: record` to keep the baseline current.
+
+on:
+  workflow_call:
+    inputs:
+      deployment-url:
+        description: "URL of the deployment to measure. May still be building."
+        type: string
+        required: true
+      vercel-org-id:
+        description: "Vercel organisation ID that owns the deployment"
+        type: string
+        required: true
+      measured-paths:
+        description: >-
+          Paths to measure, one per line, relative to the deployment URL
+          (e.g. "/"). Newline-delimited so paths may contain query strings.
+        type: string
+        required: true
+      baseline-mode:
+        description: >-
+          "compare" reports each metric against the recorded baseline,
+          "record" stores this run as the baseline instead of commenting, and
+          "none" reports the measurements on their own. Recording must run on
+          the default branch: a pull request can read a cache the default
+          branch wrote, but not the reverse.
+        type: string
+        required: false
+        default: "none"
+      baseline-key:
+        description: >-
+          Name distinguishing this measurement from others in the same
+          repository. A repository measuring more than one deployment must give
+          each its own key: it namespaces both the cached baseline and the
+          concurrency group, so without it the deployments overwrite each
+          other's baselines and cancel each other's runs. Must match between
+          the recording and comparing callers.
+        type: string
+        required: false
+        default: "default"
+      lighthouse-config-path:
+        description: >-
+          Path to a Lighthouse CI config file in the calling repository,
+          holding run count and budgets. Any "{form-factor}" placeholder is
+          replaced with "desktop" or "mobile", so each form factor can carry
+          its own budgets. Mobile Lighthouse throttles CPU and network, so its
+          budgets should be looser than desktop.
+        type: string
+        required: false
+        default: ".github/lighthouse/lighthouserc.{form-factor}.json"
+      regression-threshold:
+        description: >-
+          Percentage a metric may worsen against the baseline before it is
+          flagged. Preview measurements are noisy, so keep this well above the
+          run-to-run variance you observe.
+        type: number
+        required: false
+        default: 20
+      node-version-file:
+        description: "File to read the Node version from"
+        type: string
+        required: false
+        default: ".nvmrc"
+    secrets:
+      vercel-token:
+        description: "Vercel token, used to wait for the deployment to be ready"
+        required: true
+      vercel-automation-bypass-secret:
+        description: >-
+          Vercel Protection Bypass for Automation secret. Required when
+          Deployment Protection is enabled on the project.
+        required: false
+
+concurrency:
+  # Keyed by baseline-key rather than by deployment-url: the URL is only known
+  # once the deploy this depends on has finished, but the group is evaluated
+  # when the call is queued, so it would still be empty and every caller in the
+  # workflow would share one group and cancel each other.
+  group: vercel-performance-${{ inputs.baseline-key }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  performance:
+    name: Preview Performance (${{ matrix.form-factor }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    strategy:
+      # Both form factors measure the same deployment independently, so one
+      # failing should not cancel the other.
+      fail-fast: false
+      matrix:
+        form-factor: [desktop, mobile]
+    env:
+      # How long to wait for the preview deployment to finish building.
+      READY_TIMEOUT: 10m
+      MEASURED_PATHS: ${{ inputs.measured-paths }}
+      FORM_FACTOR: ${{ matrix.form-factor }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
+        with:
+          persist-credentials: false
+
+      # `package-manager-cache: false` because this job never installs project
+      # dependencies — it only needs Node to summarise the Lighthouse results.
+      - name: Install Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
+        with:
+          node-version-file: ${{ inputs.node-version-file }}
+          package-manager-cache: false
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      # The deploy job uses `--no-wait`, so the deployment is still building
+      # when this job starts. Wait for it to finish so the performance check can run against a fully built preview.
+      - name: Wait for preview deployment
+        id: deployment
+        env:
+          VERCEL_TOKEN: ${{ secrets.vercel-token }}
+          VERCEL_ORG_ID: ${{ inputs.vercel-org-id }}
+          DEPLOY_URL: ${{ inputs.deployment-url }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$DEPLOY_URL" ]; then
+            echo "::error::No deployment URL was passed in."
+            echo "::error::The deploy this depends on may have failed or been cancelled;"
+            echo "::error::check its result rather than this job."
+            exit 1
+          fi
+
+          echo "Waiting for ${DEPLOY_URL} to become ready."
+          if ! vercel inspect "$DEPLOY_URL" \
+            --token="$VERCEL_TOKEN" \
+            --scope="$VERCEL_ORG_ID" \
+            --wait \
+            --timeout "$READY_TIMEOUT"; then
+            echo "::error::Preview deployment was not ready within ${READY_TIMEOUT}."
+            exit 1
+          fi
+
+          echo "url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
+
+      # The first request to a cold preview pays serverless cold start and any
+      # on-demand page generation. Measuring that would report build latency
+      # rather than page performance, so discard it. Each path is warmed
+      # separately because they are generated on demand independently.
+      - name: Warm up preview deployment
+        id: urls
+        env:
+          BASE_URL: ${{ steps.deployment.outputs.url }}
+          BYPASS_SECRET: ${{ secrets.vercel-automation-bypass-secret }}
+        run: |
+          set -euo pipefail
+
+          failed=0
+          urls=""
+
+          # Read line by line: a path may contain `?` and `&`, so splitting on
+          # whitespace would mangle it.
+          while IFS= read -r path; do
+            [ -z "$path" ] && continue
+            url="${BASE_URL}${path}"
+            urls="${urls}${url}"$'\n'
+
+            for attempt in 1 2 3; do
+              status="$(curl -sS -o /dev/null -w '%{http_code}' -L \
+                --max-time 60 \
+                ${BYPASS_SECRET:+-H "x-vercel-protection-bypass: ${BYPASS_SECRET}"} \
+                "$url" || echo 000)"
+              echo "Warm-up ${url} attempt ${attempt}: HTTP ${status}"
+              [ "$status" = "200" ] && break
+              [ "$attempt" = "3" ] && failed=1
+              sleep 5
+            done
+          done <<< "$MEASURED_PATHS"
+
+          if [ "$failed" = "1" ]; then
+            echo "::error::One or more URLs did not return HTTP 200 after 3 warm-up requests."
+            echo "::error::If Deployment Protection is enabled, pass the vercel-automation-bypass-secret secret."
+            exit 1
+          fi
+
+          # Hand the fully-qualified URLs to the Lighthouse step so the list is
+          # defined once, by the caller, in measured-paths.
+          {
+            echo "list<<URLS_EOF"
+            printf '%s' "$urls"
+            echo "URLS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve Lighthouse config
+        id: config
+        env:
+          CONFIG_TEMPLATE: ${{ inputs.lighthouse-config-path }}
+        run: |
+          set -euo pipefail
+
+          path="${CONFIG_TEMPLATE//\{form-factor\}/$FORM_FACTOR}"
+          if [ ! -f "$path" ]; then
+            echo "::error::Lighthouse config not found at ${path}."
+            exit 1
+          fi
+
+          echo "Using Lighthouse config ${path}"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      # Run count and budgets come from the caller's Lighthouse CI config. Set
+      # `aggregationMethod: median` there: LHCI defaults to `optimistic`, which
+      # takes the best run and hides the variance that multiple runs exist to
+      # smooth out.
+      - name: Run Lighthouse
+        id: lighthouse
+        uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 #v12
+        with:
+          urls: ${{ steps.urls.outputs.list }}
+          configPath: ${{ steps.config.outputs.path }}
+          uploadArtifacts: true
+          artifactName: lighthouse-reports-${{ matrix.form-factor }}
+
+      # Restores the most recent baseline recorded from the default branch.
+      # A pull request can read caches written by the default branch, but not
+      # the reverse, which is why recording runs on a separate trigger.
+      - name: Restore baseline
+        if: inputs.baseline-mode == 'compare'
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
+        with:
+          path: baseline.json
+          # Baselines are keyed by the commit that recorded them. An exact hit
+          # is unlikely, so the prefix in restore-keys picks up whichever is
+          # most recent.
+          key: lh-baseline-${{ inputs.baseline-key }}-${{ matrix.form-factor }}-
+          restore-keys: |
+            lh-baseline-${{ inputs.baseline-key }}-${{ matrix.form-factor }}-
+
+      - name: Summarise results
+        id: summary
+        env:
+          RESULTS_PATH: ${{ steps.lighthouse.outputs.resultsPath }}
+          ASSERTION_RESULTS: ${{ steps.lighthouse.outputs.assertionResults }}
+          REGRESSION_THRESHOLD: ${{ inputs.regression-threshold }}
+          BASELINE_PATH: ${{ inputs.baseline-mode == 'compare' && 'baseline.json' || '' }}
+          BASELINE_RECORD: ${{ inputs.baseline-mode == 'record' }}
+        run: |
+          set -euo pipefail
+
+          # Written out rather than inlined with `node -e` so the quoting stays
+          # manageable and the script is readable.
+          cat > summarise.mjs <<'SUMMARISE_EOF'
+          import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+          import { join } from 'node:path';
+
+          const METRICS = [
+              ['largest-contentful-paint', 'LCP', 'ms'],
+              ['total-blocking-time', 'TBT', 'ms'],
+              ['cumulative-layout-shift', 'CLS', ''],
+              ['first-contentful-paint', 'FCP', 'ms'],
+              ['speed-index', 'SI', 'ms'],
+          ];
+
+          const format = (value, unit) => {
+              if (typeof value !== 'number') return 'n/a';
+              if (unit !== 'ms') return value.toFixed(3);
+              return value >= 1000
+                  ? `${(value / 1000).toFixed(2)} s`
+                  : `${Math.round(value)} ms`;
+          };
+
+          const toLabel = (url) => {
+              try {
+                  return new URL(url).pathname || '/';
+              } catch {
+                  return url;
+              }
+          };
+
+          // Percentage change from baseline. Positive means worse for every metric here
+          // (all are "lower is better"). Returns null when there is nothing to compare.
+          const delta = (current, baseline) => {
+              if (typeof current !== 'number' || typeof baseline !== 'number') return null;
+              // A zero baseline has no meaningful percentage. Treat an unchanged zero as
+              // no change; report any rise from zero as a regression rather than "n/a",
+              // which would hide a metric going from perfect to non-zero (TBT and CLS
+              // are commonly zero on a healthy page).
+              if (baseline === 0) return current === 0 ? 0 : Infinity;
+              return ((current - baseline) / baseline) * 100;
+          };
+
+          const formatDelta = (percent, threshold) => {
+              if (percent === null) return 'n/a';
+              if (percent === Infinity) return 'new 🔺';
+              const rounded = Math.round(percent);
+              if (Math.abs(rounded) < 1) return '±0%';
+              const sign = rounded > 0 ? '+' : '';
+              const flag = rounded > threshold ? ' 🔺' : '';
+              return `${sign}${rounded}%${flag}`;
+          };
+
+          const resultsPath = process.env.RESULTS_PATH;
+          const formFactor = process.env.FORM_FACTOR || 'desktop';
+          const threshold = Number(process.env.REGRESSION_THRESHOLD || '20');
+          const baselinePath = process.env.BASELINE_PATH || '';
+          const recordOnly = process.env.BASELINE_RECORD === 'true';
+
+          const manifest = JSON.parse(
+              readFileSync(join(resultsPath, 'manifest.json'), 'utf8')
+          );
+
+          // LHCI writes one manifest entry per run. The entry flagged as the
+          // representative run is the median run for that URL, so reporting it keeps
+          // this summary consistent with what the assertions checked.
+          const representative = manifest.filter((entry) => entry.isRepresentativeRun);
+          if (representative.length === 0) {
+              console.error('Manifest contained no representative run.');
+              process.exit(1);
+          }
+
+          // Collect the medians into a plain object, both for the comparison below and
+          // so the run on the default branch can persist it as the next baseline.
+          const measured = {};
+          for (const entry of representative) {
+              const report = JSON.parse(readFileSync(entry.jsonPath, 'utf8'));
+              const url = toLabel(entry.url);
+              measured[url] = { score: entry.summary?.performance ?? null };
+              for (const [id] of METRICS) {
+                  measured[url][id] = report.audits?.[id]?.numericValue ?? null;
+              }
+          }
+
+          if (recordOnly) {
+              writeFileSync(
+                  process.env.BASELINE_OUT || 'baseline.json',
+                  JSON.stringify({ formFactor, measured }, null, 2)
+              );
+              console.error(`Recorded baseline for ${formFactor}.`);
+              process.exit(0);
+          }
+
+          // A baseline is optional: the first pull request after this is enabled has
+          // nothing to compare against, and should still report its measurements.
+          let baseline = null;
+          if (baselinePath && existsSync(baselinePath)) {
+              try {
+                  const parsed = JSON.parse(readFileSync(baselinePath, 'utf8'));
+                  if (parsed.formFactor === formFactor) baseline = parsed.measured;
+              } catch (error) {
+                  console.error(`Could not read baseline: ${error.message}`);
+              }
+          }
+
+          const warningsByUrl = new Map();
+          try {
+              for (const result of JSON.parse(process.env.ASSERTION_RESULTS || '[]')) {
+                  if (!result.url) continue;
+                  const existing = warningsByUrl.get(result.url) ?? new Set();
+                  existing.add(result.auditId);
+                  warningsByUrl.set(result.url, existing);
+              }
+          } catch (error) {
+              console.error(`Could not parse assertion results: ${error.message}`);
+          }
+
+          const lines = [];
+          let anyWarnings = false;
+          let anyRegressions = false;
+
+          for (const entry of representative) {
+              const url = toLabel(entry.url);
+              const current = measured[url];
+              const previous = baseline?.[url];
+              const warned = warningsByUrl.get(entry.url) ?? new Set();
+              if (warned.size > 0) anyWarnings = true;
+
+              const scoreDelta =
+                  typeof previous?.score === 'number' && typeof current.score === 'number'
+                      ? Math.round((current.score - previous.score) * 100)
+                      : null;
+
+              lines.push(
+                  `#### \`${url}\``,
+                  '',
+                  `**Performance score:** ${
+                      typeof current.score === 'number'
+                          ? Math.round(current.score * 100)
+                          : 'n/a'
+                  }/100${warned.has('categories:performance') ? ' ⚠️' : ''}${
+                      scoreDelta === null
+                          ? ''
+                          : ` (${scoreDelta > 0 ? '+' : scoreDelta === 0 ? '±' : ''}${scoreDelta} vs baseline)`
+                  }`,
+                  '',
+                  baseline ? '| Metric | Median | vs baseline | |' : '| Metric | Median | |',
+                  baseline ? '| --- | --- | --- | --- |' : '| --- | --- | --- |'
+              );
+
+              for (const [id, label, unit] of METRICS) {
+                  const value = current[id];
+                  const percent = previous ? delta(value, previous[id]) : null;
+                  if (percent !== null && percent > threshold) anyRegressions = true;
+
+                  const cells = [label, format(value, unit)];
+                  if (baseline) cells.push(formatDelta(percent, threshold));
+                  cells.push(warned.has(id) ? '⚠️' : '✅');
+                  lines.push(`| ${cells.join(' | ')} |`);
+              }
+
+              lines.push('');
+          }
+
+          const runs = manifest.length / representative.length;
+          lines.push(`_Median of ${runs} run${runs === 1 ? '' : 's'} per URL._`);
+
+          if (anyRegressions) {
+              lines.push(
+                  '',
+                  `🔺 One or more metrics are more than ${threshold}% slower than the ` +
+                      'baseline recorded from the default branch.'
+              );
+          }
+
+          // Preview deployments are cold and CPU-shared on CI runners, so treat these as
+          // a smoke signal for large regressions, not a benchmark.
+          if (anyWarnings) {
+              lines.push(
+                  '',
+                  '⚠️ One or more metrics are over budget. Preview deployments are ' +
+                      'slower than production — confirm against a second run before ' +
+                      'treating this as a real regression.'
+              );
+          }
+
+          if (!baseline && baselinePath) {
+              lines.push(
+                  '',
+                  '_No baseline available yet for this form factor; deltas will appear ' +
+                      'once the default branch has recorded one._'
+              );
+          }
+
+          console.log(lines.join('\n'));
+          SUMMARISE_EOF
+
+          node summarise.mjs > lighthouse-summary.md
+          if [ "${BASELINE_RECORD}" != "true" ]; then
+            cat lighthouse-summary.md
+          fi
+
+      # Persists this run as the baseline for later pull requests. Only the
+      # default branch writes, so the value a pull request reads always came
+      # from merged code.
+      - name: Save baseline
+        if: inputs.baseline-mode == 'record'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
+        with:
+          path: baseline.json
+          key: lh-baseline-${{ inputs.baseline-key }}-${{ matrix.form-factor }}-${{ github.sha }}
+
+      - name: Comment performance results on PR
+        if: github.event.pull_request.number && inputs.baseline-mode != 'record'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BASELINE_KEY: ${{ inputs.baseline-key }}
+        run: |
+          set -euo pipefail
+
+          # Scoped by baseline-key so a repository measuring several
+          # deployments gets one comment each, rather than overwriting a
+          # shared one. The heading is only labelled when a key was given.
+          marker="<!-- vercel-preview-performance:${BASELINE_KEY} -->"
+          if [ "$BASELINE_KEY" = "default" ]; then
+            heading="### 📊 Preview performance"
+          else
+            heading="### 📊 Preview performance (${BASELINE_KEY})"
+          fi
+
+          {
+            echo "$marker"
+            echo "$heading"
+            echo
+            cat lighthouse-summary.md
+            echo
+            echo "[Full reports](${RUN_URL}) · _commit ${COMMIT_SHA}_"
+          } > comment.md
+
+          comment_id="$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+            --jq "[.[] | select(.body | startswith(\"${marker}\"))][0].id")"
+
+          if [ -n "$comment_id" ] && [ "$comment_id" != "null" ]; then
+            gh api -X PATCH "repos/${REPO}/issues/comments/${comment_id}" -F body=@comment.md
+          else
+            gh api -X POST "repos/${REPO}/issues/${PR_NUMBER}/comments" -F body=@comment.md
+          fi

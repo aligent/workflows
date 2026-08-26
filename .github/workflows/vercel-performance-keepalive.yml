@@ -1,0 +1,105 @@
+name: Vercel Performance Baseline Keep-Alive
+
+# GitHub evicts a cache that has not been read for 7 days. A performance
+# baseline is only rewritten when something merges to the default branch, so a
+# quiet fortnight would silently drop it and pull requests would report no
+# baseline until the next merge.
+#
+# Reading a cache resets that clock, so this restores the baselines and does
+# nothing else. It deploys nothing and measures nothing, costing seconds rather
+# than the minutes a re-measurement would.
+#
+# The form factors are declared here rather than by the caller so they stay in
+# step with the matrix in vercel-performance.yml.
+
+on:
+  workflow_call:
+    inputs:
+      baseline-keys:
+        description: >-
+          Baseline keys to keep alive, one per line, matching the
+          `baseline-key` given to vercel-performance.yml when recording.
+        type: string
+        required: false
+        default: "default"
+
+jobs:
+  # Expands the caller's keys across the form factors this repository measures,
+  # so callers do not have to know what those are.
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.plan.outputs.targets }}
+    env:
+      BASELINE_KEYS: ${{ inputs.baseline-keys }}
+    steps:
+      - name: Build target list
+        id: plan
+        env:
+          # Keep in step with the matrix in vercel-performance.yml.
+          FORM_FACTORS: 'desktop mobile'
+        run: |
+          set -euo pipefail
+
+          targets='[]'
+          while IFS= read -r baseline_key; do
+            [ -z "$baseline_key" ] && continue
+            for form_factor in $FORM_FACTORS; do
+              targets="$(printf '%s' "$targets" | jq -c \
+                --arg k "$baseline_key" --arg f "$form_factor" \
+                '. + [{"baseline-key": $k, "form-factor": $f}]')"
+            done
+          done <<< "$BASELINE_KEYS"
+
+          if [ "$targets" = '[]' ]; then
+            echo "::error::baseline-keys produced no targets."
+            exit 1
+          fi
+
+          echo "Refreshing: ${targets}"
+          echo "targets=${targets}" >> "$GITHUB_OUTPUT"
+
+  touch:
+    name: Touch ${{ matrix.target.baseline-key }} (${{ matrix.target.form-factor }})
+    needs: plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.plan.outputs.targets) }}
+    steps:
+      # A full restore rather than `lookup-only`: a download is unambiguously
+      # an access, whereas whether a metadata-only lookup resets the clock is
+      # not documented. The payload is a few hundred bytes.
+      - name: Restore baseline
+        id: restore
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
+        with:
+          path: baseline.json
+          # Baselines are keyed by the commit that recorded them, so match on
+          # the prefix to pick up whichever is most recent.
+          key: lh-baseline-${{ matrix.target.baseline-key }}-${{ matrix.target.form-factor }}-
+          restore-keys: |
+            lh-baseline-${{ matrix.target.baseline-key }}-${{ matrix.target.form-factor }}-
+
+      # A missing baseline is reported rather than treated as an error: pull
+      # requests degrade gracefully without one, and the next merge records it
+      # again, so failing here would page someone over a self-healing check.
+      - name: Report
+        env:
+          MATCHED_KEY: ${{ steps.restore.outputs.cache-matched-key }}
+          BASELINE_KEY: ${{ matrix.target.baseline-key }}
+          FORM_FACTOR: ${{ matrix.target.form-factor }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$MATCHED_KEY" ]; then
+            echo "Refreshed ${MATCHED_KEY}"
+          else
+            echo "::warning::No ${BASELINE_KEY} ${FORM_FACTOR} baseline found."
+            echo "::warning::It has expired, or none has been recorded yet."
+            echo "::warning::A merge to the default branch will record one."
+          fi
