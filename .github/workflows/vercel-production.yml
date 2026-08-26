@@ -26,8 +26,10 @@ on:
         description: "Vercel deployment token"
         required: true
 
+# Scoped per project so a repo deploying several Vercel projects from one push
+# gets an independent group per project instead of the jobs queueing behind each other.
 concurrency:
-  group: vercel-production-${{ github.ref }}
+  group: vercel-production-${{ github.ref }}-${{ inputs.vercel-project-id }}
   cancel-in-progress: false
 
 jobs:

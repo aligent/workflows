@@ -17,6 +17,12 @@ pull request with the preview and inspect URLs. Intended to be called from a
 |---------------|----------|--------------------------|
 | vercel-token  | ✅       | Vercel deployment token  |
 
+#### Concurrency
+
+Runs are grouped by pull request **and** `vercel-project-id`, with
+`cancel-in-progress: true`. A new commit supersedes the in-flight preview for
+that project, while previews for other projects are left alone.
+
 #### Example Usage
 
 ```yaml
@@ -34,3 +40,32 @@ jobs:
     secrets:
       vercel-token: ${{ secrets.VERCEL_TOKEN }}
 ```
+
+#### Deploying more than one Vercel project
+
+Call the workflow once per project. Give each call a distinct
+`environment-name`, otherwise every job writes its deployment status and URL to
+the same GitHub Environment and the last one to finish wins.
+
+```yaml
+jobs:
+  deploy-storefront-preview:
+    uses: aligent/workflows/.github/workflows/vercel-preview.yml@main
+    with:
+      vercel-org-id: ${{ vars.VERCEL_ORG_ID }}
+      vercel-project-id: ${{ vars.VERCEL_PROJECT_ID }}
+      environment-name: Preview
+    secrets:
+      vercel-token: ${{ secrets.VERCEL_TOKEN }}
+
+  deploy-admin-preview:
+    uses: aligent/workflows/.github/workflows/vercel-preview.yml@main
+    with:
+      vercel-org-id: ${{ vars.VERCEL_ORG_ID }}
+      vercel-project-id: ${{ vars.VERCEL_ADMIN_PROJECT_ID }}
+      environment-name: Preview - admin
+    secrets:
+      vercel-token: ${{ secrets.VERCEL_TOKEN }}
+```
+
+Each project gets its own PR comment, keyed on the project ID.
