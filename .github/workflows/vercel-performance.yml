@@ -248,7 +248,6 @@ jobs:
         env:
           RESULTS_PATH: ${{ steps.lighthouse.outputs.resultsPath }}
           ASSERTION_RESULTS: ${{ steps.lighthouse.outputs.assertionResults }}
-          REGRESSION_THRESHOLD: ${{ inputs.regression-threshold }}
           BASELINE_PATH: ${{ inputs.baseline-mode == 'compare' && 'baseline.json' || '' }}
           BASELINE_RECORD: ${{ inputs.baseline-mode == 'record' }}
         run: |
@@ -256,25 +255,21 @@ jobs:
 
           # Written out rather than inlined with `node -e` so the quoting stays
           # manageable and the script is readable.
+          #
+          # This step only extracts measurements; rendering happens in the
+          # `comment` job below, which joins both form factors into one table.
+          # Emitting data rather than markdown is what makes that join possible.
           cat > summarise.mjs <<'SUMMARISE_EOF'
           import { readFileSync, writeFileSync, existsSync } from 'node:fs';
           import { join } from 'node:path';
 
-          const METRICS = [
-              ['largest-contentful-paint', 'LCP', 'ms'],
-              ['total-blocking-time', 'TBT', 'ms'],
-              ['cumulative-layout-shift', 'CLS', ''],
-              ['first-contentful-paint', 'FCP', 'ms'],
-              ['speed-index', 'SI', 'ms'],
+          const METRIC_IDS = [
+              'largest-contentful-paint',
+              'total-blocking-time',
+              'cumulative-layout-shift',
+              'first-contentful-paint',
+              'speed-index',
           ];
-
-          const format = (value, unit) => {
-              if (typeof value !== 'number') return 'n/a';
-              if (unit !== 'ms') return value.toFixed(3);
-              return value >= 1000
-                  ? `${(value / 1000).toFixed(2)} s`
-                  : `${Math.round(value)} ms`;
-          };
 
           const toLabel = (url) => {
               try {
@@ -284,31 +279,8 @@ jobs:
               }
           };
 
-          // Percentage change from baseline. Positive means worse for every metric here
-          // (all are "lower is better"). Returns null when there is nothing to compare.
-          const delta = (current, baseline) => {
-              if (typeof current !== 'number' || typeof baseline !== 'number') return null;
-              // A zero baseline has no meaningful percentage. Treat an unchanged zero as
-              // no change; report any rise from zero as a regression rather than "n/a",
-              // which would hide a metric going from perfect to non-zero (TBT and CLS
-              // are commonly zero on a healthy page).
-              if (baseline === 0) return current === 0 ? 0 : Infinity;
-              return ((current - baseline) / baseline) * 100;
-          };
-
-          const formatDelta = (percent, threshold) => {
-              if (percent === null) return 'n/a';
-              if (percent === Infinity) return 'new 🔺';
-              const rounded = Math.round(percent);
-              if (Math.abs(rounded) < 1) return '±0%';
-              const sign = rounded > 0 ? '+' : '';
-              const flag = rounded > threshold ? ' 🔺' : '';
-              return `${sign}${rounded}%${flag}`;
-          };
-
           const resultsPath = process.env.RESULTS_PATH;
           const formFactor = process.env.FORM_FACTOR || 'desktop';
-          const threshold = Number(process.env.REGRESSION_THRESHOLD || '20');
           const baselinePath = process.env.BASELINE_PATH || '';
           const recordOnly = process.env.BASELINE_RECORD === 'true';
 
@@ -332,7 +304,7 @@ jobs:
               const report = JSON.parse(readFileSync(entry.jsonPath, 'utf8'));
               const url = toLabel(entry.url);
               measured[url] = { score: entry.summary?.performance ?? null };
-              for (const [id] of METRICS) {
+              for (const id of METRIC_IDS) {
                   measured[url][id] = report.audits?.[id]?.numericValue ?? null;
               }
           }
@@ -358,67 +330,266 @@ jobs:
               }
           }
 
-          const warningsByUrl = new Map();
+          // Assertion results are keyed by the full URL; the renderer works in
+          // path labels, so map them across here while both are in scope.
+          const warningsByUrl = {};
           try {
               for (const result of JSON.parse(process.env.ASSERTION_RESULTS || '[]')) {
                   if (!result.url) continue;
-                  const existing = warningsByUrl.get(result.url) ?? new Set();
-                  existing.add(result.auditId);
-                  warningsByUrl.set(result.url, existing);
+                  const label = toLabel(result.url);
+                  warningsByUrl[label] = warningsByUrl[label] ?? [];
+                  if (!warningsByUrl[label].includes(result.auditId)) {
+                      warningsByUrl[label].push(result.auditId);
+                  }
               }
           } catch (error) {
               console.error(`Could not parse assertion results: ${error.message}`);
           }
 
+          // Order matters to the renderer: it lists URLs in the order the first
+          // form factor reported them, so both tables line up.
+          const urls = representative.map((entry) => toLabel(entry.url));
+          const runs = manifest.length / representative.length;
+
+          writeFileSync(
+              process.env.SUMMARY_OUT || 'summary.json',
+              JSON.stringify({ formFactor, urls, runs, measured, baseline, warningsByUrl }, null, 2)
+          );
+          console.error(`Wrote summary for ${formFactor}.`);
+          SUMMARISE_EOF
+
+          node summarise.mjs
+
+      # Each form factor uploads its measurements so the `comment` job can render
+      # both in a single table. Skipped when recording, which writes a cache
+      # entry instead of commenting.
+      - name: Upload summary
+        if: inputs.baseline-mode != 'record'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
+        with:
+          name: lighthouse-summary-${{ inputs.baseline-key }}-${{ matrix.form-factor }}
+          path: summary.json
+          retention-days: 1
+
+      # Persists this run as the baseline for later pull requests. Only the
+      # default branch writes, so the value a pull request reads always came
+      # from merged code.
+      - name: Save baseline
+        if: inputs.baseline-mode == 'record'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
+        with:
+          path: baseline.json
+          key: lh-baseline-${{ inputs.baseline-key }}-${{ matrix.form-factor }}-${{ github.sha }}
+
+  # Renders one comment covering both form factors. Kept as a separate job so
+  # the two measurement jobs stay parallel and independent: this joins their
+  # results once both have finished.
+  comment:
+    name: Comment performance results
+    needs: performance
+    # `always()` so a comment is still posted when one form factor failed —
+    # partial results are more useful than none. The measurement job's own
+    # status still reports the failure.
+    if: always() && github.event.pull_request.number && inputs.baseline-mode != 'record'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Install Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
+        with:
+          node-version-file: ${{ inputs.node-version-file }}
+          package-manager-cache: false
+
+      # `merge-multiple` flattens both form factors into one directory. The file
+      # names would collide, so each is fetched into its own subdirectory
+      # instead, named by the artifact it came from.
+      - name: Download summaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c #v8.0.1
+        with:
+          pattern: lighthouse-summary-${{ inputs.baseline-key }}-*
+          path: summaries
+
+      - name: Render comment
+        env:
+          REGRESSION_THRESHOLD: ${{ inputs.regression-threshold }}
+          BASELINE_KEY: ${{ inputs.baseline-key }}
+        run: |
+          set -euo pipefail
+
+          cat > render.mjs <<'RENDER_EOF'
+          import { readFileSync, existsSync, readdirSync } from 'node:fs';
+          import { join } from 'node:path';
+
+          const METRICS = [
+              ['largest-contentful-paint', 'LCP', 'ms'],
+              ['total-blocking-time', 'TBT', 'ms'],
+              ['cumulative-layout-shift', 'CLS', ''],
+              ['first-contentful-paint', 'FCP', 'ms'],
+              ['speed-index', 'SI', 'ms'],
+          ];
+
+          // Desktop first: it is the headline number for this project, and a
+          // fixed order keeps the columns stable between runs.
+          const FORM_FACTORS = ['desktop', 'mobile'];
+          const LABELS = { desktop: '🖥 Desktop', mobile: '📱 Mobile' };
+
+          const threshold = Number(process.env.REGRESSION_THRESHOLD || '20');
+          const baselineKey = process.env.BASELINE_KEY || 'default';
+
+          const format = (value, unit) => {
+              if (typeof value !== 'number') return 'n/a';
+              if (unit !== 'ms') return value.toFixed(3);
+              return value >= 1000
+                  ? `${(value / 1000).toFixed(2)} s`
+                  : `${Math.round(value)} ms`;
+          };
+
+          // Percentage change from baseline. Positive means worse for every metric here
+          // (all are "lower is better"). Returns null when there is nothing to compare.
+          const delta = (current, baseline) => {
+              if (typeof current !== 'number' || typeof baseline !== 'number') return null;
+              // A zero baseline has no meaningful percentage. Treat an unchanged zero as
+              // no change; report any rise from zero as a regression rather than "n/a",
+              // which would hide a metric going from perfect to non-zero (TBT and CLS
+              // are commonly zero on a healthy page).
+              if (baseline === 0) return current === 0 ? 0 : Infinity;
+              return ((current - baseline) / baseline) * 100;
+          };
+
+          const formatDelta = (percent) => {
+              if (percent === null) return 'n/a';
+              if (percent === Infinity) return 'new 🔺';
+              const rounded = Math.round(percent);
+              if (Math.abs(rounded) < 1) return '±0%';
+              const sign = rounded > 0 ? '+' : '';
+              const flag = rounded > threshold ? ' 🔺' : '';
+              return `${sign}${rounded}%${flag}`;
+          };
+
+          // One subdirectory per artifact, so find each form factor's summary by
+          // the suffix its artifact name ends with.
+          const summaries = {};
+          const root = 'summaries';
+          if (existsSync(root)) {
+              for (const dir of readdirSync(root)) {
+                  const file = join(root, dir, 'summary.json');
+                  if (!existsSync(file)) continue;
+                  try {
+                      const parsed = JSON.parse(readFileSync(file, 'utf8'));
+                      if (parsed.formFactor) summaries[parsed.formFactor] = parsed;
+                  } catch (error) {
+                      console.error(`Could not read ${file}: ${error.message}`);
+                  }
+              }
+          }
+
+          const present = FORM_FACTORS.filter((ff) => summaries[ff]);
+          if (present.length === 0) {
+              console.error('No summaries were produced by either form factor.');
+              process.exit(1);
+          }
+
+          // URLs come from whichever form factor reported them first; both
+          // measure the same paths, so either is authoritative.
+          const urls = summaries[present[0]].urls;
+          const anyBaseline = present.some((ff) => summaries[ff].baseline);
+
           const lines = [];
           let anyWarnings = false;
           let anyRegressions = false;
+          let anyMissingBaseline = false;
 
-          for (const entry of representative) {
-              const url = toLabel(entry.url);
-              const current = measured[url];
-              const previous = baseline?.[url];
-              const warned = warningsByUrl.get(entry.url) ?? new Set();
-              if (warned.size > 0) anyWarnings = true;
+          for (const url of urls) {
+              lines.push(`#### \`${url}\``, '');
 
-              const scoreDelta =
-                  typeof previous?.score === 'number' && typeof current.score === 'number'
-                      ? Math.round((current.score - previous.score) * 100)
-                      : null;
-
-              lines.push(
-                  `#### \`${url}\``,
-                  '',
-                  `**Performance score:** ${
-                      typeof current.score === 'number'
+              // Score line, one per form factor, since a single table cell
+              // cannot carry both.
+              const scoreParts = [];
+              for (const ff of present) {
+                  const summary = summaries[ff];
+                  const current = summary.measured?.[url];
+                  const previous = summary.baseline?.[url];
+                  const warned = summary.warningsByUrl?.[url] ?? [];
+                  const score =
+                      typeof current?.score === 'number'
                           ? Math.round(current.score * 100)
-                          : 'n/a'
-                  }/100${warned.has('categories:performance') ? ' ⚠️' : ''}${
+                          : null;
+                  const scoreDelta =
+                      typeof previous?.score === 'number' && typeof current?.score === 'number'
+                          ? Math.round((current.score - previous.score) * 100)
+                          : null;
+                  const suffix =
                       scoreDelta === null
                           ? ''
-                          : ` (${scoreDelta > 0 ? '+' : scoreDelta === 0 ? '±' : ''}${scoreDelta} vs baseline)`
-                  }`,
-                  '',
-                  baseline ? '| Metric | Median | vs baseline | |' : '| Metric | Median | |',
-                  baseline ? '| --- | --- | --- | --- |' : '| --- | --- | --- |'
-              );
+                          : ` (${scoreDelta > 0 ? '+' : scoreDelta === 0 ? '±' : ''}${scoreDelta})`;
+                  scoreParts.push(
+                      `${LABELS[ff]} **${score === null ? 'n/a' : `${score}/100`}**${suffix}` +
+                          (warned.includes('categories:performance') ? ' ⚠️' : '')
+                  );
+              }
+              lines.push(`Performance score: ${scoreParts.join(' · ')}`, '');
+
+              // Header spans two form factors. GitHub-flavoured Markdown has no
+              // colspan, so each column is labelled with its form factor icon
+              // rather than grouped under a merged heading.
+              const header = ['Metric'];
+              const divider = ['---'];
+              for (const ff of present) {
+                  const icon = LABELS[ff].split(' ')[0];
+                  header.push(`${icon} Median`);
+                  divider.push('---');
+                  if (anyBaseline) {
+                      header.push(`${icon} vs baseline`);
+                      divider.push('---');
+                  }
+                  header.push('');
+                  divider.push('---');
+              }
+              lines.push(`| ${header.join(' | ')} |`, `| ${divider.join(' | ')} |`);
 
               for (const [id, label, unit] of METRICS) {
-                  const value = current[id];
-                  const percent = previous ? delta(value, previous[id]) : null;
-                  if (percent !== null && percent > threshold) anyRegressions = true;
+                  const cells = [label];
+                  for (const ff of present) {
+                      const summary = summaries[ff];
+                      const current = summary.measured?.[url];
+                      const previous = summary.baseline?.[url];
+                      const warned = summary.warningsByUrl?.[url] ?? [];
+                      if (warned.length > 0) anyWarnings = true;
 
-                  const cells = [label, format(value, unit)];
-                  if (baseline) cells.push(formatDelta(percent, threshold));
-                  cells.push(warned.has(id) ? '⚠️' : '✅');
+                      const value = current?.[id];
+                      const percent = previous ? delta(value, previous[id]) : null;
+                      if (percent !== null && percent > threshold) anyRegressions = true;
+
+                      cells.push(format(value, unit));
+                      if (anyBaseline) cells.push(formatDelta(percent));
+                      cells.push(warned.includes(id) ? '⚠️' : '✅');
+                  }
                   lines.push(`| ${cells.join(' | ')} |`);
               }
 
               lines.push('');
           }
 
-          const runs = manifest.length / representative.length;
-          lines.push(`_Median of ${runs} run${runs === 1 ? '' : 's'} per URL._`);
+          const runNotes = present.map((ff) => {
+              const runs = summaries[ff].runs;
+              return `${LABELS[ff]}: ${runs} run${runs === 1 ? '' : 's'}`;
+          });
+          lines.push(`_Median per URL — ${runNotes.join(', ')}._`);
+
+          const missing = FORM_FACTORS.filter((ff) => !summaries[ff]);
+          if (missing.length > 0) {
+              lines.push(
+                  '',
+                  `⚠️ No results for ${missing.map((ff) => LABELS[ff]).join(' and ')} — ` +
+                      'that measurement job did not finish. Check its logs.'
+              );
+          }
+
+          for (const ff of present) {
+              if (!summaries[ff].baseline) anyMissingBaseline = true;
+          }
 
           if (anyRegressions) {
               lines.push(
@@ -439,34 +610,21 @@ jobs:
               );
           }
 
-          if (!baseline && baselinePath) {
+          if (anyMissingBaseline) {
               lines.push(
                   '',
-                  '_No baseline available yet for this form factor; deltas will appear ' +
-                      'once the default branch has recorded one._'
+                  '_No baseline available yet for at least one form factor; deltas will ' +
+                      'appear once the default branch has recorded one._'
               );
           }
 
           console.log(lines.join('\n'));
-          SUMMARISE_EOF
+          RENDER_EOF
 
-          node summarise.mjs > lighthouse-summary.md
-          if [ "${BASELINE_RECORD}" != "true" ]; then
-            cat lighthouse-summary.md
-          fi
-
-      # Persists this run as the baseline for later pull requests. Only the
-      # default branch writes, so the value a pull request reads always came
-      # from merged code.
-      - name: Save baseline
-        if: inputs.baseline-mode == 'record'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
-        with:
-          path: baseline.json
-          key: lh-baseline-${{ inputs.baseline-key }}-${{ matrix.form-factor }}-${{ github.sha }}
+          node render.mjs > lighthouse-summary.md
+          cat lighthouse-summary.md
 
       - name: Comment performance results on PR
-        if: github.event.pull_request.number && inputs.baseline-mode != 'record'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
