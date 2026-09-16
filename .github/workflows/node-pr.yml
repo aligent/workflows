@@ -204,7 +204,7 @@ jobs:
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
 
       - name: Register problem matchers
-        uses: aligent/workflows/.github/actions/node-problem-matchers@main
+        uses: $/.github/actions/node-problem-matchers
 
       - name: Build
         run: |
@@ -222,7 +222,7 @@ jobs:
 
       - name: Remove problem matchers
         if: always()
-        uses: aligent/workflows/.github/actions/node-problem-matchers@main
+        uses: $/.github/actions/node-problem-matchers
         with:
           action: remove
 
@@ -356,7 +356,7 @@ jobs:
           INPUTS_PRE_TEST_COMMAND: ${{ inputs.pre-test-command }}
 
       - id: add-matchers
-        uses: aligent/workflows/.github/actions/node-problem-matchers@main
+        uses: $/.github/actions/node-problem-matchers
 
       - name: Run checks
         run: |
@@ -399,6 +399,6 @@ jobs:
 
       - id: remove-matchers
         if: always()
-        uses: aligent/workflows/.github/actions/node-problem-matchers@main
+        uses: $/.github/actions/node-problem-matchers
         with:
           action: remove

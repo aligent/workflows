@@ -56,7 +56,7 @@ jobs:
         run: npm install -g @shopify/cli@latest
 
       - name: Register problem matcher
-        uses: aligent/workflows/.github/actions/shopify-theme-problem-matchers@main
+        uses: $/.github/actions/shopify-theme-problem-matchers
 
       - name: Run Theme Check
         working-directory: ${{ inputs.working-directory }}
@@ -91,7 +91,7 @@ jobs:
 
       - name: Remove problem matcher
         if: always()
-        uses: aligent/workflows/.github/actions/shopify-theme-problem-matchers@main
+        uses: $/.github/actions/shopify-theme-problem-matchers
         with:
           action: remove
 

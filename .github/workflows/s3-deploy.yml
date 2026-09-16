@@ -100,6 +100,6 @@ jobs:
 
       - name: Backport to staging
         if: success() && inputs.create-backport-pr
-        uses: aligent/workflows/.github/actions/backport@main
+        uses: $/.github/actions/backport
         with:
           target-branch: ${{ inputs.backport-target-branch }}
