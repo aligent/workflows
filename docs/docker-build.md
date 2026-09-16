@@ -10,7 +10,6 @@ Build and push Docker images to Docker Hub with support for multi-platform build
 | context           | ❌       | string  | `.`                                                  | Build context path                               |
 | dockerfile        | ❌       | string  | `Dockerfile`                                         | Path to Dockerfile                               |
 | build-args        | ❌       | string  |                                                      | Build arguments (newline-separated KEY=value)    |
-| platforms         | ❌       | string  |                                                      | Target platforms (e.g., `linux/amd64,linux/arm64`) |
 | push              | ❌       | boolean | `true`                                               | Push image to registry                           |
 | tags              | ❌       | string  | `type=raw,value=latest,enable={{is_default_branch}}`<br>`type=sha,prefix=` | Custom tags for docker/metadata-action |
 | no-cache          | ❌       | boolean | `false`                                              | Disable build cache                              |
@@ -19,6 +18,8 @@ Build and push Docker images to Docker Hub with support for multi-platform build
 | provenance        | ❌       | boolean | `false`                                              | Generate provenance attestation                  |
 | timeout-minutes   | ❌       | number  | `60`                                                 | Job timeout in minutes                           |
 | dockerhub-username| ❌       | string  |                                                      | Docker Hub username (from vars). Required when `push: true` (default). |
+| runs-on           | ❌       | string  | `ubuntu-latest`                                      | Runner to use (e.g. `ubuntu-24.04-arm` for native ARM64 builds) |
+| target            | ❌       | string  |                                                      | Dockerfile stage to build. Defaults to the last stage |
 
 #### **Secrets**
 | Name              | Required | Description                                          |
@@ -30,7 +31,7 @@ Build and push Docker images to Docker Hub with support for multi-platform build
 #### **Features**
 
 - **Split build and push**: Build and push are separate steps with a fresh Docker Hub login before push, preventing token timeout for long-running builds.
-- **Multi-platform support**: Optional QEMU setup for cross-platform builds.
+- **Selectable architecture**: `runs-on` picks the build architecture — `ubuntu-latest` for amd64, `ubuntu-24.04-arm` for arm64. The build is always native, never emulated.
 - **GitHub Actions cache**: Uses `type=gha` caching by default for faster builds.
 - **BuildKit secrets**: Securely pass secrets during build without exposing them in logs.
 - **Flexible tagging**: Uses docker/metadata-action for automatic tag generation.
@@ -87,16 +88,30 @@ RUN --mount=type=secret,id=NVD_API_KEY,mode=0444 \
     # use SECRET_VALUE...
 ```
 
-#### Example with Multi-Platform Build
+#### Choosing the build architecture
+
+Images are single-architecture. The build always runs natively on the runner's
+own architecture, so `runs-on` is what selects it — `ubuntu-latest` for amd64
+(the default), `ubuntu-24.04-arm` for arm64.
 
 ```yaml
 jobs:
-  build-and-push:
+  build:
     uses: aligent/workflows/.github/workflows/docker-build.yml@main
     with:
       image-name: aligent/my-app
       dockerhub-username: ${{ vars.DOCKERHUB_USERNAME }}
-      platforms: linux/amd64,linux/arm64
+      runs-on: ubuntu-24.04-arm
     secrets:
       dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
 ```
+
+The published image is arm64-only: an amd64 host pulling this tag gets a
+manifest with no matching platform and the pull fails. Only do this where every
+consumer is known to be on the one architecture.
+
+`ubuntu-24.04-arm` is free for public repositories; for private repositories it
+is a paid larger-runner SKU that must be enabled for the organisation.
+
+See `aligent/magento-local` for a worked example that also fans out over
+multiple Dockerfile stages via `target`.
