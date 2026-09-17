@@ -5,12 +5,17 @@ pull request with the preview and inspect URLs. Intended to be called from a
 `pull_request` triggered workflow.
 
 #### **Inputs**
-| Name               | Required | Type   | Default  | Description                            |
-|--------------------|----------|--------|----------|----------------------------------------|
-| vercel-org-id      | ✅       | string |          | Vercel organisation ID                 |
-| vercel-project-id  | ✅       | string |          | Vercel project ID                      |
+| Name               | Required | Type   | Default  | Description                             |
+|--------------------|----------|--------|----------|-----------------------------------------|
+| vercel-org-id      | ✅       | string |          | Vercel organisation ID                  |
+| vercel-project-id  | ✅       | string |          | Vercel project ID                       |
 | working-directory  | ❌       | string | .        | Directory to run the Vercel deploy from |
-| environment-name   | ❌       | string | Preview  | GitHub Environment to deploy to        |
+| environment-name   | ❌       | string | Preview  | GitHub Environment to deploy to. Also used as the heading of the pull request comment |
+
+#### **Outputs**
+| Name | Description                                                             |
+|------|-------------------------------------------------------------------------|
+| url  | The preview deployment URL. Still building when the job ends, as the deploy uses `--no-wait`. |
 
 #### **Secrets**
 | Name          | Required | Description              |
@@ -69,3 +74,7 @@ jobs:
 ```
 
 Each project gets its own PR comment, keyed on the project ID.
+
+To measure the performance of the resulting preview, pair this with
+[Vercel Preview Performance](vercel-performance.md), which takes the `url`
+output above.
