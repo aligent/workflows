@@ -196,7 +196,21 @@ jobs:
           while IFS= read -r path; do
             [ -z "$path" ] && continue
             url="${BASE_URL}${path}"
-            urls="${urls}${url}"$'\n'
+
+            # Lighthouse drives a real browser, which sends none of the headers
+            # curl does above, so a protected deployment redirects it to the
+            # login page and it measures that instead. Vercel accepts the same
+            # bypass as query parameters; the set-bypass-cookie one carries the
+            # authentication into subsequent navigations and subresources.
+            measured_url="$url"
+            if [ -n "${BYPASS_SECRET:-}" ]; then
+              case "$url" in
+                *\?*) sep='&' ;;
+                *) sep='?' ;;
+              esac
+              measured_url="${url}${sep}x-vercel-protection-bypass=${BYPASS_SECRET}&x-vercel-set-bypass-cookie=true"
+            fi
+            urls="${urls}${measured_url}"$'\n'
 
             for attempt in 1 2 3; do
               # The final URL matters as much as the status: a rejected or
@@ -313,6 +327,10 @@ jobs:
               'speed-index',
           ];
 
+          // Path only, deliberately dropping the query: measured URLs carry the
+          // Vercel bypass secret as a parameter, which must not reach a label, a
+          // baseline key or the comment. It also keeps labels stable when a
+          // caller adds a tracking parameter to a measured path.
           const toLabel = (url) => {
               try {
                   return new URL(url).pathname || '/';
@@ -565,10 +583,16 @@ jobs:
               }
           }
 
+          // Both measurement jobs failed before uploading anything. They have
+          // already reported why and turned the run red, so say so on the pull
+          // request rather than failing a second time with no explanation.
           const present = FORM_FACTORS.filter((ff) => summaries[ff]);
           if (present.length === 0) {
-              console.error('No summaries were produced by either form factor.');
-              process.exit(1);
+              console.log(
+                  '⚠️ No measurements were produced: both the desktop and mobile ' +
+                      'runs failed before reporting. Check those jobs for the reason.'
+              );
+              process.exit(0);
           }
 
           // URLs come from whichever form factor reported them first; both
