@@ -196,21 +196,7 @@ jobs:
           while IFS= read -r path; do
             [ -z "$path" ] && continue
             url="${BASE_URL}${path}"
-
-            # Lighthouse drives a real browser, which sends none of the headers
-            # curl does above, so a protected deployment redirects it to the
-            # login page and it measures that instead. Vercel accepts the same
-            # bypass as query parameters; the set-bypass-cookie one carries the
-            # authentication into subsequent navigations and subresources.
-            measured_url="$url"
-            if [ -n "${BYPASS_SECRET:-}" ]; then
-              case "$url" in
-                *\?*) sep='&' ;;
-                *) sep='?' ;;
-              esac
-              measured_url="${url}${sep}x-vercel-protection-bypass=${BYPASS_SECRET}&x-vercel-set-bypass-cookie=true"
-            fi
-            urls="${urls}${measured_url}"$'\n'
+            urls="${urls}${url}"$'\n'
 
             for attempt in 1 2 3; do
               # The final URL matters as much as the status: a rejected or
@@ -258,6 +244,7 @@ jobs:
         id: config
         env:
           CONFIG_TEMPLATE: ${{ inputs.lighthouse-config-path }}
+          BYPASS_SECRET: ${{ secrets.vercel-automation-bypass-secret }}
         run: |
           set -euo pipefail
 
@@ -267,7 +254,37 @@ jobs:
             exit 1
           fi
 
-          echo "Using Lighthouse config ${path}"
+          # Lighthouse drives a real browser, which sends none of the headers
+          # curl does during warm-up, so a protected deployment redirects it to
+          # the login page and it measures that instead. Give Chrome the bypass
+          # as an extra header rather than a URL parameter: the measured URLs
+          # end up in the reports, the manifest and the comment, so a secret
+          # placed there would be stored in the run's artifacts.
+          #
+          # The generated copy is written outside the workspace so a caller
+          # checking for a dirty tree does not see it.
+          if [ -n "${BYPASS_SECRET:-}" ]; then
+            generated="${RUNNER_TEMP}/lighthouserc.${FORM_FACTOR}.json"
+            CONFIG_IN="$path" CONFIG_OUT="$generated" node <<'RESOLVE_EOF'
+          const { readFileSync, writeFileSync } = require('node:fs');
+
+          const config = JSON.parse(readFileSync(process.env.CONFIG_IN, 'utf8'));
+          config.ci = config.ci ?? {};
+          config.ci.collect = config.ci.collect ?? {};
+          config.ci.collect.settings = config.ci.collect.settings ?? {};
+          config.ci.collect.settings.extraHeaders = {
+              ...(config.ci.collect.settings.extraHeaders ?? {}),
+              'x-vercel-protection-bypass': process.env.BYPASS_SECRET,
+          };
+
+          writeFileSync(process.env.CONFIG_OUT, JSON.stringify(config));
+          RESOLVE_EOF
+            echo "Using Lighthouse config ${path} with the Vercel bypass header added"
+            path="$generated"
+          else
+            echo "Using Lighthouse config ${path}"
+          fi
+
           echo "path=$path" >> "$GITHUB_OUTPUT"
 
       # Run count and budgets come from the caller's Lighthouse CI config. Set
