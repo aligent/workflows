@@ -349,12 +349,18 @@ jobs:
             exit 1
           fi
 
+          echo "Results directory now holds:"
+          ls -la "$RESULTS_PATH"
+
       - name: Upload Lighthouse reports
         if: always() && steps.lighthouse.outputs.resultsPath != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
           name: lighthouse-reports-${{ inputs.baseline-key }}-${{ matrix.form-factor }}
-          path: ${{ steps.lighthouse.outputs.resultsPath }}
+          path: ${{ steps.lighthouse.outputs.resultsPath }}/
+          # The reports are a debugging aid, not a result: say so rather than
+          # failing the measurement when there is nothing to upload.
+          if-no-files-found: warn
 
       # Restores the most recent baseline recorded from the default branch.
       # A pull request can read caches written by the default branch, but not
