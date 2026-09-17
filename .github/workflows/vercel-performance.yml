@@ -291,14 +291,70 @@ jobs:
       # `aggregationMethod: median` there: LHCI defaults to `optimistic`, which
       # takes the best run and hides the variance that multiple runs exist to
       # smooth out.
+      # uploadArtifacts stays false: the action uploads from inside its own step,
+      # which would leave no point at which to redact the bypass secret. The two
+      # steps below scrub and then upload.
       - name: Run Lighthouse
         id: lighthouse
         uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 #v12
         with:
           urls: ${{ steps.urls.outputs.list }}
           configPath: ${{ steps.config.outputs.path }}
-          uploadArtifacts: true
-          artifactName: lighthouse-reports-${{ matrix.form-factor }}
+          uploadArtifacts: false
+
+      # Lighthouse records the settings it ran with into every report, so the
+      # bypass header arrives in the results verbatim. Redact it before the
+      # reports leave the runner: an artifact is readable by anyone with read
+      # access to the calling repository, for the whole retention period.
+      - name: Redact the bypass secret from the reports
+        if: always() && steps.lighthouse.outputs.resultsPath != ''
+        env:
+          RESULTS_PATH: ${{ steps.lighthouse.outputs.resultsPath }}
+          BYPASS_SECRET: ${{ secrets.vercel-automation-bypass-secret }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${BYPASS_SECRET:-}" ]; then
+            echo "No bypass secret configured; nothing to redact."
+            exit 0
+          fi
+
+          # Every file, not just .json and .html: the results directory also
+          # holds traces and the manifest, and a missed file is a leaked secret.
+          found="$(grep -rlF "$BYPASS_SECRET" "$RESULTS_PATH" 2>/dev/null || true)"
+          if [ -z "$found" ]; then
+            echo "Secret not present in the results."
+            exit 0
+          fi
+
+          echo "$found" | while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            # A literal replacement, so no character in the secret is treated as
+            # a regular expression or as the delimiter.
+            python3 - "$file" "$BYPASS_SECRET" <<'REDACT_EOF'
+          import sys
+
+          path, secret = sys.argv[1], sys.argv[2]
+          with open(path, encoding='utf-8', errors='surrogateescape') as handle:
+              content = handle.read()
+          with open(path, 'w', encoding='utf-8', errors='surrogateescape') as handle:
+              handle.write(content.replace(secret, '[REDACTED]'))
+          REDACT_EOF
+            echo "Redacted ${file}"
+          done
+
+          # Fail rather than upload a report that still carries the secret.
+          if grep -rqF "$BYPASS_SECRET" "$RESULTS_PATH" 2>/dev/null; then
+            echo "::error::The bypass secret is still present after redaction; not uploading."
+            exit 1
+          fi
+
+      - name: Upload Lighthouse reports
+        if: always() && steps.lighthouse.outputs.resultsPath != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
+        with:
+          name: lighthouse-reports-${{ inputs.baseline-key }}-${{ matrix.form-factor }}
+          path: ${{ steps.lighthouse.outputs.resultsPath }}
 
       # Restores the most recent baseline recorded from the default branch.
       # A pull request can read caches written by the default branch, but not
