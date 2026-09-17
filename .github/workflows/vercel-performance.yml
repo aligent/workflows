@@ -163,6 +163,31 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Deployment Protection answers with a 200 from Vercel's SSO login
+          # page, so a warm-up that only checks the status cannot tell a warmed
+          # page from a login wall, and Lighthouse would go on to measure the
+          # login page. Probe once without the bypass header: if the deployment
+          # redirects off its own host, protection is on and the secret is
+          # required. Projects without protection need no secret and are
+          # unaffected.
+          probe_url="$(curl -sS -o /dev/null -w '%{url_effective}' -L \
+            --max-time 60 "${BASE_URL}/" || echo '-')"
+          case "$probe_url" in
+            "${BASE_URL}"*)
+              ;;
+            *)
+              if [ -z "${BYPASS_SECRET:-}" ]; then
+                echo "::error::${BASE_URL} redirects to ${probe_url}."
+                echo "::error::Deployment Protection is enabled on this project, so the"
+                echo "::error::vercel-automation-bypass-secret secret is required. Without it"
+                echo "::error::Lighthouse measures Vercel's login page rather than the site."
+                echo "::error::Generate it under Project Settings > Deployment Protection >"
+                echo "::error::Protection Bypass for Automation."
+                exit 1
+              fi
+              ;;
+          esac
+
           failed=0
           urls=""
 
@@ -174,12 +199,28 @@ jobs:
             urls="${urls}${url}"$'\n'
 
             for attempt in 1 2 3; do
-              status="$(curl -sS -o /dev/null -w '%{http_code}' -L \
+              # The final URL matters as much as the status: a rejected or
+              # expired bypass secret still answers 200, from the login page.
+              read -r status final_url <<<"$(curl -sS -o /dev/null \
+                -w '%{http_code} %{url_effective}' -L \
                 --max-time 60 \
                 ${BYPASS_SECRET:+-H "x-vercel-protection-bypass: ${BYPASS_SECRET}"} \
-                "$url" || echo 000)"
-              echo "Warm-up ${url} attempt ${attempt}: HTTP ${status}"
-              [ "$status" = "200" ] && break
+                "$url" || echo '000 -')"
+              echo "Warm-up ${url} attempt ${attempt}: HTTP ${status} -> ${final_url}"
+
+              if [ "$status" = "200" ]; then
+                case "$final_url" in
+                  "${BASE_URL}"*) break ;;
+                  *)
+                    echo "::error::${url} redirected off the deployment to ${final_url}."
+                    echo "::error::The bypass secret was rejected; check it matches the one"
+                    echo "::error::configured on this Vercel project."
+                    failed=1
+                    break
+                    ;;
+                esac
+              fi
+
               [ "$attempt" = "3" ] && failed=1
               sleep 5
             done
@@ -248,6 +289,7 @@ jobs:
         env:
           RESULTS_PATH: ${{ steps.lighthouse.outputs.resultsPath }}
           ASSERTION_RESULTS: ${{ steps.lighthouse.outputs.assertionResults }}
+          CONFIG_PATH: ${{ steps.config.outputs.path }}
           BASELINE_PATH: ${{ inputs.baseline-mode == 'compare' && 'baseline.json' || '' }}
           BASELINE_RECORD: ${{ inputs.baseline-mode == 'record' }}
         run: |
@@ -332,18 +374,48 @@ jobs:
 
           // Assertion results are keyed by the full URL; the renderer works in
           // path labels, so map them across here while both are in scope.
+          //
+          // A category assertion arrives as auditId "categories" with the
+          // category in auditProperty, while a metric assertion puts the audit
+          // in auditId and leaves auditProperty unset. Normalise both to the
+          // ids the renderer uses. LHCI reports one entry per run, so the same
+          // audit appears several times per URL.
           const warningsByUrl = {};
           try {
               for (const result of JSON.parse(process.env.ASSERTION_RESULTS || '[]')) {
-                  if (!result.url) continue;
+                  if (!result.url || result.passed) continue;
                   const label = toLabel(result.url);
+                  const id =
+                      result.auditId === 'categories'
+                          ? `categories:${result.auditProperty}`
+                          : result.auditId;
                   warningsByUrl[label] = warningsByUrl[label] ?? [];
-                  if (!warningsByUrl[label].includes(result.auditId)) {
-                      warningsByUrl[label].push(result.auditId);
+                  if (!warningsByUrl[label].includes(id)) {
+                      warningsByUrl[label].push(id);
                   }
               }
           } catch (error) {
               console.error(`Could not parse assertion results: ${error.message}`);
+          }
+
+          // Budgets come from the Lighthouse config rather than the assertion
+          // results: an audit that passed on every run produces no assertion
+          // entry, so its budget would be missing from the table.
+          const budgets = {};
+          try {
+              const config = JSON.parse(readFileSync(process.env.CONFIG_PATH, 'utf8'));
+              const assertions = config?.ci?.assert?.assertions ?? {};
+              for (const [id, assertion] of Object.entries(assertions)) {
+                  const options = Array.isArray(assertion) ? assertion[1] : assertion;
+                  if (!options) continue;
+                  if (typeof options.minScore === 'number') {
+                      budgets[id] = { type: 'minScore', value: options.minScore };
+                  } else if (typeof options.maxNumericValue === 'number') {
+                      budgets[id] = { type: 'maxNumericValue', value: options.maxNumericValue };
+                  }
+              }
+          } catch (error) {
+              console.error(`Could not read budgets from config: ${error.message}`);
           }
 
           // Order matters to the renderer: it lists URLs in the order the first
@@ -353,7 +425,11 @@ jobs:
 
           writeFileSync(
               process.env.SUMMARY_OUT || 'summary.json',
-              JSON.stringify({ formFactor, urls, runs, measured, baseline, warningsByUrl }, null, 2)
+              JSON.stringify(
+                  { formFactor, urls, runs, measured, baseline, warningsByUrl, budgets },
+                  null,
+                  2
+              )
           );
           console.error(`Wrote summary for ${formFactor}.`);
           SUMMARISE_EOF
@@ -462,6 +538,16 @@ jobs:
               return `${sign}${rounded}%${flag}`;
           };
 
+          // The budget this metric is held to, shown with the comparison so the
+          // column reads as a target rather than another measurement.
+          const formatBudget = (budget, unit) => {
+              if (!budget) return '—';
+              if (budget.type === 'minScore') {
+                  return `≥ ${Math.round(budget.value * 100)}`;
+              }
+              return `≤ ${format(budget.value, unit)}`;
+          };
+
           // One subdirectory per artifact, so find each form factor's summary by
           // the suffix its artifact name ends with.
           const summaries = {};
@@ -518,8 +604,12 @@ jobs:
                       scoreDelta === null
                           ? ''
                           : ` (${scoreDelta > 0 ? '+' : scoreDelta === 0 ? '±' : ''}${scoreDelta})`;
+                  const scoreBudget = summary.budgets?.['categories:performance'];
+                  const target = scoreBudget
+                      ? ` [target ${formatBudget(scoreBudget, '')}]`
+                      : '';
                   scoreParts.push(
-                      `${LABELS[ff]} **${score === null ? 'n/a' : `${score}/100`}**${suffix}` +
+                      `${LABELS[ff]} **${score === null ? 'n/a' : `${score}/100`}**${suffix}${target}` +
                           (warned.includes('categories:performance') ? ' ⚠️' : '')
                   );
               }
@@ -538,6 +628,8 @@ jobs:
                       header.push(`${icon} vs baseline`);
                       divider.push('---');
                   }
+                  header.push(`${icon} Target`);
+                  divider.push('---');
                   header.push('');
                   divider.push('---');
               }
@@ -558,6 +650,7 @@ jobs:
 
                       cells.push(format(value, unit));
                       if (anyBaseline) cells.push(formatDelta(percent));
+                      cells.push(formatBudget(summary.budgets?.[id], unit));
                       cells.push(warned.includes(id) ? '⚠️' : '✅');
                   }
                   lines.push(`| ${cells.join(' | ')} |`);
