@@ -46,9 +46,10 @@ jobs:
           while IFS= read -r baseline_key; do
             [ -z "$baseline_key" ] && continue
             for form_factor in $FORM_FACTORS; do
-              targets="$(printf '%s' "$targets" | jq -c \
+              targets="$(jq -cn \
+                --argjson t "$targets" \
                 --arg k "$baseline_key" --arg f "$form_factor" \
-                '. + [{"baseline-key": $k, "form-factor": $f}]')"
+                '$t + [{"baseline-key": $k, "form-factor": $f}]')"
             done
           done <<< "$BASELINE_KEYS"
 

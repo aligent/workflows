@@ -265,20 +265,11 @@ jobs:
           # checking for a dirty tree does not see it.
           if [ -n "${BYPASS_SECRET:-}" ]; then
             generated="${RUNNER_TEMP}/lighthouserc.${FORM_FACTOR}.json"
-            CONFIG_IN="$path" CONFIG_OUT="$generated" node <<'RESOLVE_EOF'
-          const { readFileSync, writeFileSync } = require('node:fs');
-
-          const config = JSON.parse(readFileSync(process.env.CONFIG_IN, 'utf8'));
-          config.ci = config.ci ?? {};
-          config.ci.collect = config.ci.collect ?? {};
-          config.ci.collect.settings = config.ci.collect.settings ?? {};
-          config.ci.collect.settings.extraHeaders = {
-              ...(config.ci.collect.settings.extraHeaders ?? {}),
-              'x-vercel-protection-bypass': process.env.BYPASS_SECRET,
-          };
-
-          writeFileSync(process.env.CONFIG_OUT, JSON.stringify(config));
-          RESOLVE_EOF
+            # jq creates the missing parents, so a config carrying only
+            # assertions gets a valid collect.settings block.
+            jq --arg secret "$BYPASS_SECRET" \
+              '.ci.collect.settings.extraHeaders["x-vercel-protection-bypass"] = $secret' \
+              "$path" > "$generated"
             echo "Using Lighthouse config ${path} with the Vercel bypass header added"
             path="$generated"
           else
@@ -321,27 +312,11 @@ jobs:
 
           # Every file, not just .json and .html: the results directory also
           # holds traces and the manifest, and a missed file is a leaked secret.
-          found="$(grep -rlF "$BYPASS_SECRET" "$RESULTS_PATH" 2>/dev/null || true)"
-          if [ -z "$found" ]; then
-            echo "Secret not present in the results."
-            exit 0
-          fi
-
-          echo "$found" | while IFS= read -r file; do
-            [ -z "$file" ] && continue
-            # A literal replacement, so no character in the secret is treated as
-            # a regular expression or as the delimiter.
-            python3 - "$file" "$BYPASS_SECRET" <<'REDACT_EOF'
-          import sys
-
-          path, secret = sys.argv[1], sys.argv[2]
-          with open(path, encoding='utf-8', errors='surrogateescape') as handle:
-              content = handle.read()
-          with open(path, 'w', encoding='utf-8', errors='surrogateescape') as handle:
-              handle.write(content.replace(secret, '[REDACTED]'))
-          REDACT_EOF
-            echo "Redacted ${file}"
-          done
+          # A Vercel bypass secret is alphanumeric, so it needs no escaping to
+          # be used as a pattern; the check below catches it if that ever stops
+          # being true.
+          find "$RESULTS_PATH" -type f \
+            -exec sed -i "s/${BYPASS_SECRET}/[REDACTED]/g" {} +
 
           # Fail rather than upload a report that still carries the secret.
           if grep -rqF "$BYPASS_SECRET" "$RESULTS_PATH" 2>/dev/null; then
@@ -383,7 +358,7 @@ jobs:
           RESULTS_PATH: ${{ steps.lighthouse.outputs.resultsPath }}
           ASSERTION_RESULTS: ${{ steps.lighthouse.outputs.assertionResults }}
           CONFIG_PATH: ${{ steps.config.outputs.path }}
-          BASELINE_PATH: ${{ inputs.baseline-mode == 'compare' && 'baseline.json' || '' }}
+          BASELINE_PATH: ${{ case(inputs.baseline-mode == 'compare', 'baseline.json', '') }}
           BASELINE_RECORD: ${{ inputs.baseline-mode == 'record' }}
         run: |
           set -euo pipefail
@@ -811,8 +786,7 @@ jobs:
           console.log(lines.join('\n'));
           RENDER_EOF
 
-          node render.mjs > lighthouse-summary.md
-          cat lighthouse-summary.md
+          node render.mjs | tee lighthouse-summary.md
 
       - name: Comment performance results on PR
         env:
