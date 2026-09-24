@@ -393,6 +393,56 @@ jobs:
               }
           };
 
+          const formatNumber = (value) =>
+              typeof value === 'number'
+                  ? value.toLocaleString('en-US', { maximumFractionDigits: 2 })
+                  : 'n/a';
+
+          // Worded as the Lighthouse report header words it, so the comment
+          // reads the same as a report opened locally. Values are taken from
+          // the settings the run recorded, never assumed from a preset.
+          const describeThrottling = (settings) => {
+              const throttling = settings?.throttling ?? {};
+              const cpu = `${formatNumber(throttling.cpuSlowdownMultiplier)}x slowdown`;
+              switch (settings?.throttlingMethod) {
+                  case 'simulate':
+                      return {
+                          cpu: `${cpu} (Simulated)`,
+                          network:
+                              `${formatNumber(throttling.rttMs)} ms TCP RTT, ` +
+                              `${formatNumber(throttling.throughputKbps)} kb/s throughput (Simulated)`,
+                      };
+                  case 'devtools':
+                      return {
+                          cpu: `${cpu} (DevTools)`,
+                          network:
+                              `${formatNumber(throttling.requestLatencyMs)} ms HTTP RTT, ` +
+                              `${formatNumber(throttling.downloadThroughputKbps)} kb/s down, ` +
+                              `${formatNumber(throttling.uploadThroughputKbps)} kb/s up (DevTools)`,
+                      };
+                  case 'provided':
+                      return { cpu: 'Provided by environment', network: 'Provided by environment' };
+                  default:
+                      return { cpu: 'Unknown', network: 'Unknown' };
+              }
+          };
+
+          const describeScreen = (screen) => {
+              if (!screen) return 'n/a';
+              if (screen.disabled) return 'No emulation';
+              return `${screen.width}x${screen.height}, DPR ${screen.deviceScaleFactor}`;
+          };
+
+          // Settings come from the config, so they are the same for every run
+          // and are read from the first report. The benchmark index measures
+          // the runner itself and varies between runs, so it is collected
+          // from every representative report.
+          const describeEnvironment = (report) => ({
+              ...describeThrottling(report.configSettings),
+              screen: describeScreen(report.configSettings?.screenEmulation),
+              benchmarkIndex: [],
+          });
+
           const resultsPath = process.env.RESULTS_PATH;
           const formFactor = process.env.FORM_FACTOR || 'desktop';
           const baselinePath = process.env.BASELINE_PATH || '';
@@ -414,8 +464,14 @@ jobs:
           // Collect the medians into a plain object, both for the comparison below and
           // so the run on the default branch can persist it as the next baseline.
           const measured = {};
+          let environment = null;
           for (const entry of representative) {
               const report = JSON.parse(readFileSync(entry.jsonPath, 'utf8'));
+              environment = environment ?? describeEnvironment(report);
+              const benchmarkIndex = report.environment?.benchmarkIndex;
+              if (typeof benchmarkIndex === 'number') {
+                  environment.benchmarkIndex.push(benchmarkIndex);
+              }
               const url = toLabel(entry.url);
               measured[url] = { score: entry.summary?.performance ?? null };
               for (const id of METRIC_IDS) {
@@ -498,7 +554,16 @@ jobs:
           writeFileSync(
               process.env.SUMMARY_OUT || 'summary.json',
               JSON.stringify(
-                  { formFactor, urls, runs, measured, baseline, warningsByUrl, budgets },
+                  {
+                      formFactor,
+                      urls,
+                      runs,
+                      measured,
+                      baseline,
+                      warningsByUrl,
+                      budgets,
+                      environment,
+                  },
                   null,
                   2
               )
@@ -742,6 +807,40 @@ jobs:
               return `${LABELS[ff]}: ${runs} run${runs === 1 ? '' : 's'}`;
           });
           lines.push(`_Median per URL — ${runNotes.join(', ')}._`);
+
+          // The benchmark index varies between runs, so show its spread
+          // rather than picking one run's value.
+          const formatBenchmark = (values) => {
+              if (!Array.isArray(values) || values.length === 0) return 'n/a';
+              const low = Math.round(Math.min(...values));
+              const high = Math.round(Math.max(...values));
+              return low === high ? `${low}` : `${low}–${high}`;
+          };
+
+          // The conditions each form factor ran under, as the Lighthouse
+          // report header shows them. A runner with a low benchmark index
+          // explains slow numbers that no code change caused.
+          const ENVIRONMENT_ROWS = [
+              ['Unthrottled CPU/Memory Power', (env) => formatBenchmark(env.benchmarkIndex)],
+              ['CPU throttling', (env) => env.cpu],
+              ['Network throttling', (env) => env.network],
+              ['Screen emulation', (env) => env.screen],
+          ];
+          const withEnvironment = present.filter((ff) => summaries[ff].environment);
+          if (withEnvironment.length > 0) {
+              lines.push(
+                  '',
+                  '<details><summary>Test environment</summary>',
+                  '',
+                  `| | ${withEnvironment.map((ff) => LABELS[ff]).join(' | ')} |`,
+                  `| --- | ${withEnvironment.map(() => '---').join(' | ')} |`
+              );
+              for (const [label, read] of ENVIRONMENT_ROWS) {
+                  const cells = withEnvironment.map((ff) => read(summaries[ff].environment) ?? 'n/a');
+                  lines.push(`| ${label} | ${cells.join(' | ')} |`);
+              }
+              lines.push('', '</details>');
+          }
 
           const missing = FORM_FACTORS.filter((ff) => !summaries[ff]);
           if (missing.length > 0) {
