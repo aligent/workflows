@@ -433,14 +433,9 @@ jobs:
               return `${screen.width}x${screen.height}, DPR ${screen.deviceScaleFactor}`;
           };
 
-          // Settings come from the config, so they are the same for every run
-          // and are read from the first report. The benchmark index measures
-          // the runner itself and varies between runs, so it is collected
-          // from every representative report.
-          const describeEnvironment = (report) => ({
-              ...describeThrottling(report.configSettings),
-              screen: describeScreen(report.configSettings?.screenEmulation),
-              benchmarkIndex: [],
+          const describeSettings = (settings) => ({
+              ...describeThrottling(settings),
+              screen: describeScreen(settings?.screenEmulation),
           });
 
           const resultsPath = process.env.RESULTS_PATH;
@@ -463,15 +458,20 @@ jobs:
 
           // Collect the medians into a plain object, both for the comparison below and
           // so the run on the default branch can persist it as the next baseline.
+          //
+          // The benchmark index measures the runner rather than the page and
+          // varies between runs, so it is collected from every representative
+          // report.
           const measured = {};
-          let environment = null;
+          const benchmarkIndexes = [];
+          let settings = null;
           for (const entry of representative) {
               const report = JSON.parse(readFileSync(entry.jsonPath, 'utf8'));
-              environment = environment ?? describeEnvironment(report);
+              // Every run in this job uses the same Lighthouse config, so the
+              // first report's throttling and screen emulation describe them all.
+              if (settings === null) settings = describeSettings(report.configSettings);
               const benchmarkIndex = report.environment?.benchmarkIndex;
-              if (typeof benchmarkIndex === 'number') {
-                  environment.benchmarkIndex.push(benchmarkIndex);
-              }
+              if (typeof benchmarkIndex === 'number') benchmarkIndexes.push(benchmarkIndex);
               const url = toLabel(entry.url);
               measured[url] = { score: entry.summary?.performance ?? null };
               for (const id of METRIC_IDS) {
@@ -562,7 +562,7 @@ jobs:
                       baseline,
                       warningsByUrl,
                       budgets,
-                      environment,
+                      testConditions: { ...settings, benchmarkIndexes },
                   },
                   null,
                   2
@@ -820,23 +820,25 @@ jobs:
           // The conditions each form factor ran under, as the Lighthouse
           // report header shows them. A runner with a low benchmark index
           // explains slow numbers that no code change caused.
-          const ENVIRONMENT_ROWS = [
-              ['Unthrottled CPU/Memory Power', (env) => formatBenchmark(env.benchmarkIndex)],
-              ['CPU throttling', (env) => env.cpu],
-              ['Network throttling', (env) => env.network],
-              ['Screen emulation', (env) => env.screen],
+          const TEST_CONDITION_ROWS = [
+              ['Unthrottled CPU/Memory Power', (conditions) => formatBenchmark(conditions.benchmarkIndexes)],
+              ['CPU throttling', (conditions) => conditions.cpu],
+              ['Network throttling', (conditions) => conditions.network],
+              ['Screen emulation', (conditions) => conditions.screen],
           ];
-          const withEnvironment = present.filter((ff) => summaries[ff].environment);
-          if (withEnvironment.length > 0) {
+          const withConditions = present.filter((ff) => summaries[ff].testConditions);
+          if (withConditions.length > 0) {
               lines.push(
                   '',
                   '<details><summary>Test environment</summary>',
                   '',
-                  `| | ${withEnvironment.map((ff) => LABELS[ff]).join(' | ')} |`,
-                  `| --- | ${withEnvironment.map(() => '---').join(' | ')} |`
+                  `| | ${withConditions.map((ff) => LABELS[ff]).join(' | ')} |`,
+                  `| --- | ${withConditions.map(() => '---').join(' | ')} |`
               );
-              for (const [label, read] of ENVIRONMENT_ROWS) {
-                  const cells = withEnvironment.map((ff) => read(summaries[ff].environment) ?? 'n/a');
+              for (const [label, read] of TEST_CONDITION_ROWS) {
+                  const cells = withConditions.map(
+                      (ff) => read(summaries[ff].testConditions) ?? 'n/a'
+                  );
                   lines.push(`| ${label} | ${cells.join(' | ')} |`);
               }
               lines.push('', '</details>');
