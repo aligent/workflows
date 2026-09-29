@@ -1,15 +1,13 @@
 # Gadget App Deployment
 
-A comprehensive Gadget app deployment workflow supporting push, test, and production deployment stages with multi-environment management.
+A comprehensive Gadget app deployment workflow supporting push and production deployment stages with multi-environment management.
 
 #### **Features**
 - **Custom-environment support**: Support for custom development environment name
-- **Conditional automated testing**: Automatic test execution controlled by boolean flag
 - **Conditional deployment**: Production deployment controlled by boolean flag
 - **Temporary environment deployment**: Production deploys create a temporary Gadget environment, push code to it, promote to production, and clean up automatically
 - **Force push capabilities**: Ensures code synchronization with `--force` flag
 - **Gadget CLI integration**: Uses `ggt` CLI tool for all operations
-- **Test validation**: Runs full test suite before production deployment
 - **Automatic backporting**: Optional PR creation to backport changes to staging branch
 
 #### **Inputs**
@@ -21,7 +19,6 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 | environment-name | ⚠️ | string | | Gadget environment name (required when `action: push`) |
 | **Deployment Control** |
 | action | ✅ | string | | Deployment action: `push` (push to environment) or `deploy` (deploy to production) |
-| test | ❌ | boolean | false | Enable testing on development environment |
 | **Backport Configuration** |
 | create-backport-pr | ❌ | boolean | false | Create a backport PR after deployment |
 | backport-target-branch | ❌ | string | staging | Target branch for backport PR |
@@ -29,8 +26,7 @@ A comprehensive Gadget app deployment workflow supporting push, test, and produc
 #### **Secrets**
 | Name | Required | Description |
 |------|----------|-------------|
-| gadget-api-token | ✅ | Gadget API authentication token |
-| gadget-test-api-key | ❌ | Gadget Test API key (required when `test: true`) |
+| ggt-cli-token | ✅ | Gadget API authentication token |
 
 #### **Outputs**
 | Name | Description |
@@ -59,7 +55,7 @@ jobs:
       environment-name: staging
       action: push
     secrets:
-      gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
+      ggt-cli-token: ${{ secrets.GGT_CLI_TOKEN }}
 ```
 
 **Push to custom Environment Name:**
@@ -80,30 +76,7 @@ jobs:
       environment-name: development
       action: push
     secrets:
-      gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
-```
-
-**Push with Testing:**
-```yaml
-on:
-  push:
-    branches:
-      - staging
-
-...
-
-jobs:
-  push-and-test:
-    uses: aligent/workflows/.github/workflows/gadget-deploy.yml@main
-    with:
-      app-name: my-gadget-app
-      working-directory: apps/gadget-app
-      environment-name: staging
-      action: push
-      test: true
-    secrets:
-      gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
-      gadget-test-api-key: ${{ secrets.GADGET_TEST_API_KEY }}
+      ggt-cli-token: ${{ secrets.GGT_CLI_TOKEN }}
 ```
 
 **Production deployment from Release:**
@@ -122,7 +95,7 @@ jobs:
       working-directory: apps/gadget-app
       action: deploy
     secrets:
-      gadget-api-token: ${{ secrets.GADGET_API_TOKEN }}
+      ggt-cli-token: ${{ secrets.GGT_CLI_TOKEN }}
 ```
 
 When `action: deploy`, the workflow uses a temporary environment strategy to safely promote code to production:

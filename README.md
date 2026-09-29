@@ -12,7 +12,7 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 | [AWS CDK](docs/aws-cdk.md) | Multi-environment infrastructure synthesis, diffs and deployments with automatic package manager detection |
 | [Changeset Check](docs/changeset-check.md) | Advisory PR comments when changesets are missing for affected packages |
 | [Changeset Release](docs/changeset-release.md) | Automated package versioning and publishing with Changesets |
-| [Gadget App Deployment](docs/gadget-deploy.md) | Gadget app deployment with push, test, and production deployment stages |
+| [Gadget App Deployment](docs/gadget-deploy.md) | Gadget app deployment with push and production deployment stages |
 | [Magento Cloud Deployment](docs/magento-cloud-deploy.md) | Magento Cloud deployment with optional NewRelic monitoring and CST reporting |
 | [Node Pull Request Checks](docs/node-pr.md) | Pull request quality checks for Node.js projects |
 | [Nx Serverless Deployment](docs/nx-serverless-deployment.md) | Serverless deployment workflow for Nx monorepos |

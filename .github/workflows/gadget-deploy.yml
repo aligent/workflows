@@ -22,10 +22,6 @@ on:
         description: "Deployment action to perform: 'push' (push to environment) or 'deploy' (deploy to production)"
         type: string
         required: true
-      test:
-        description: "Boolean to check if run tests"
-        type: boolean
-        default: false
 
       # Backport Configuration
       create-backport-pr:
@@ -38,12 +34,9 @@ on:
         default: "staging"
 
     secrets:
-      gadget-api-token:
-        description: "Gadget API token"
+      ggt-cli-token:
+        description: "GGT cli token"
         required: true
-      gadget-test-api-key:
-        description: "Gadget Test API key for running tests"
-        required: false
 
 jobs:
   push:
@@ -51,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     if: inputs.action == 'push'
     env:
-      GGT_TOKEN: ${{ secrets.gadget-api-token }}
+      GGT_TOKEN: ${{ secrets.ggt-cli-token }}
     outputs:
       push-environment-status: ${{ steps.push-environment.outcome }}
     steps:
@@ -85,63 +78,12 @@ jobs:
           INPUTS_APP_NAME: ${{ inputs.app-name }}
           INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }} 
 
-  test:
-    name: 🧪 Test from Gadget
-    runs-on: ubuntu-latest
-    if: inputs.test == true && inputs.action == 'push'
-    needs: push
-    env:
-      GGT_TOKEN: ${{ secrets.gadget-api-token }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Install ggt
-        run: |
-          npm install -g ggt
-          ggt version
-
-      - name: Pull client files into env # pull .gadget folder into test runner
-        working-directory: ${{ inputs.working-directory }}
-        run: |
-          ggt pull \
-            --app=${INPUTS_APP_NAME} \
-            --env=${INPUTS_ENVIRONMENT_NAME} \
-            --force --allow-unknown-directory
-        env:
-          INPUTS_APP_NAME: ${{ inputs.app-name }}
-          INPUTS_ENVIRONMENT_NAME: ${{ inputs.environment-name }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
-        with:
-          node-version-file: ${{ inputs.working-directory }}/.nvmrc
-          cache: yarn
-          cache-dependency-path: ${{ inputs.working-directory }}/yarn.lock
-
-      - name: Install safe-chain
-        run: |
-          SAFE_CHAIN_URL="https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh"
-          curl -fsSL "$SAFE_CHAIN_URL" | sh -s -- --ci
-
-      - name: Install dependencies
-        working-directory: ${{ inputs.working-directory }}
-        run: yarn --frozen-lockfile
-
-      - name: Run tests
-        working-directory: ${{ inputs.working-directory }}
-        env:
-          GADGET_TEST_API_KEY: ${{ secrets.gadget-test-api-key }}
-          GADGET_ENV: ${{ inputs.environment-name }}
-        run: yarn test
-
   deploy:
     name: 🚀 Deploying Gadget
     runs-on: ubuntu-latest
     if: inputs.action == 'deploy'
     env:
-      GGT_TOKEN: ${{ secrets.gadget-api-token }}
+      GGT_TOKEN: ${{ secrets.ggt-cli-token }}
       INPUTS_APP_NAME: ${{ inputs.app-name }}
       TEMP_ENV_NAME: deploy-${{ github.run_id }}
     steps:
@@ -159,13 +101,31 @@ jobs:
           ggt env create ${TEMP_ENV_NAME} \
             --app ${INPUTS_APP_NAME}
 
+      - name: Wait for environment provisioning to settle
+        # `ggt env create` returns as soon as the environment record exists, but Gadget
+        # keeps copying files in the background. Pushing immediately can cause
+        # "Your environment's files have changed since we last checked." error.
+        run: sleep 30
+
       - name: Push code to temp Gadget environment
         working-directory: ${{ inputs.working-directory }}
+        # Retry on top of the delay: a busy backend can still be mid-provisioning past the
+        # sleep, and ggt's own error message for this race is literally "please re-run ggt push".
         run: |
-          ggt push \
+          attempt=1
+          until ggt push \
             --app=${INPUTS_APP_NAME} \
             --env=${TEMP_ENV_NAME} \
             --force --allow-unknown-directory
+          do
+            if [ "$attempt" -ge 3 ]; then
+              echo "ggt push failed after $attempt attempts"
+              exit 1
+            fi
+            echo "ggt push failed (attempt $attempt), retrying in 10s..."
+            sleep 10
+            attempt=$((attempt+1))
+          done
 
       - name: Deploy (promote) to Production environment in Gadget
         working-directory: ${{ inputs.working-directory }}
