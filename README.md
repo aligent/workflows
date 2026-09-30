@@ -15,6 +15,7 @@ A collection of GitHub action workflows. Built using the [reusable workflows](ht
 | [Gadget App Deployment](docs/gadget-deploy.md) | Gadget app deployment with push, test, and production deployment stages |
 | [Magento Cloud Deployment](docs/magento-cloud-deploy.md) | Magento Cloud deployment with optional NewRelic monitoring and CST reporting |
 | [Node Pull Request Checks](docs/node-pr.md) | Pull request quality checks for Node.js projects |
+| [Node Publish Package](docs/node-publish.md) | Build, test and publish Node.js packages to npm via OIDC trusted publishing |
 | [Nx Serverless Deployment](docs/nx-serverless-deployment.md) | Serverless deployment workflow for Nx monorepos |
 | [PWA Deployment](docs/pwa-deployment.md) | Progressive Web Application deployment with S3 hosting, CloudFront CDN, multi-environment and multi-brand support |
 | [PHP Quality Checks](docs/php-quality-checks.md) | Static analysis, coding standards validation, and testing with coverage reporting |

@@ -1,0 +1,314 @@
+name: 📦 Node Publish Package
+
+on:
+  workflow_call:
+    secrets:
+      NPM_TOKEN:
+        description: >-
+          NPM authentication token for installing from private registries.
+          Not used for publishing, which authenticates via OIDC trusted publishing.
+        required: false
+    inputs:
+      package-manager:
+        description: "Node package manager to use (npm, yarn or pnpm)"
+        default: yarn
+        type: string
+      is-yarn-classic:
+        description: "If Yarn (pre-Berry) should be used"
+        default: false
+        type: boolean
+      pre-install-commands:
+        description: "Commands to run before dependency installation (e.g., configure registries, auth tokens)"
+        default: ""
+        type: string
+      build-command:
+        description: "Command to override the build command"
+        default: build
+        type: string
+      test-command:
+        description: "Command to override the test command"
+        default: test
+        type: string
+      skip-build:
+        description: "If the build step should be skipped"
+        default: false
+        type: boolean
+      skip-test:
+        description: "If the test step should be skipped"
+        default: false
+        type: boolean
+      package-directory:
+        description: "Directory of the package to publish, relative to the repository root"
+        default: "."
+        type: string
+      registry-url:
+        description: "Registry to publish to"
+        default: "https://registry.npmjs.org"
+        type: string
+      dist-tag:
+        description: >-
+          npm dist-tag to publish under. Defaults to the prerelease identifier
+          of the package.json version (e.g., 1.2.0-beta.1 publishes as 'beta'),
+          or 'latest' for stable versions
+        default: ""
+        type: string
+      access:
+        description: "Package access level (public or restricted). Leave empty to use the registry default"
+        default: ""
+        type: string
+      skip-tag-version-check:
+        description: >-
+          If the check that the pushed tag (with any leading 'v' removed)
+          matches the package.json version should be skipped
+        default: false
+        type: boolean
+      dry-run:
+        description: "If the package should be packed and validated without publishing"
+        default: false
+        type: boolean
+      node-options:
+        description: "Value for NODE_OPTIONS environment variable (e.g., --max-old-space-size=4096)"
+        default: ""
+        type: string
+
+jobs:
+  publish:
+    name: 📦 Publish
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for npm OIDC trusted publishing
+      contents: read
+    env:
+      NODE_OPTIONS: ${{ inputs.node-options }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
+        with:
+          node-version-file: .nvmrc
+          registry-url: ${{ inputs.registry-url }}
+          package-manager-cache: false  # never use caching in release builds
+
+      - name: Validate inputs
+        run: |
+          case "${INPUTS_PACKAGE_MANAGER}" in
+            npm|yarn|pnpm) ;;
+            *)
+              echo "::error::Unsupported package-manager '${INPUTS_PACKAGE_MANAGER}'. Use npm, yarn or pnpm."
+              exit 1
+              ;;
+          esac
+          case "${INPUTS_ACCESS}" in
+            ""|public|restricted) ;;
+            *)
+              echo "::error::Unsupported access '${INPUTS_ACCESS}'. Use public or restricted."
+              exit 1
+              ;;
+          esac
+          if [ ! -f "${INPUTS_PACKAGE_DIRECTORY}/package.json" ]; then
+            echo "::error::No package.json found in package-directory '${INPUTS_PACKAGE_DIRECTORY}'."
+            exit 1
+          fi
+        env:
+          INPUTS_ACCESS: ${{ inputs.access }}
+          INPUTS_PACKAGE_DIRECTORY: ${{ inputs.package-directory }}
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+
+      - name: Check trusted publishing requirements
+        run: |
+          # https://docs.npmjs.com/trusted-publishers
+          # Trusted publishing requires npm >= 11.5.1 and Node.js >= 22.14.0
+          failed=false
+          check_version() {
+            local name="$1" required="$2" current="$3" lowest
+            lowest="$(printf '%s\n%s\n' "${required}" "${current}" | sort -V | head -n1)"
+            if [ "${lowest}" != "${required}" ]; then
+              echo "::error::${name} ${current} is too old for trusted publishing (requires >= ${required})."
+              failed=true
+            else
+              echo "${name} ${current} supports trusted publishing"
+            fi
+          }
+          node_version="$(node --version)"
+          check_version "Node.js" "22.14.0" "${node_version#v}"
+          check_version "npm" "11.5.1" "$(npm --version)"
+          if [ "${failed}" = "true" ]; then
+            echo "::error::Update .nvmrc to a Node.js release that bundles npm >= 11.5.1."
+            exit 1
+          fi
+
+      - name: Check tag matches package version
+        if: github.ref_type == 'tag' && inputs.skip-tag-version-check == false
+        run: |
+          package_version="$(jq -r '.version' "${INPUTS_PACKAGE_DIRECTORY}/package.json")"
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "${tag_version}" != "${package_version}" ]; then
+            echo "::error::Tag '${GITHUB_REF_NAME}' does not match package.json version '${package_version}'."
+            exit 1
+          fi
+          echo "Tag '${GITHUB_REF_NAME}' matches package.json version '${package_version}'"
+        env:
+          INPUTS_PACKAGE_DIRECTORY: ${{ inputs.package-directory }}
+
+      - name: Resolve dist-tag
+        id: dist-tag
+        run: |
+          if [ -n "${INPUTS_DIST_TAG}" ]; then
+            dist_tag="${INPUTS_DIST_TAG}"
+            echo "Using explicit dist-tag '${dist_tag}'"
+          else
+            package_version="$(jq -r '.version' "${INPUTS_PACKAGE_DIRECTORY}/package.json")"
+            # Drop build metadata (+...), then take the first prerelease identifier
+            version_core="${package_version%%+*}"
+            if [ "${version_core}" = "${version_core#*-}" ]; then
+              dist_tag="latest"
+            else
+              prerelease="${version_core#*-}"
+              dist_tag="${prerelease%%.*}"
+            fi
+            echo "Derived dist-tag '${dist_tag}' from package.json version '${package_version}'"
+          fi
+          # npm rejects dist-tags that are valid semver ranges (e.g., '0', '1.x')
+          if [[ ! "${dist_tag}" =~ ^[A-Za-z][A-Za-z0-9._-]*$ ]]; then
+            echo "::error::'${dist_tag}' is not a usable dist-tag. Set the dist-tag input explicitly."
+            exit 1
+          fi
+          echo "value=${dist_tag}" >> "$GITHUB_OUTPUT"
+        env:
+          INPUTS_DIST_TAG: ${{ inputs.dist-tag }}
+          INPUTS_PACKAGE_DIRECTORY: ${{ inputs.package-directory }}
+
+      - name: Enable Corepack
+        if: hashFiles('package.json') != ''
+        run: |
+          # Enable corepack if packageManager is specified in package.json
+          if jq -e '.packageManager' package.json >/dev/null 2>&1; then
+            echo "packageManager field detected in package.json, enabling corepack"
+            corepack enable
+          fi
+
+      - name: Install safe-chain
+        run: |
+          SAFE_CHAIN_URL="https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh"
+          curl -fsSL "$SAFE_CHAIN_URL" | sh -s -- --ci
+
+      - name: Run pre-install commands
+        if: inputs.pre-install-commands != ''
+        run: |
+          # Execute pre-install commands line by line
+          echo "${INPUTS_PRE_INSTALL_COMMANDS}" | while IFS= read -r cmd; do
+            if [ -n "$cmd" ]; then
+              echo "Running: $cmd"
+              eval "$cmd"
+            fi
+          done
+        env:
+          INPUTS_PRE_INSTALL_COMMANDS: ${{ inputs.pre-install-commands }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          case "${INPUTS_PACKAGE_MANAGER}" in
+            yarn) yarn install ${FLAG_LOCK_DEPENDENCIES} ;;
+            pnpm) pnpm install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+        env:
+          FLAG_LOCK_DEPENDENCIES: ${{ case(inputs.is-yarn-classic == true, '--frozen-lockfile', '--immutable') }}
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Build
+        if: inputs.skip-build == false
+        run: ${INPUTS_PACKAGE_MANAGER} run ${INPUTS_BUILD_COMMAND}
+        env:
+          INPUTS_BUILD_COMMAND: ${{ inputs.build-command }}
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+
+      - name: Test
+        if: inputs.skip-test == false
+        run: ${INPUTS_PACKAGE_MANAGER} run ${INPUTS_TEST_COMMAND}
+        env:
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          INPUTS_TEST_COMMAND: ${{ inputs.test-command }}
+
+      - name: Run prepublishOnly script
+        working-directory: ${{ inputs.package-directory }}
+        run: |
+          # Publishing a tarball skips prepublishOnly, so run it explicitly
+          # to match the behaviour of a regular publish.
+          if jq -e '.scripts.prepublishOnly' package.json >/dev/null 2>&1; then
+            ${INPUTS_PACKAGE_MANAGER} run prepublishOnly
+          else
+            echo "No prepublishOnly script defined, skipping"
+          fi
+        env:
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+
+      - name: Pack package
+        id: pack
+        working-directory: ${{ inputs.package-directory }}
+        run: |
+          # Pack with the project's package manager so workspace:/catalog:
+          # protocols are rewritten to real versions before publishing.
+          pack_dir="${RUNNER_TEMP}/package"
+          mkdir -p "${pack_dir}"
+          case "${INPUTS_PACKAGE_MANAGER}" in
+            yarn)
+              if [ "${INPUTS_IS_YARN_CLASSIC}" = "true" ]; then
+                yarn pack --filename "${pack_dir}/package.tgz"
+              else
+                yarn pack --out "${pack_dir}/package.tgz"
+              fi
+              ;;
+            pnpm) pnpm pack --pack-destination "${pack_dir}" ;;
+            npm) npm pack --pack-destination "${pack_dir}" ;;
+          esac
+
+          tarballs=("${pack_dir}"/*.tgz)
+          if [ "${#tarballs[@]}" -ne 1 ] || [ ! -f "${tarballs[0]}" ]; then
+            echo "::error::Expected exactly one tarball in ${pack_dir}, found: ${tarballs[*]}"
+            exit 1
+          fi
+          echo "Packed ${tarballs[0]}"
+          echo "tarball=${tarballs[0]}" >> "$GITHUB_OUTPUT"
+        env:
+          INPUTS_IS_YARN_CLASSIC: ${{ inputs.is-yarn-classic }}
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+
+      - name: Publish
+        run: |
+          # Always publish with the npm CLI: it performs the OIDC token exchange
+          # for trusted publishing and attaches provenance automatically.
+          args=(--tag "${STEPS_DIST_TAG_OUTPUTS_VALUE}")
+          if [ -n "${INPUTS_ACCESS}" ]; then
+            args+=(--access "${INPUTS_ACCESS}")
+          fi
+          if [ "${INPUTS_DRY_RUN}" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          npm publish "${STEPS_PACK_OUTPUTS_TARBALL}" "${args[@]}"
+        env:
+          INPUTS_ACCESS: ${{ inputs.access }}
+          INPUTS_DRY_RUN: ${{ inputs.dry-run }}
+          STEPS_DIST_TAG_OUTPUTS_VALUE: ${{ steps.dist-tag.outputs.value }}
+          STEPS_PACK_OUTPUTS_TARBALL: ${{ steps.pack.outputs.tarball }}
+
+      - name: Run publish and postpublish scripts
+        if: inputs.dry-run == false
+        working-directory: ${{ inputs.package-directory }}
+        run: |
+          # Publishing a tarball skips these scripts, so run them explicitly
+          # to match the behaviour of a regular publish.
+          for script in publish postpublish; do
+            if jq -e --arg s "${script}" '.scripts[$s]' package.json >/dev/null 2>&1; then
+              ${INPUTS_PACKAGE_MANAGER} run "${script}"
+            else
+              echo "No ${script} script defined, skipping"
+            fi
+          done
+        env:
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
