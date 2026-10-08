@@ -92,10 +92,10 @@ jobs:
           echo "inspect_url=$inspect_url" >> "$GITHUB_OUTPUT"
 
       # Posts (or updates in place) a single comment on the PR with the preview URL.
-      # The marker is scoped per project so each Vercel project keeps its own
-      # comment rather than overwriting another project's. Skipped when there
-      # is no pull request, e.g. a deploy triggered by a push to the default
-      # branch.
+      # The marker is scoped per project and per target so each Vercel project and
+      # target keeps its own comment rather than overwriting another project's or
+      # target's. Skipped when there is no pull request, e.g. a deploy triggered by
+      # a push to the default branch.
       - name: Comment preview URL on PR
         if: github.event.pull_request.number
         env:
@@ -106,8 +106,9 @@ jobs:
           INSPECT_URL: ${{ steps.deploy.outputs.inspect_url }}
           COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
           ENVIRONMENT_NAME: ${{ inputs.environment-name }}
+          VERCEL_TARGET: ${{ inputs.vercel-target || 'Preview' }}
         run: |
-          marker="<!-- vercel-preview:${VERCEL_PROJECT_ID} -->"
+          marker="<!-- vercel-preview:${VERCEL_PROJECT_ID}:${VERCEL_TARGET} -->"
           body="$marker
           ### ⚡ ${ENVIRONMENT_NAME} environment is deploying
 
@@ -116,7 +117,7 @@ jobs:
           **Preview URL:** ${DEPLOY_URL}
           **Inspect:** ${INSPECT_URL}
 
-          _Project ${VERCEL_PROJECT_ID}, deployed commit ${COMMIT_SHA}_"
+          _Project ${VERCEL_PROJECT_ID}, target ${VERCEL_TARGET}, deployed commit ${COMMIT_SHA}._"
 
           comment_id="$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
             --jq "[.[] | select(.body | startswith(\"${marker}\"))][0].id")"
