@@ -68,8 +68,8 @@ jobs:
         id: deploy
         working-directory: ${{ inputs.working-directory }}
         env:
-          FLAG_TARGET: ${{ case(inputs.vercel-target != '', format('--target={0}', inputs.vercel-target), '') }}
+          FLAG_TARGET: ${{ case(inputs.vercel-target != '', format('--target={0}', inputs.vercel-target), '--prod') }}
           VERCEL_TOKEN: ${{ secrets.vercel-token }}
         run: |
-          url="$(vercel deploy --prod --yes --no-wait --token="$VERCEL_TOKEN" "$FLAG_TARGET")"
+          url="$(vercel deploy --yes --no-wait --token="$VERCEL_TOKEN" "$FLAG_TARGET")"
           echo "url=$url" >> "$GITHUB_OUTPUT"
