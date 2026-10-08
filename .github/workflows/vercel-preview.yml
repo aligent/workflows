@@ -21,6 +21,10 @@ on:
         type: string
         required: false
         default: "Preview"
+      vercel-target:
+        description: "Vercel environment target to deploy to"
+        type: string
+        required: false
     outputs:
       url:
         description: >-
@@ -76,9 +80,10 @@ jobs:
         id: deploy
         working-directory: ${{ inputs.working-directory }}
         env:
+          FLAG_TARGET: ${{ case(inputs.vercel-target != '', format('--target={0}', inputs.vercel-target), '') }}
           VERCEL_TOKEN: ${{ secrets.vercel-token }}
         run: |
-          vercel deploy --yes --no-wait --token="$VERCEL_TOKEN" \
+          vercel deploy --yes --no-wait --token="$VERCEL_TOKEN" "$FLAG_TARGET" \
             > deployment-url.txt 2> >(tee vercel-output.log >&2)
           url="$(cat deployment-url.txt)"
           inspect_url="$(grep -m1 -o 'https://vercel.com/[^[:space:]]*' vercel-output.log || true)"

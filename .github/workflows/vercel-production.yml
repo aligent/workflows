@@ -21,6 +21,10 @@ on:
         type: string
         required: false
         default: "Production"
+      vercel-target:
+        description: "Vercel environment target to deploy to"
+        type: string
+        required: false
     secrets:
       vercel-token:
         description: "Vercel deployment token"
@@ -64,7 +68,8 @@ jobs:
         id: deploy
         working-directory: ${{ inputs.working-directory }}
         env:
+          FLAG_TARGET: ${{ case(inputs.vercel-target != '', format('--target={0}', inputs.vercel-target), '') }}
           VERCEL_TOKEN: ${{ secrets.vercel-token }}
         run: |
-          url="$(vercel deploy --prod --yes --no-wait --token="$VERCEL_TOKEN")"
+          url="$(vercel deploy --prod --yes --no-wait --token="$VERCEL_TOKEN" "$FLAG_TARGET")"
           echo "url=$url" >> "$GITHUB_OUTPUT"
