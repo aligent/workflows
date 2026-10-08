@@ -8,6 +8,7 @@ Deploys a production build to Vercel. Intended to be called from a `push` (or
 |--------------------|----------|--------|------------|----------------------------------------|
 | vercel-org-id      | ✅       | string |            | Vercel organisation ID                 |
 | vercel-project-id  | ✅       | string |            | Vercel project ID                      |
+| vercel-target      | ❌       | string |            | Vercel environment target to deploy to |
 | working-directory  | ❌       | string | .          | Directory to run the Vercel deploy from |
 | environment-name   | ❌       | string | Production | GitHub Environment to deploy to        |
 

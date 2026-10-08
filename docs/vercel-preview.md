@@ -9,6 +9,7 @@ pull request with the preview and inspect URLs. Intended to be called from a
 |--------------------|----------|--------|----------|-----------------------------------------|
 | vercel-org-id      | ✅       | string |          | Vercel organisation ID                  |
 | vercel-project-id  | ✅       | string |          | Vercel project ID                       |
+| vercel-target      | ❌       | string |          | Vercel environment target to deploy to  |
 | working-directory  | ❌       | string | .        | Directory to run the Vercel deploy from |
 | environment-name   | ❌       | string | Preview  | GitHub Environment to deploy to. Also used as the heading of the pull request comment |
 
