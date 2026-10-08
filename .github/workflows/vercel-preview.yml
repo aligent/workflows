@@ -43,7 +43,9 @@ concurrency:
   # Falls back to the ref for a run on a branch rather than a pull request,
   # which has no pull request number: this workflow is also called on pushes
   # to the default branch to record a performance baseline.
+  # yamllint disable rule:line-length
   group: vercel-preview-${{ github.event.pull_request.number || github.ref }}-${{ inputs.vercel-project-id }}-${{ inputs.vercel-target }}
+  # yamllint enable rule:line-length
   cancel-in-progress: true
 
 jobs:
