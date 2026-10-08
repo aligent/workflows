@@ -25,9 +25,9 @@ pull request with the preview and inspect URLs. Intended to be called from a
 
 #### Concurrency
 
-Runs are grouped by pull request **and** `vercel-project-id`, with
-`cancel-in-progress: true`. A new commit supersedes the in-flight preview for
-that project, while previews for other projects are left alone.
+Runs are grouped by pull request, `vercel-project-id` **and** `vercel-target`, with
+`cancel-in-progress: true`. A new commit supersedes the in-flight preview for that
+project, while previews for other projects or targets are left alone.
 
 #### Example Usage
 

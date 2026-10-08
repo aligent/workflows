@@ -36,13 +36,14 @@ on:
         description: "Vercel deployment token"
         required: true
 
-# Scoped per project so a repo deploying several Vercel projects from one PR
-# gets an independent group per project instead of the jobs cancelling each other.
+# Scoped per project and per target so a repo deploying several Vercel projects or
+# environments from one PR get an independent group per project and target instead
+# of the jobs queueing behind each other.
 concurrency:
   # Falls back to the ref for a run on a branch rather than a pull request,
   # which has no pull request number: this workflow is also called on pushes
   # to the default branch to record a performance baseline.
-  group: vercel-preview-${{ github.event.pull_request.number || github.ref }}-${{ inputs.vercel-project-id }}
+  group: vercel-preview-${{ github.event.pull_request.number || github.ref }}-${{ inputs.vercel-project-id }}-${{ inputs.vercel-target }}
   cancel-in-progress: true
 
 jobs:
