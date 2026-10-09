@@ -395,7 +395,7 @@ jobs:
               try {
                   const parsed = new URL(url);
                   for (const name of STRIPPED_PARAMS) {
-                      if (parsed.searchParams.has(name)) parsed.searchParams.delete(name);
+                      parsed.searchParams.delete(name);
                   }
                   return `${parsed.pathname || '/'}${parsed.search}`;
               } catch {
