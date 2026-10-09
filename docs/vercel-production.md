@@ -8,6 +8,7 @@ Deploys a production build to Vercel. Intended to be called from a `push` (or
 |--------------------|----------|--------|------------|----------------------------------------|
 | vercel-org-id      | ✅       | string |            | Vercel organisation ID                 |
 | vercel-project-id  | ✅       | string |            | Vercel project ID                      |
+| vercel-target      | ❌       | string |            | Vercel environment target to deploy to |
 | working-directory  | ❌       | string | .          | Directory to run the Vercel deploy from |
 | environment-name   | ❌       | string | Production | GitHub Environment to deploy to        |
 
@@ -18,9 +19,9 @@ Deploys a production build to Vercel. Intended to be called from a `push` (or
 
 #### Concurrency
 
-Runs are grouped by ref **and** `vercel-project-id`, with
-`cancel-in-progress: false`. Deploys for the same project queue in order, while
-deploys for different projects run in parallel.
+Runs are grouped by ref, `vercel-project-id` **and** `vercel-target`, with
+`cancel-in-progress: false`. Deploys for the same project and target queue in order,
+while deploys for different projects or targets run in parallel.
 
 #### Example Usage
 
