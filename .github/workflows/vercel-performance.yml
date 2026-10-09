@@ -381,13 +381,23 @@ jobs:
               'speed-index',
           ];
 
-          // Path only, deliberately dropping the query: measured URLs carry the
-          // Vercel bypass secret as a parameter, which must not reach a label, a
-          // baseline key or the comment. It also keeps labels stable when a
-          // caller adds a tracking parameter to a measured path.
+          // Path and query, so measured paths that differ only by query (e.g.
+          // /search?q=a and /search?q=b) keep separate labels and baselines.
+          // The bypass secret reaches Chrome as a header rather than a URL
+          // parameter, but Vercel's bypass parameters are stripped anyway in
+          // case a caller wrote one into measured-paths: a label reaches the
+          // baseline cache and the comment, neither of which is redacted.
+          //
+          // Deleting re-serialises the whole query (e.g. %20 becomes +), so
+          // only delete when present to keep labels as the caller wrote them.
+          const STRIPPED_PARAMS = ['x-vercel-protection-bypass', 'x-vercel-set-bypass-cookie'];
           const toLabel = (url) => {
               try {
-                  return new URL(url).pathname || '/';
+                  const parsed = new URL(url);
+                  for (const name of STRIPPED_PARAMS) {
+                      parsed.searchParams.delete(name);
+                  }
+                  return `${parsed.pathname || '/'}${parsed.search}`;
               } catch {
                   return url;
               }
