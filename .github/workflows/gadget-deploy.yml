@@ -61,6 +61,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install safe-chain
+        run: |
+          SAFE_CHAIN_URL="https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh"
+          curl -fsSL "$SAFE_CHAIN_URL" | sh -s -- --ci
+
       - name: Install ggt
         run: |
           npm install -g ggt
@@ -90,6 +95,11 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
         with:
           persist-credentials: false
+
+      - name: Install safe-chain
+        run: |
+          SAFE_CHAIN_URL="https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh"
+          curl -fsSL "$SAFE_CHAIN_URL" | sh -s -- --ci
 
       - name: Install ggt
         run: |
