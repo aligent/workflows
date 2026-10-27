@@ -20,7 +20,14 @@ A reusable workflow for deploying Shopify apps using the Shopify CLI.
 #### **Secrets**
 | Name | Required | Description |
 |------|----------|-------------|
-| shopify_cli_token | ✅ | Shopify CLI authentication token |
+| shopify_app_automation_token | ❌* | Shopify App Automation Token, created in the Dev Dashboard under **App settings → App Automation Token**. Exposed to the CLI as `SHOPIFY_APP_AUTOMATION_TOKEN` |
+| shopify_cli_token | ❌* | **Deprecated.** Shopify CLI Partner Dashboard token, exposed as `SHOPIFY_CLI_PARTNERS_TOKEN`. Partner tokens can no longer be created |
+
+\* One of `shopify_app_automation_token` or `shopify_cli_token` must be provided.
+
+**Note:** App Automation Tokens are scoped to a single app (one `client_id`). Each Shopify TOML file with its own `client_id` needs its own token, so store one secret per app (e.g. `SHOPIFY_APP_AUTOMATION_TOKEN_STAGING`, `SHOPIFY_APP_AUTOMATION_TOKEN_PRODUCTION`).
+
+**Token expiry:** Tokens are created with an expiration of 1, 3 or 6 months. We set them to **6 months**, the maximum allowed, so each token must be rotated within 6 months of creation or deployments will fail to authenticate. When rotating, generate the new token from the Dev Dashboard (**Rotate**), update the GitHub secret, then revoke the old token. Both remain valid until the old one is revoked. See [App Automation Tokens](https://shopify.dev/docs/apps/build/dev-dashboard/app-automation-tokens).
 
 **Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
 
@@ -47,7 +54,7 @@ jobs:
       working-directory: apps/shopify-app
       shopify-toml-name: shopify.app.staging.toml
     secrets:
-      shopify_cli_token: ${{ secrets.SHOPIFY_CLI_TOKEN }}
+      shopify_app_automation_token: ${{ secrets.SHOPIFY_APP_AUTOMATION_TOKEN_STAGING }}
 ```
 
 **Deploy to Production:**
@@ -65,5 +72,5 @@ jobs:
       working-directory: apps/shopify-app
       shopify-toml-name: shopify.app.toml
     secrets:
-      shopify_cli_token: ${{ secrets.SHOPIFY_CLI_TOKEN }}
+      shopify_app_automation_token: ${{ secrets.SHOPIFY_APP_AUTOMATION_TOKEN_PRODUCTION }}
 ```
