@@ -66,15 +66,13 @@ jobs:
           shopify theme check --output json > theme-check-report.json 2>/dev/null || true
 
           # Transform JSON report into a format the problem matcher can parse
-          # Theme Check offenses use 0-indexed rows/columns; annotations need 1-indexed
           jq -r '
-            .[] | .path as $path |
-            .offenses[] |
-            "\($path):\(.start_row + 1):\(.start_column + 1): \(.severity) [\(.check)] \(.message)"
+            .issues[] |
+            "\(.filePath):\(.startRow):\(.startColumn): \(.severity) [\(.check)] \(.message)"
           ' theme-check-report.json
 
-          error_count=$(jq '[.[].errorCount] | add // 0' theme-check-report.json)
-          warning_count=$(jq '[.[].warningCount] | add // 0' theme-check-report.json)
+          error_count=$(jq '.errorCount' theme-check-report.json)
+          warning_count=$(jq '.warningCount' theme-check-report.json)
           echo "Theme Check: ${error_count} error(s), ${warning_count} warning(s)"
 
           fail_level="${INPUTS_FAIL_LEVEL}"
@@ -83,7 +81,7 @@ jobs:
           elif [ "$fail_level" = "warning" ] && [ $((error_count + warning_count)) -gt 0 ]; then
             exit 1
           elif [ "$fail_level" = "suggestion" ] || [ "$fail_level" = "style" ]; then
-            total=$(jq '[.[].offenses | length] | add // 0' theme-check-report.json)
+            total=$(jq '.issues | length' theme-check-report.json)
             if [ "$total" -gt 0 ]; then
               exit 1
             fi
@@ -141,7 +139,7 @@ jobs:
         run: |
           # Check if a theme with this name already exists
           EXISTING_ID=$(shopify theme list --json \
-            | jq -r --arg name "$PR_THEME_NAME" '.[] | select(.name == $name) | .id // empty')
+            | jq -r --arg name "$PR_THEME_NAME" '.themes[] | select(.name == $name) | .id // empty')
 
           if [ -n "$EXISTING_ID" ]; then
             echo "Updating existing preview theme (ID: $EXISTING_ID)"
@@ -163,7 +161,15 @@ jobs:
         env:
           WORKING_DIRECTORY: ${{ inputs.working-directory }}
         run: |
-          url=$(jq -r '.theme.preview_url // empty' "$WORKING_DIRECTORY/push.json")
+          url=$(jq -r '.theme.previewUrl // empty' "$WORKING_DIRECTORY/push.json")
+
+          # Push can exit 0 without a theme (e.g. status "cancelled"), or with a null previewUrl
+          if [ -z "$url" ]; then
+            status=$(jq -r '.status // "unknown"' "$WORKING_DIRECTORY/push.json")
+            echo "::error::Theme push returned no preview URL (status: ${status})"
+            exit 1
+          fi
+
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Comment preview link on PR
