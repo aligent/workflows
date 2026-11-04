@@ -73,6 +73,9 @@ jobs:
           cache: ${{ inputs.package-manager }}
           node-version-file: .nvmrc
 
+      - name: Install safe-chain
+        uses: $/.github/actions/install-safe-chain
+
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''
         run: |

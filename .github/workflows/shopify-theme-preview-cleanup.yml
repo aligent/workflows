@@ -37,6 +37,9 @@ jobs:
           path: ~/.npm
           key: ${{ runner.os }}-npm-shopify-cli
 
+      - name: Install safe-chain
+        uses: $/.github/actions/install-safe-chain
+
       - name: Install Shopify CLI
         run: npm install -g @shopify/cli@latest
 

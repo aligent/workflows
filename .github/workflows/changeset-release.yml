@@ -100,6 +100,9 @@ jobs:
           node-version-file: .nvmrc
           registry-url: ${{ inputs.npm-registry-url || '' }}
 
+      - name: Install safe-chain
+        uses: $/.github/actions/install-safe-chain
+
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''
         run: |
