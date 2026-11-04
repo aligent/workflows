@@ -9,7 +9,7 @@ runs:
     - name: Install safe-chain
       env:
         SAFE_CHAIN_INSTALLER_VERSION: "1.5.27"
-        SAFE_CHAIN_INSTALLER_SHA256:  "600ebddcb3aaf1fd53653a8d7985df44528722c0f5ee7eb9fff86f26a1a4e5a8"
+        SAFE_CHAIN_INSTALLER_SHA256: "600ebddcb3aaf1fd53653a8d7985df44528722c0f5ee7eb9fff86f26a1a4e5a8"
       shell: bash
       run: |
         if [[ -n "${SAFE_CHAIN_VERSION+x}" ]]; then
@@ -19,7 +19,8 @@ runs:
           exit 1
         fi
 
-        curl -fsSL "https://github.com/AikidoSec/safe-chain/releases/download/$SAFE_CHAIN_INSTALLER_VERSION/install-safe-chain.sh" -o "$RUNNER_TEMP/install-safe-chain.sh"
+        curl -fsSL -o "$RUNNER_TEMP/install-safe-chain.sh" \
+          "https://github.com/AikidoSec/safe-chain/releases/download/$SAFE_CHAIN_INSTALLER_VERSION/install-safe-chain.sh"
         sha256sum -c - <<<"$SAFE_CHAIN_INSTALLER_SHA256  $RUNNER_TEMP/install-safe-chain.sh"
 
         sh "$RUNNER_TEMP/install-safe-chain.sh" --ci
@@ -33,7 +34,8 @@ runs:
         echo "npm safe-chain-verify: $verify"
 
         if [[ "$verify" != *"OK: Safe-chain works!"* ]]; then
-          echo "::error title=install-safe-chain::safe-chain is not intercepting npm; packages would install unprotected."
+          echo -n "::error title=install-safe-chain::"
+          echo "safe-chain is not intercepting npm; packages would install unprotected."
           exit 1
         fi
 
