@@ -1,0 +1,43 @@
+name: Install safe-chain
+description: |
+  Installs Aikido's safe-chain tool to protect against malicious code.
+  This must run after actions/setup-node or any other step that might install a package manager.
+
+runs:
+  using: composite
+  steps:
+    - name: Install safe-chain
+      env:
+        SAFE_CHAIN_INSTALLER_VERSION: "1.5.27"
+        SAFE_CHAIN_INSTALLER_SHA256:  "600ebddcb3aaf1fd53653a8d7985df44528722c0f5ee7eb9fff86f26a1a4e5a8"
+      shell: bash
+      run: |
+        if [[ -n "${SAFE_CHAIN_VERSION+x}" ]]; then
+          echo -n "::error title=install-safe-chain::"
+          echo -n "SAFE_CHAIN_VERSION is set ('${SAFE_CHAIN_VERSION}').%0A"
+          echo "This action pins safe-chain itself; unset SAFE_CHAIN_VERSION in the calling workflow."
+          exit 1
+        fi
+
+        curl -fsSL "https://github.com/AikidoSec/safe-chain/releases/download/$SAFE_CHAIN_INSTALLER_VERSION/install-safe-chain.sh" -o "$RUNNER_TEMP/install-safe-chain.sh"
+        sha256sum -c - <<<"$SAFE_CHAIN_INSTALLER_SHA256  $RUNNER_TEMP/install-safe-chain.sh"
+
+        sh "$RUNNER_TEMP/install-safe-chain.sh" --ci
+
+    - name: Verify safe-chain
+      shell: bash
+      env:
+        SAFE_CHAIN_LOGGING: normal
+      run: |
+        verify="$(npm safe-chain-verify 2>&1 || true)"
+        echo "npm safe-chain-verify: $verify"
+
+        if [[ "$verify" != *"OK: Safe-chain works!"* ]]; then
+          echo "::error title=install-safe-chain::safe-chain is not intercepting npm; packages would install unprotected."
+          exit 1
+        fi
+
+    - name: Cleanup install-safe-chain.sh
+      if: always()
+      shell: bash
+      run: rm -f "$RUNNER_TEMP/install-safe-chain.sh"
