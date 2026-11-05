@@ -118,6 +118,9 @@ jobs:
           node-version-file: ${{ inputs.node-version-file }}
           package-manager-cache: false
 
+      - name: Install safe-chain
+        uses: $/.github/actions/install-safe-chain
+
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 

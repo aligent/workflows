@@ -51,6 +51,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
+      - name: Install safe-chain
+        uses: $/.github/actions/install-safe-chain
+
       - name: Setup Adobe I/O CLI
         uses: adobe/aio-cli-setup-action@5a7a7313f7024283e7eb384dc79b69b02effb307 #v1.3.0
         with:

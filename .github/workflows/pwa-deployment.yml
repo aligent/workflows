@@ -326,6 +326,9 @@ jobs:
           node-version-file: .nvmrc
           cache: ${{ inputs.package-manager }}
 
+      - name: Install safe-chain
+        uses: $/.github/actions/install-safe-chain
+
       - name: Install dependencies
         run: |
           debug=""

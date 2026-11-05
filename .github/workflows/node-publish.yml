@@ -191,9 +191,7 @@ jobs:
           fi
 
       - name: Install safe-chain
-        run: |
-          SAFE_CHAIN_URL="https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh"
-          curl -fsSL "$SAFE_CHAIN_URL" | sh -s -- --ci
+        uses: $/.github/actions/install-safe-chain
 
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''
