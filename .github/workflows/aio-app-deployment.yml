@@ -149,6 +149,7 @@ jobs:
           AIO_PROJECT_ID: ${{ vars.AIO_PROJECT_ID }}
           AIO_PROJECT_NAME: ${{ vars.AIO_PROJECT_NAME }}
           AIO_PROJECT_ORG_ID: ${{ vars.AIO_PROJECT_ORG_ID }}
+          AIO_PROJECT_ORG_IMS__ORG__ID: ${{ secrets.AIO_IMS_ORG_ID }}
           AIO_PROJECT_WORKSPACE_ID: ${{ vars.AIO_PROJECT_WORKSPACE_ID }}
           AIO_PROJECT_WORKSPACE_NAME: ${{ vars.AIO_PROJECT_WORKSPACE_NAME }}
           VERBOSE: ${{ inputs.debug && '--verbose' || '' }}
