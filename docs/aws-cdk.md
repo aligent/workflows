@@ -33,7 +33,7 @@ A streamlined AWS CDK workflow supporting multi-environment infrastructure synth
 | extra-arguments | ❌ | string |  | Extra arguments as string. Supports `$VAR` / `${VAR}` shell variable interpolation via `envsubst`. |
 | debug | ❌ | boolean | false | Enable verbose logging and debug output |
 | lfs | ❌ | boolean | false | Enable Git LFS support for checkout |
-| runs-on | ❌ | string | ubuntu-latest | GitHub runner (use `ubuntu-24.04-arm` for native ARM64 builds) |
+| runs-on | ❌ | string | ubuntu-24.04 | GitHub runner (use `ubuntu-24.04-arm` for native ARM64 builds) |
 | **Custom CDK Commands** |
 | bootstrap-command | ❌ | string | npx cdk bootstrap | Custom bootstrap command |
 | synth-command | ❌ | string | npx cdk synth | Custom synth command |

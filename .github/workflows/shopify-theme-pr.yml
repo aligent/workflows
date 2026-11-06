@@ -34,7 +34,7 @@ on:
 jobs:
   theme-check:
     name: Theme Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -100,7 +100,7 @@ jobs:
     name: Preview Theme
     needs: theme-check
     if: inputs.deploy-preview
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       # zizmor: ignore[secrets-outside-env] caller controls environment scoping
       SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_CLI_THEME_TOKEN }}

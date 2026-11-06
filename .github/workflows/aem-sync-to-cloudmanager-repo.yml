@@ -58,7 +58,7 @@ on:
 jobs:
   validate-secrets:
     name: 🔍 Validate Configuration
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: inputs.deploy-to-cloudmanager == true
     steps:
       - name: Validate required secrets
@@ -88,7 +88,7 @@ jobs:
 
   run-tests:
     name: 🧪 Run Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: inputs.run-tests == true
 
     container:
@@ -124,7 +124,7 @@ jobs:
 
   build:
     name: 🔨 Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [run-tests]
     if: |
       !failure() && !cancelled() &&
@@ -163,7 +163,7 @@ jobs:
 
   sync-to-cloudmanager:
     name: 📤 Sync to Cloud Manager
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [validate-secrets, build]
     if: |
       !failure() && !cancelled() &&

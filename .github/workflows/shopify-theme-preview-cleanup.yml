@@ -19,7 +19,7 @@ on:
 jobs:
   cleanup:
     name: Cleanup preview
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       # zizmor: ignore[secrets-outside-env] caller controls environment scoping
       SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_CLI_THEME_TOKEN }}

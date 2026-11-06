@@ -61,7 +61,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: aligent/workflows/.github/actions/uptime-kuma@main
         with:
@@ -87,7 +87,7 @@ jobs:
 ```yaml
 jobs:
   pause-monitoring:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: aligent/workflows/.github/actions/uptime-kuma@main
         with:
@@ -104,7 +104,7 @@ jobs:
   resume-monitoring:
     needs: [deploy]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: aligent/workflows/.github/actions/uptime-kuma@main
         with:
