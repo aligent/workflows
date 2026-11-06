@@ -73,10 +73,10 @@ on:
         required: false
         default: false
       runs-on:
-        description: "GitHub runner to use (e.g. ubuntu-latest, ubuntu-24.04-arm for ARM64 builds)"
+        description: "GitHub runner to use (e.g. ubuntu-24.04, ubuntu-24.04-arm for ARM64 builds)"
         type: string
         required: false
-        default: "ubuntu-latest"
+        default: "ubuntu-24.04"
 
       # Custom CDK Commands
       bootstrap-command:

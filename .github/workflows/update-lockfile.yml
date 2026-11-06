@@ -50,7 +50,7 @@ on:
 jobs:
   update-lockfile:
     name: Update Lockfile
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: |
       contains(github.head_ref, 'changeset-release/') ||
       contains(github.event.pull_request.title, 'chore: release packages')

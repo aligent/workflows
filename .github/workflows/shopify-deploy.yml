@@ -34,7 +34,7 @@ on:
 jobs:
   deploy:
     name: Deploy to Shopify
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Validate Shopify token
         run: |

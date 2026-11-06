@@ -79,7 +79,7 @@ on:
 jobs:
   deploy:
     name: 🚀 Deploy to Magento Cloud
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: ${{ inputs.environment }}
     env:
       MAGENTO_CLOUD_CLI_TOKEN: ${{ secrets.magento-cloud-cli-token }}
