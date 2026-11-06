@@ -828,9 +828,6 @@ jobs:
           timeout 120 bash -c 'until curl -sf http://localhost:9200/_cluster/health; do sleep 3; done'
           echo "✅ OpenSearch is up with plugins installed"
 
-      # Magento's integration test framework only adds --column-statistics=0 for
-      # mysqldump 8.0.x, so the runner's MySQL 8.4+ client fails against MariaDB.
-      # With mariadb-client installed it switches to mariadb-dump/mariadb instead.
       - name: Install MariaDB client
         run: |
           echo "🗄️ Installing MariaDB client..."
