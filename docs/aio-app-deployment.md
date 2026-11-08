@@ -41,6 +41,16 @@ Configure these in the GitHub Environment (or at the repository level if not usi
 | `AIO_PROJECT_WORKSPACE_ID` | Variable | Adobe I/O workspace ID |
 | `AIO_PROJECT_WORKSPACE_NAME` | Variable | Adobe I/O workspace name |
 
+**Commerce app lifecycle** — required for apps whose `post-app-deploy` hook runs `aio-commerce-lib-app hooks post-app-deploy`:
+
+| Name | Type | Description |
+|------|------|-------------|
+| `AIO_PROJECT_TITLE` | Variable | Adobe I/O project title |
+| `AIO_PROJECT_ORG_NAME` | Variable | Adobe I/O org name |
+| `AIO_PROJECT_WORKSPACE_TITLE` | Variable | Adobe I/O workspace title |
+
+The hook sends these to the app's `installation` action, which rejects the request if any is empty. Copy the values from the project in Adobe Developer Console.
+
 **App-specific extras** — optional:
 
 | Name | Type | Description |
