@@ -377,7 +377,7 @@ jobs:
 
       - name: Configure AWS credentials (Static)
         if: steps.validate-inputs.outputs.auth-mode == 'static'
-        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 #v6.1.0
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd #v6.3.0
         with:
           aws-access-key-id: ${{ vars.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -386,7 +386,7 @@ jobs:
 
       - name: Configure AWS credentials (OIDC)
         if: steps.validate-inputs.outputs.auth-mode == 'oidc'
-        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 #v6.1.0
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd #v6.3.0
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           role-session-name: ${{ steps.resolve-session-name.outputs.role-session-name }}
