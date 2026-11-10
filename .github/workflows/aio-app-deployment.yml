@@ -156,7 +156,13 @@ jobs:
           AIO_PROJECT_WORKSPACE_NAME: ${{ vars.AIO_PROJECT_WORKSPACE_NAME }}
           AIO_PROJECT_WORKSPACE_TITLE: ${{ vars.AIO_PROJECT_WORKSPACE_TITLE }}
           VERBOSE: ${{ inputs.debug && '--verbose' || '' }}
-        run: aio app deploy${VERBOSE:+ $VERBOSE}
+        run: |
+          set -o pipefail
+          aio app deploy${VERBOSE:+ $VERBOSE} 2>&1 | tee "$RUNNER_TEMP/aio-deploy.log"
+          if grep -qE 'Command failed with exit code [0-9]+:' "$RUNNER_TEMP/aio-deploy.log"; then
+            echo "::error title=aio app deploy::A pre-app-build or post-app-build hook failed; see the log above."
+            exit 1
+          fi
 
       - name: Backport to staging
         if: success() && inputs.create-backport-pr
