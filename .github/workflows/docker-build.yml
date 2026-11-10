@@ -74,12 +74,12 @@ on:
         default: 60
       runs-on:
         description: >-
-          GitHub runner to use (e.g. ubuntu-24.04, ubuntu-24.04-arm for ARM64
+          GitHub runner to use (e.g. ubuntu-latest, ubuntu-24.04-arm for ARM64
           builds). The image is built for the runner's own architecture, so
           this determines what is published.
         type: string
         required: false
-        default: "ubuntu-24.04"
+        default: "ubuntu-latest"
 
     secrets:
       build-secrets:

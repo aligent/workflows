@@ -125,7 +125,7 @@ jobs:
   # Validate inputs and prepare deployment configuration
   prepare:
     name: 🔍 Prepare Deployment
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
       cache-control-static: ${{ steps.cache-config.outputs.cache-control-static }}
@@ -301,7 +301,7 @@ jobs:
   # Build and deploy the application
   build-and-deploy:
     name: 🚀 Build Application and Deploy to AWS
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     needs: [prepare]
     permissions:
       id-token: write

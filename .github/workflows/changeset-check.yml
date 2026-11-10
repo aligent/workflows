@@ -43,7 +43,7 @@ on:
 jobs:
   changeset-check:
     name: Changeset Check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     permissions:
       contents: read

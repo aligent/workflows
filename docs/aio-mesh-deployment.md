@@ -135,7 +135,7 @@ on:
 jobs:
   affected:
     name: Get Affected Apps
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.affected.outputs.matrix }}
       has_affected: ${{ steps.affected.outputs.has_affected }}

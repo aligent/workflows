@@ -158,7 +158,7 @@ jobs:
   # Install Composer dependencies with caching and detect available tools
   install:
     name: 📦 Install Dependencies
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     outputs:
       has-composer: ${{ steps.check-files.outputs.has-composer }}
       has-phpstan-config: ${{ steps.check-tools.outputs.has-phpstan-config }}
@@ -360,7 +360,7 @@ jobs:
     if: |
       inputs.skip-phpstan == false &&
       needs.install.outputs.has-composer == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
         with:
@@ -479,7 +479,7 @@ jobs:
     if: |
       inputs.skip-phpcs == false &&
       needs.install.outputs.has-composer == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
         with:
@@ -597,7 +597,7 @@ jobs:
       inputs.skip-tests == false &&
       needs.install.outputs.has-composer == 'true' &&
       needs.install.outputs.has-unit-tests == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
         with:
@@ -729,7 +729,7 @@ jobs:
       inputs.skip-integration-tests == false &&
       needs.install.outputs.has-composer == 'true' &&
       needs.install.outputs.has-integration-tests == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     services:
       mariadb:
         image: ${{ inputs.mariadb-image }}${{ inputs.mariadb-version && format(':{0}', inputs.mariadb-version) || '' }}
@@ -828,6 +828,13 @@ jobs:
           timeout 120 bash -c 'until curl -sf http://localhost:9200/_cluster/health; do sleep 3; done'
           echo "✅ OpenSearch is up with plugins installed"
 
+      - name: Install MariaDB client
+        run: |
+          echo "🗄️ Installing MariaDB client..."
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mariadb-client
+          mariadb-dump --version
+
       - name: Run Integration Tests
         run: |
           echo "🔗 Running integration tests..."
@@ -872,7 +879,7 @@ jobs:
       inputs.skip-rest-api-tests == false &&
       needs.install.outputs.has-composer == 'true' &&
       needs.install.outputs.has-rest-api-tests == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     services:
       mariadb:
         image: ${{ inputs.mariadb-image }}${{ inputs.mariadb-version && format(':{0}', inputs.mariadb-version) || '' }}
@@ -1036,7 +1043,7 @@ jobs:
       inputs.skip-graphql-tests == false &&
       needs.install.outputs.has-composer == 'true' &&
       needs.install.outputs.has-graphql-tests == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     services:
       mariadb:
         image: ${{ inputs.mariadb-image }}${{ inputs.mariadb-version && format(':{0}', inputs.mariadb-version) || '' }}

@@ -41,7 +41,7 @@ on:
 jobs:
   push:
     name: 🫸 Push to Gadget
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     if: inputs.action == 'push'
     env:
       GGT_TOKEN: ${{ secrets.ggt-cli-token }}
@@ -83,7 +83,7 @@ jobs:
 
   deploy:
     name: 🚀 Deploying Gadget
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     if: inputs.action == 'deploy'
     env:
       GGT_TOKEN: ${{ secrets.ggt-cli-token }}
