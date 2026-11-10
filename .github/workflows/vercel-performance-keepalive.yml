@@ -28,7 +28,7 @@ jobs:
   # so callers do not have to know what those are.
   plan:
     name: Plan
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     outputs:
       targets: ${{ steps.plan.outputs.targets }}
     env:
@@ -64,7 +64,7 @@ jobs:
   touch:
     name: Touch ${{ matrix.target.baseline-key }} (${{ matrix.target.form-factor }})
     needs: plan
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     strategy:

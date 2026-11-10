@@ -74,7 +74,7 @@ on:
 jobs:
   publish:
     name: 📦 Publish
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       id-token: write  # Required for npm OIDC trusted publishing
       contents: read

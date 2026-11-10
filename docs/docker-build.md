@@ -18,7 +18,7 @@ Build and push Docker images to Docker Hub with support for multi-platform build
 | provenance        | ❌       | boolean | `false`                                              | Generate provenance attestation                  |
 | timeout-minutes   | ❌       | number  | `60`                                                 | Job timeout in minutes                           |
 | dockerhub-username| ❌       | string  |                                                      | Docker Hub username (from vars). Required when `push: true` (default). |
-| runs-on           | ❌       | string  | `ubuntu-24.04`                                       | Runner to use (e.g. `ubuntu-24.04-arm` for native ARM64 builds) |
+| runs-on           | ❌       | string  | `ubuntu-latest`                                      | Runner to use (e.g. `ubuntu-24.04-arm` for native ARM64 builds) |
 | target            | ❌       | string  |                                                      | Dockerfile stage to build. Defaults to the last stage |
 
 #### **Secrets**
@@ -31,7 +31,7 @@ Build and push Docker images to Docker Hub with support for multi-platform build
 #### **Features**
 
 - **Split build and push**: Build and push are separate steps with a fresh Docker Hub login before push, preventing token timeout for long-running builds.
-- **Selectable architecture**: `runs-on` picks the build architecture — `ubuntu-24.04` for amd64, `ubuntu-24.04-arm` for arm64. The build is always native, never emulated.
+- **Selectable architecture**: `runs-on` picks the build architecture — `ubuntu-latest` for amd64, `ubuntu-24.04-arm` for arm64. The build is always native, never emulated.
 - **GitHub Actions cache**: Uses `type=gha` caching by default for faster builds.
 - **BuildKit secrets**: Securely pass secrets during build without exposing them in logs.
 - **Flexible tagging**: Uses docker/metadata-action for automatic tag generation.
@@ -91,7 +91,7 @@ RUN --mount=type=secret,id=NVD_API_KEY,mode=0444 \
 #### Choosing the build architecture
 
 Images are single-architecture. The build always runs natively on the runner's
-own architecture, so `runs-on` is what selects it — `ubuntu-24.04` for amd64
+own architecture, so `runs-on` is what selects it — `ubuntu-latest` for amd64
 (the default), `ubuntu-24.04-arm` for arm64.
 
 ```yaml

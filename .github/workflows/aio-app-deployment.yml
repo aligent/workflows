@@ -76,7 +76,7 @@ on:
 jobs:
   deploy:
     name: Deploy AIO App
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -110,13 +110,13 @@ jobs:
       - name: Setup Adobe I/O CLI
         uses: adobe/aio-cli-setup-action@5a7a7313f7024283e7eb384dc79b69b02effb307 #v1.3.0
         with:
-          os: ubuntu-24.04
+          os: ubuntu-latest
           version: ${{ inputs.aio-cli-version }}
 
       - name: Authenticate with Adobe I/O
         uses: adobe/aio-apps-action@6d7fdea67de9ef5ee3bf4c730aeaa5eaa7e2c533 #v4.1.0
         with:
-          os: ubuntu-24.04
+          os: ubuntu-latest
           command: oauth_sts
           CLIENTID: ${{ secrets.AIO_CLIENT_ID }}
           CLIENTSECRET: ${{ secrets.AIO_CLIENT_SECRET }}
