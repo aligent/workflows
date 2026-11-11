@@ -27,6 +27,14 @@ on:
         required: false
         default: false
 
+      code-paths:
+        description: >
+          Space-separated list of paths analysed by PHPStan and PHP CodeSniffer when no
+          project config file or composer script is used
+        type: string
+        required: false
+        default: "src/ app/"
+
       # PHPStan Configuration
       phpstan-level:
         description: "PHPStan analysis level (1-9)"
@@ -437,7 +445,7 @@ jobs:
               echo "✅ Using existing PHPStan configuration"
             else
               echo "ℹ️ Using default PHPStan configuration"
-              cmd="$cmd --level=${INPUTS_PHPSTAN_LEVEL} src/ app/"
+              cmd="$cmd --level=${INPUTS_PHPSTAN_LEVEL} \$INPUTS_CODE_PATHS"
             fi
 
             # Add debug flags if enabled
@@ -454,7 +462,7 @@ jobs:
 
             # Build PHPStan command
             cmd="php -d memory_limit=${INPUTS_MEMORY_LIMIT} $phpstan_cmd analyse"
-            cmd="$cmd --level=${INPUTS_PHPSTAN_LEVEL} src/ app/"
+            cmd="$cmd --level=${INPUTS_PHPSTAN_LEVEL} \$INPUTS_CODE_PATHS"
 
             # Add debug flags if enabled
             if [ "${INPUTS_DEBUG}" = "true" ]; then
@@ -471,6 +479,7 @@ jobs:
           NEEDS_INSTALL_OUTPUTS_HAS_PHPSTAN_CONFIG: ${{ needs.install.outputs.has-phpstan-config }}
           INPUTS_USE_CUSTOM_CONFIG: ${{ inputs.use-custom-config }}
           INPUTS_DEBUG: ${{ inputs.debug }}
+          INPUTS_CODE_PATHS: ${{ inputs.code-paths }}
 
   # PHP CodeSniffer style checks
   phpcs:
@@ -552,7 +561,7 @@ jobs:
 
             # Build PHPCS command
             cmd="php -d memory_limit=${INPUTS_MEMORY_LIMIT} $phpcs_cmd"
-            cmd="$cmd --standard=${INPUTS_CODING_STANDARD} src/ app/"
+            cmd="$cmd --standard=${INPUTS_CODING_STANDARD} \$INPUTS_CODE_PATHS"
             cmd="$cmd --report=full --colors"
 
             if [ "${INPUTS_DEBUG}" = "true" ]; then
@@ -572,7 +581,7 @@ jobs:
 
             # Build PHPCS command
             cmd="php -d memory_limit=${INPUTS_MEMORY_LIMIT} $phpcs_cmd"
-            cmd="$cmd --standard=${INPUTS_CODING_STANDARD} src/ app/"
+            cmd="$cmd --standard=${INPUTS_CODING_STANDARD} \$INPUTS_CODE_PATHS"
             cmd="$cmd --report=full --colors"
 
             if [ "${INPUTS_DEBUG}" = "true" ]; then
@@ -588,6 +597,7 @@ jobs:
           INPUTS_MEMORY_LIMIT: ${{ inputs.memory-limit }}
           INPUTS_USE_CUSTOM_CONFIG: ${{ inputs.use-custom-config }}
           INPUTS_DEBUG: ${{ inputs.debug }}
+          INPUTS_CODE_PATHS: ${{ inputs.code-paths }}
 
   # PHPUnit testing with coverage
   test:

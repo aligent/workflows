@@ -17,6 +17,7 @@ A comprehensive PHP quality assurance workflow supporting static analysis, codin
 | **PHP Configuration** |
 | php-version | ✅ | string | | PHP version to use (8.1, 8.2, 8.3) |
 | memory-limit | ❌ | string | 512M | PHP memory limit for analysis tools |
+| code-paths | ❌ | string | src/ app/ | Space-separated paths analysed by PHPStan and PHPCS when no project config file or composer script is used |
 | **PHPStan Configuration** |
 | phpstan-level | ❌ | string | 6 | PHPStan analysis level (1-9) |
 | skip-phpstan | ❌ | boolean | false | Skip PHPStan static analysis |
