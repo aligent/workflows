@@ -101,7 +101,7 @@ jobs:
   build:
     name: 🏗️ Build
     if: inputs.skip-build == false
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       HAVE_SECRETS_ENV_VARS: ${{ secrets.ENV_VARS != '' }}
       NODE_OPTIONS: ${{ inputs.node-options }}
@@ -232,7 +232,7 @@ jobs:
       inputs.skip-format == false ||
       inputs.skip-test-storybook == false ||
       inputs.skip-check-types == false
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       HAVE_SECRETS_ENV_VARS: ${{ secrets.ENV_VARS != '' }}
       NODE_OPTIONS: ${{ inputs.node-options }}
