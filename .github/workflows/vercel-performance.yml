@@ -237,10 +237,11 @@ jobs:
 
           # Hand the fully-qualified URLs to the Lighthouse step so the list is
           # defined once, by the caller, in measured-paths.
+          delimiter="EOF_$(cat /proc/sys/kernel/random/uuid)"
           {
-            echo "list<<URLS_EOF"
+            echo "list<<$delimiter"
             printf '%s' "$urls"
-            echo "URLS_EOF"
+            echo "$delimiter"
           } >> "$GITHUB_OUTPUT"
 
       - name: Resolve Lighthouse config

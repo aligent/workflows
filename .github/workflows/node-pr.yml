@@ -155,10 +155,11 @@ jobs:
               while IFS= read -r mask_line; do
                 [ -n "$mask_line" ] && echo "::add-mask::${mask_line}"
               done <<< "${current_value}"
+              delimiter="EOF_$(cat /proc/sys/kernel/random/uuid)"
               echo "Setting environment variable: ${current_key}"
-              echo "${current_key}<<GHENV_EOF" >> $GITHUB_ENV
+              echo "${current_key}<<${delimiter}" >> $GITHUB_ENV
               echo "${current_value}" >> $GITHUB_ENV
-              echo "GHENV_EOF" >> $GITHUB_ENV
+              echo "${delimiter}" >> $GITHUB_ENV
             fi
           }
           while IFS= read -r line || [ -n "$line" ]; do
@@ -286,10 +287,11 @@ jobs:
               while IFS= read -r mask_line; do
                 [ -n "$mask_line" ] && echo "::add-mask::${mask_line}"
               done <<< "${current_value}"
+              delimiter="EOF_$(cat /proc/sys/kernel/random/uuid)"
               echo "Setting environment variable: ${current_key}"
-              echo "${current_key}<<GHENV_EOF" >> $GITHUB_ENV
+              echo "${current_key}<<${delimiter}" >> $GITHUB_ENV
               echo "${current_value}" >> $GITHUB_ENV
-              echo "GHENV_EOF" >> $GITHUB_ENV
+              echo "${delimiter}" >> $GITHUB_ENV
             fi
           }
           while IFS= read -r line || [ -n "$line" ]; do
