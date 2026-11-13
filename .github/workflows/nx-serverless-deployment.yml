@@ -163,8 +163,10 @@ jobs:
             --secret "$AWS_SECRET_ACCESS_KEY" \
             $verbose
 
-          curl -L https://github.com/mikefarah/yq/releases/download/v4.45.4/yq_linux_amd64 > /usr/local/bin/yq
-          chmod +x /usr/local/bin/yq
+          curl -fsSL -o "$RUNNER_TEMP/yq" \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          sha256sum -c <<<"${YQ_CHECKSUM}  $RUNNER_TEMP/yq"
+          install -m 0755 "$RUNNER_TEMP/yq" /usr/local/bin/yq
 
           # Insert the cfnRole value into all serverless files
           # yq v4 converts YAML merge keys (<<) to !!merge tags when writing,
@@ -185,6 +187,8 @@ jobs:
           CFN_ROLE: ${{ vars.CFN_ROLE }}
           DEBUG: ${{ inputs.debug }}
           STEPS_REPO_TYPE_OUTPUTS_IS_MONOREPO: ${{ steps.repo-type.outputs.is_monorepo }}
+          YQ_VERSION: "v4.45.4"
+          YQ_CHECKSUM: "b96de04645707e14a12f52c37e6266832e03c29e95b9b139cddcae7314466e69"
 
       - name: 🚀 Deploy
         run: |
