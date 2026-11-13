@@ -1,0 +1,29 @@
+name: Export environment variables
+description: |
+  Appends KEY=value lines to $GITHUB_ENV so later steps in the job can use them.
+  Stripping CRs, blank/whitespace-only lines and # comments.
+
+inputs:
+  value:
+    description: Newline-separated KEY=value pairs
+    required: false
+    default: ''
+  value2:
+    description: Additional newline-separated KEY=value pairs (e.g. from a secret)
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Export environment variables
+      shell: bash
+      env:
+        INPUT_VALUE1: ${{ inputs.value }}
+        INPUT_VALUE2: ${{ inputs.value2 }}
+      run: |
+        # Strip CRs, drop blank/whitespace-only lines and comments.
+        # grep exits 1 when nothing matches, hence || true.
+        printf '%s\n' "$INPUT_VALUE1" "$INPUT_VALUE2" \
+          | tr -d '\r' \
+          | grep -Ev '^[[:space:]]*(#|$)' >> "$GITHUB_ENV" || true

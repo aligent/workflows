@@ -217,20 +217,10 @@ jobs:
           esac
 
       - name: Export extra environment variables
-        env:
-          EXTRA_SECRETS: ${{ secrets.EXTRA_SECRETS }}
-          EXTRA_VARS: ${{ vars.EXTRA_VARS }}
-        run: |
-          if [ -n "$EXTRA_VARS" ]; then
-            while IFS= read -r line; do
-              [ -n "$line" ] && echo "$line" | tr -d '\r' >> "$GITHUB_ENV"
-            done <<< "$EXTRA_VARS"
-          fi
-          if [ -n "$EXTRA_SECRETS" ]; then
-            while IFS= read -r line; do
-              [ -n "$line" ] && echo "$line" | tr -d '\r' >> "$GITHUB_ENV"
-            done <<< "$EXTRA_SECRETS"
-          fi
+        uses: $/.github/actions/export-env-vars
+        with:
+          value: ${{ vars.EXTRA_VARS }}
+          value2: ${{ secrets.EXTRA_SECRETS }}
 
       - name: Expand shell variables in inputs
         id: expand-inputs
