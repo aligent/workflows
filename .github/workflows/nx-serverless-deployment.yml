@@ -113,6 +113,16 @@ jobs:
       - name: Install safe-chain
         uses: $/.github/actions/install-safe-chain
 
+      - name: Install yq
+        env:
+          YQ_VERSION: "v4.54.3"
+          YQ_CHECKSUM: "129534601871538efe0ba4c5e62a34fb1d5f469bcb975c4fddeb467d82974973"
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/yq" \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          sha256sum -c <<<"${YQ_CHECKSUM}  $RUNNER_TEMP/yq"
+          install -m 0755 "$RUNNER_TEMP/yq" /usr/local/bin/yq
+
       - name: Install dependencies
         run: |
           debug=""
@@ -163,11 +173,6 @@ jobs:
             --secret "$AWS_SECRET_ACCESS_KEY" \
             $verbose
 
-          curl -fsSL -o "$RUNNER_TEMP/yq" \
-            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
-          sha256sum -c <<<"${YQ_CHECKSUM}  $RUNNER_TEMP/yq"
-          install -m 0755 "$RUNNER_TEMP/yq" /usr/local/bin/yq
-
           # Insert the cfnRole value into all serverless files
           if [ "${STEPS_REPO_TYPE_OUTPUTS_IS_MONOREPO}" = "true" ]; then
             # `-exec false {} +` makes find exit non-zero if yq failed on any file
@@ -184,8 +189,6 @@ jobs:
           CFN_ROLE: ${{ vars.CFN_ROLE }}
           DEBUG: ${{ inputs.debug }}
           STEPS_REPO_TYPE_OUTPUTS_IS_MONOREPO: ${{ steps.repo-type.outputs.is_monorepo }}
-          YQ_VERSION: "v4.54.3"
-          YQ_CHECKSUM: "129534601871538efe0ba4c5e62a34fb1d5f469bcb975c4fddeb467d82974973"
 
       - name: 🚀 Deploy
         run: |
