@@ -169,16 +169,13 @@ jobs:
           install -m 0755 "$RUNNER_TEMP/yq" /usr/local/bin/yq
 
           # Insert the cfnRole value into all serverless files
-          # yq v4 converts YAML merge keys (<<) to !!merge tags when writing,
-          # which is invalid for serverless. Pipe through sed to strip them.
           if [ "${STEPS_REPO_TYPE_OUTPUTS_IS_MONOREPO}" = "true" ]; then
-            find services/*/ -name serverless.yml -exec sh -c '
-              yq ".provider.cfnRole = \"${0}\"" "$1" | sed "s/!!merge <</<</g" > "$1.tmp" && mv "$1.tmp" "$1"
-            ' "$CFN_ROLE" {} \;
+            # `-exec false {} +` makes find exit non-zero if yq failed on any file
+            find services/*/ -name serverless.yml \
+              ! -exec yq -i ".provider.cfnRole = strenv(CFN_ROLE)" {} \; \
+              -exec false {} +
           else
-            yq ".provider.cfnRole = \"$CFN_ROLE\"" serverless.yml \
-              | sed "s/!!merge <</<</g" > serverless.yml.tmp \
-              && mv serverless.yml.tmp serverless.yml
+            yq -i ".provider.cfnRole = strenv(CFN_ROLE)" serverless.yml
           fi
         env:
           AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
@@ -187,8 +184,8 @@ jobs:
           CFN_ROLE: ${{ vars.CFN_ROLE }}
           DEBUG: ${{ inputs.debug }}
           STEPS_REPO_TYPE_OUTPUTS_IS_MONOREPO: ${{ steps.repo-type.outputs.is_monorepo }}
-          YQ_VERSION: "v4.45.4"
-          YQ_CHECKSUM: "b96de04645707e14a12f52c37e6266832e03c29e95b9b139cddcae7314466e69"
+          YQ_VERSION: "v4.54.3"
+          YQ_CHECKSUM: "129534601871538efe0ba4c5e62a34fb1d5f469bcb975c4fddeb467d82974973"
 
       - name: 🚀 Deploy
         run: |
