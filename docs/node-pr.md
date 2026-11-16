@@ -4,7 +4,7 @@
 | Name          | Required | Type    | Default            | Description                        |
 |---------------|----------|---------|--------------------|------------------------------------|
 | package-manager | ❌      | string   | yarn             | Node package manager to use       |
-| has-env-vars    | ❌      | boolean  | false            | Whether environment variables are provided via ENV_VARS secret |
+| has-env-vars    | ❌      | boolean  | false            | Deprecated and ignored; ENV_VARS is used whenever it is set |
 | is-yarn-classic   | ❌      | boolean  | false            | When `package-manager` is `yarn`, this can be used to indicate that the project uses a pre-Berry version of Yarn, which changes what flags we can pass to the command       |
 | skip-cache      | ❌      | boolean  | false            | When `package-manager` is `yarn`, this can be used to indicate that we should use the `--force` flag to tell Yarn to ignore cache and fetch dependencies from the package repository       |
 | pre-install-commands | ❌ | string | | Commands to run before dependency installation (e.g., configure registries, auth tokens) |
@@ -43,7 +43,7 @@ This allows Nx monorepos to work seamlessly without needing custom build command
 
 #### **ENV_VARS format**
 
-`ENV_VARS` accepts the same format as [`$GITHUB_ENV`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable). Set one variable per line:
+`ENV_VARS` accepts the [`$GITHUB_ENV`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable) format, plus the legacy format described below. Set one variable per line:
 
 ```
 BACKEND_URL=https://api.example.com
@@ -120,7 +120,6 @@ jobs:
     uses: aligent/workflows/.github/workflows/node-pr.yml@main
     with:
       package-manager: yarn
-      has-env-vars: true
     secrets:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       ENV_VARS: |
@@ -136,7 +135,6 @@ jobs:
     uses: aligent/workflows/.github/workflows/node-pr.yml@main
     with:
       package-manager: npm
-      has-env-vars: true
       pre-install-commands: |
         mkdir -p ~/.ssh
         printenv DEPLOY_SSH_KEY > ~/.ssh/id_ed25519
@@ -156,7 +154,6 @@ jobs:
     uses: aligent/workflows/.github/workflows/node-pr.yml@main
     with:
       package-manager: yarn
-      has-env-vars: true
       pre-test-command: generate:types
       node-options: "--max-old-space-size=4096"
       check-types-command: typecheck
