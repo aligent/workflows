@@ -33,9 +33,8 @@ runs:
       run: |
         # Every variable is written as a KEY<<DELIM block. CRs are left in place for
         # export-env-vars, which strips them and warns about them.
-        # fd 3 is the step log: awk prints its warning to stderr, which is sent to fd 3,
-        # so the warning reaches the log while awk's stdout is captured.
-        exec 3>&1
+        # awk prints its warning to stderr: only its stdout is captured, and the runner
+        # processes workflow commands on stderr as well as stdout.
         converted=$(awk -v delim="EOF_$(cat /proc/sys/kernel/random/uuid)" '
           # Write the current variable as a block. Trailing blank lines are dropped, as
           # node-pr always did; blank lines inside a value are kept. The delimiter is
@@ -91,13 +90,12 @@ runs:
           END {
             flush()
             if (legacy) {
-              # print joins its arguments with a space
               print "::warning title=convert-legacy-env-vars::Input uses continuation lines for multiline values,",
                 "a legacy format that can misread base64 lines as new variables.",
                 "Use a KEY<<DELIMITER block for multiline values instead." > "/dev/stderr"
             }
           }
-        ' <<< "$INPUT_VALUE" 2>&3)
+        ' <<< "$INPUT_VALUE")
 
         # The converted text is passed on through `with:` (e.g. to export-env-vars), where it
         # is shown in the log and no longer matches the original secret, so GitHub would not
