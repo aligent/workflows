@@ -3,6 +3,11 @@ description: |
   Appends KEY=value lines (and KEY<<DELIM multiline blocks) to $GITHUB_ENV so later
   steps in the job can use them. With mask set to 'true', every value is masked before
   it is exported.
+  
+  Warning: only pass trusted input, such as repository variables and secrets. The input
+  can set any environment variable for later steps, including ones that run code
+  (BASH_ENV, LD_PRELOAD, NODE_OPTIONS), so never include data an attacker can influence,
+  such as pull request titles or branch names.
 
 inputs:
   value:
@@ -22,7 +27,7 @@ runs:
       env:
         INPUT_VALUE: ${{ inputs.value }}
         INPUT_MASK: ${{ inputs.mask }}
-      run: |
+      run: | # zizmor: ignore[github-env] see the comment above the $GITHUB_ENV write
         # CRs are stripped from the input (tr -d '\r'): on Linux the runner only splits on LF,
         # so CRLF input would leave a trailing CR on values and break KEY<<EOF delimiter matching.
         if [[ "$INPUT_VALUE" == *$'\r'* ]]; then
@@ -70,4 +75,9 @@ runs:
           ' <<< "$INPUT_VALUE"
         fi
 
+        # Writing to $GITHUB_ENV lets the input set any variable for later steps, including
+        # ones that run code (BASH_ENV, LD_PRELOAD, NODE_OPTIONS), which is why zizmor flags
+        # it. Exporting caller-supplied variables is this action's purpose, so callers must
+        # only pass trusted input (repository variables and secrets), never data an attacker
+        # can influence, such as pull request titles or branch names.
         tr -d '\r' <<< "$INPUT_VALUE" >> "$GITHUB_ENV"
