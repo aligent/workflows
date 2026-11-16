@@ -39,7 +39,38 @@ This allows Nx monorepos to work seamlessly without needing custom build command
 | Name          | Required | Description                        |
 |---------------|----------|-------------------------------------|
 | NPM_TOKEN     | ❌      | NPM authentication token for private registries |
-| ENV_VARS      | ❌      | Additional environment variables as key=value pairs (supports multiline values like SSH keys) |
+| ENV_VARS      | ❌      | Additional environment variables as `KEY=value` lines, with `KEY<<DELIMITER` blocks for multiline values like SSH keys (see [ENV_VARS format](#env_vars-format)) |
+
+#### **ENV_VARS format**
+
+`ENV_VARS` accepts the same format as [`$GITHUB_ENV`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable). Set one variable per line:
+
+```
+BACKEND_URL=https://api.example.com
+NODE_ENV=test
+```
+
+For multiline values (SSH keys, certificates, JSON), use a `KEY<<DELIMITER` block. Every line up to a line containing only the delimiter is the value:
+
+```
+DEPLOY_SSH_KEY<<SSH_KEY_EOF
+-----BEGIN OPENSSH PRIVATE KEY-----
+...
+-----END OPENSSH PRIVATE KEY-----
+SSH_KEY_EOF
+```
+
+All values are masked in the logs. Windows (CRLF) line endings are accepted, but carriage returns are removed and a warning is shown; re-save the secret with LF line endings to silence it.
+
+**Legacy multiline format (deprecated):** a line that doesn't start with `KEY=` continues the previous variable's value:
+
+```
+DEPLOY_SSH_KEY=-----BEGIN OPENSSH PRIVATE KEY-----
+...
+-----END OPENSSH PRIVATE KEY-----
+```
+
+This still works, but shows a warning. It can't tell a base64 line made only of letters and digits followed by `=` padding (for example `AAAABG5vbmU=`) from a new `KEY=value`, so such a line starts a new variable and cuts the value short. Use a `KEY<<DELIMITER` block instead.
 
 #### Example Usage
 
@@ -113,7 +144,9 @@ jobs:
         ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
     secrets:
       ENV_VARS: |
-        DEPLOY_SSH_KEY=${{ secrets.DEPLOY_SSH_KEY }}
+        DEPLOY_SSH_KEY<<SSH_KEY_EOF
+        ${{ secrets.DEPLOY_SSH_KEY }}
+        SSH_KEY_EOF
 ```
 
 **BigCommerce Catalyst (requires code generation before checks):**
