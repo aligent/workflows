@@ -15,9 +15,8 @@ inputs:
     required: false
     default: ''
   mask:
-    description: Set to 'true' to mask every value before it is exported
-    required: false
-    default: 'false'
+    description: "'true' to mask every value before it is exported, 'false' if the input contains no secrets"
+    required: true
 
 runs:
   using: composite
@@ -28,6 +27,16 @@ runs:
         INPUT_VALUE: ${{ inputs.value }}
         INPUT_MASK: ${{ inputs.mask }}
       run: | # zizmor: ignore[github-env] see the comment above the $GITHUB_ENV write
+        # The runner doesn't enforce required inputs, and a missing mask would otherwise
+        # mean no masking, so fail unless it is set explicitly.
+        case "$INPUT_MASK" in
+          true | false) ;;
+          *)
+            echo "::error title=export-env-vars::The mask input must be 'true' or 'false', got '$INPUT_MASK'"
+            exit 1
+            ;;
+        esac
+
         # CRs are stripped from the input (tr -d '\r'): on Linux the runner only splits on LF,
         # so CRLF input would leave a trailing CR on values and break KEY<<EOF delimiter matching.
         if [[ "$INPUT_VALUE" == *$'\r'* ]]; then

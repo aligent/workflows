@@ -12,9 +12,8 @@ inputs:
     required: false
     default: ''
   mask:
-    description: Set to 'true' to mask every line of the output (use when the input is a secret)
-    required: false
-    default: 'false'
+    description: "'true' to mask every line of the output, 'false' if the input contains no secrets"
+    required: true
 
 outputs:
   value:
@@ -31,6 +30,16 @@ runs:
         INPUT_VALUE: ${{ inputs.value }}
         INPUT_MASK: ${{ inputs.mask }}
       run: |
+        # The runner doesn't enforce required inputs, and a missing mask would otherwise
+        # mean no masking, so fail unless it is set explicitly.
+        case "$INPUT_MASK" in
+          true | false) ;;
+          *)
+            echo "::error title=convert-legacy-env-vars::The mask input must be 'true' or 'false', got '$INPUT_MASK'"
+            exit 1
+            ;;
+        esac
+
         # Every variable is written as a KEY<<DELIM block. CRs are left in place for
         # export-env-vars, which strips them and warns about them.
         # awk prints its warning to stderr: only its stdout is captured, and the runner

@@ -129,6 +129,7 @@ jobs:
         uses: $/.github/actions/export-env-vars
         with:
           value: ${{ vars.AIO_DEPLOY_EXTRA_VARS }}
+          mask: false
 
       - name: Export extra secret environment variables
         uses: $/.github/actions/export-env-vars

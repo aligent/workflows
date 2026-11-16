@@ -220,6 +220,7 @@ jobs:
         uses: $/.github/actions/export-env-vars
         with:
           value: ${{ vars.EXTRA_VARS }}
+          mask: false
 
       - name: Export extra secret environment variables
         uses: $/.github/actions/export-env-vars
