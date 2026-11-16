@@ -90,17 +90,6 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ inputs.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ inputs.AWS_SECRET_ACCESS_KEY }}
 
-      - name: Check delete flag
-        shell: sh
-        run: |
-          DELETE_FLAG=""
-          if [ "$DELETE_FLAG_INPUT" = "true" ]; then
-            DELETE_FLAG="--delete"
-          fi
-          echo "DELETE_FLAG=$DELETE_FLAG" >> $GITHUB_ENV
-        env:
-          DELETE_FLAG_INPUT: ${{ inputs.DELETE_FLAG }}
-
       - name: Sync to S3
         shell: sh
         run: |
@@ -117,6 +106,7 @@ jobs:
           LOCAL_PATH: ${{ inputs.LOCAL_PATH }}
           CACHE_CONTROL: ${{ inputs.CACHE_CONTROL }}
           EXTRA_ARGS: ${{ inputs.EXTRA_ARGS }}
+          DELETE_FLAG: ${{ case(inputs.DELETE_FLAG == 'true', '--delete', '') }}
 
       - name: Backport to staging
         if: success() && inputs.create-backport-pr
