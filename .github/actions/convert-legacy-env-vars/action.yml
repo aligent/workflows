@@ -98,10 +98,12 @@ runs:
 
         # The converted text is passed on through `with:` (e.g. to export-env-vars), where it
         # is shown in the log and no longer matches the original secret, so GitHub would not
-        # mask it. Mask the whole output, one line at a time (add-mask takes a single line).
-        # % is escaped because the runner decodes %25, %0D and %0A in add-mask values.
-        if [ "$INPUT_MASK" = "true" ]; then
-          printf '%s\n' "$converted" | sed -E '/^[[:space:]]*$/d; s/%/%25/g; s/^/::add-mask::/'
+        # mask it. Mask the whole output with a single add-mask: the runner decodes %25, %0D
+        # and %0A in the value, then masks the whole value and each of its lines (ignoring
+        # empty ones). sed -z reads the whole output as one record so newlines can be escaped.
+        # Skipped if there is nothing to mask, as the runner warns about empty add-mask values.
+        if [ "$INPUT_MASK" = "true" ] && [[ "$converted" =~ [^[:space:]] ]]; then
+          echo "::add-mask::$(sed -z 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g' <<< "$converted")"
         fi
 
         out_delim="EOF_$(cat /proc/sys/kernel/random/uuid)"
