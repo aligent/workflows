@@ -125,11 +125,16 @@ jobs:
           IMSORGID: ${{ secrets.AIO_IMS_ORG_ID }}
           SCOPES: ${{ secrets.AIO_SCOPES }}
 
-      - name: Export extra environment variables
+      - name: Export extra regular environment variables
         uses: $/.github/actions/export-env-vars
         with:
           value: ${{ vars.AIO_DEPLOY_EXTRA_VARS }}
-          value2: ${{ secrets.AIO_DEPLOY_EXTRA_SECRETS }}
+
+      - name: Export extra secret environment variables
+        uses: $/.github/actions/export-env-vars
+        with:
+          value: ${{ secrets.AIO_DEPLOY_EXTRA_SECRETS }}
+          mask: true
 
       - name: Deploy
         working-directory: ${{ inputs.app-directory }}

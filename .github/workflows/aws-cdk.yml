@@ -216,11 +216,16 @@ jobs:
               ;;
           esac
 
-      - name: Export extra environment variables
+      - name: Export extra regular environment variables
         uses: $/.github/actions/export-env-vars
         with:
           value: ${{ vars.EXTRA_VARS }}
-          value2: ${{ secrets.EXTRA_SECRETS }}
+
+      - name: Export extra secret environment variables
+        uses: $/.github/actions/export-env-vars
+        with:
+          value: ${{ secrets.EXTRA_SECRETS }}
+          mask: true
 
       - name: Expand shell variables in inputs
         id: expand-inputs
