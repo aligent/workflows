@@ -65,7 +65,7 @@ runs:
             index($0, "=") {
               mask(substr($0, index($0, "=") + 1))
             }
-          ' <(printf '%s\n' "$INPUT_VALUE" | tr -d '\r')
+          ' <(tr -d '\r' <<< "$INPUT_VALUE")
         fi
 
-        printf '%s\n' "$INPUT_VALUE" | tr -d '\r' >> "$GITHUB_ENV"
+        tr -d '\r' <<< "$INPUT_VALUE" >> "$GITHUB_ENV"

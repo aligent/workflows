@@ -36,7 +36,7 @@ runs:
         # fd 3 is the step log: awk prints its warning to stderr, which is sent to fd 3,
         # so the warning reaches the log while awk's stdout is captured.
         exec 3>&1
-        converted=$(printf '%s\n' "$INPUT_VALUE" | awk -v delim="EOF_$(cat /proc/sys/kernel/random/uuid)" '
+        converted=$(awk -v delim="EOF_$(cat /proc/sys/kernel/random/uuid)" '
           # Write the current variable as a block. Trailing blank lines are dropped, as
           # node-pr always did; blank lines inside a value are kept. The delimiter is
           # random so no value can end the block early.
@@ -97,7 +97,7 @@ runs:
                 "Use a KEY<<DELIMITER block for multiline values instead." > "/dev/stderr"
             }
           }
-        ' 2>&3)
+        ' <<< "$INPUT_VALUE" 2>&3)
 
         # The converted text is passed on through `with:` (e.g. to export-env-vars), where it
         # is shown in the log and no longer matches the original secret, so GitHub would not
