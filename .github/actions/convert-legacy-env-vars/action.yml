@@ -91,7 +91,10 @@ runs:
           END {
             flush()
             if (legacy) {
-              print "::warning title=convert-legacy-env-vars::Input uses continuation lines for multiline values, a legacy format that can misread base64 lines as new variables. Use a KEY<<DELIMITER block for multiline values instead." > "/dev/stderr"
+              # print joins its arguments with a space
+              print "::warning title=convert-legacy-env-vars::Input uses continuation lines for multiline values,",
+                "a legacy format that can misread base64 lines as new variables.",
+                "Use a KEY<<DELIMITER block for multiline values instead." > "/dev/stderr"
             }
           }
         ' 2>&3)

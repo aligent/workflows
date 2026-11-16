@@ -26,7 +26,10 @@ runs:
         # CRs are stripped from the input (tr -d '\r'): on Linux the runner only splits on LF,
         # so CRLF input would leave a trailing CR on values and break KEY<<EOF delimiter matching.
         if [[ "$INPUT_VALUE" == *$'\r'* ]]; then
-          echo "::warning title=export-env-vars::Input contains carriage returns (\\r), probably from Windows (CRLF) line endings. They have been removed; re-save the variable or secret with LF line endings to silence this warning."
+          # echo joins its arguments with a space
+          echo "::warning title=export-env-vars::Input contains carriage returns (\\r), probably from Windows (CRLF)" \
+            "line endings. They have been removed; re-save the variable or secret with LF line endings" \
+            "to silence this warning."
         fi
 
         # Mask values here, before they reach $GITHUB_ENV, so they are already masked
