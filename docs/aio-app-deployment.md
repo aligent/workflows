@@ -58,7 +58,12 @@ The hook sends these to the app's `installation` action, which rejects the reque
 | `AIO_DEPLOY_EXTRA_VARS` | Variable | Additional non-secret environment variables to inject into the deploy step |
 | `AIO_DEPLOY_EXTRA_SECRETS` | Secret | Additional secret environment variables to inject into the deploy step |
 
-Both extra fields accept multiline `KEY=VALUE` pairs — one per line. Use these for app-specific runtime configuration that varies per project, such as third-party API credentials, AWS credentials, or feature flags.
+Both extra fields accept the same format as [`$GITHUB_ENV`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable): one `KEY=VALUE` per line, and `KEY<<DELIMITER` blocks for multiline values (see the example below). Use these for app-specific runtime configuration that varies per project, such as third-party API credentials, AWS credentials, or feature flags.
+
+- Values from `AIO_DEPLOY_EXTRA_SECRETS` are masked in the logs.
+- Blank lines are ignored, except inside a `KEY<<DELIMITER` block, where they are part of the value.
+- Windows (CRLF) line endings are accepted, but carriage returns are removed and a warning is shown; re-save the value with LF line endings to silence it.
+- Any other line that isn't `KEY=VALUE` or part of a block, including whitespace-only lines and `#` comments, fails the deploy.
 
 **Note:** Backporting only occurs when deploying from `production`, `main`, or `master` branches. Deployments from other branches are skipped.
 
@@ -75,6 +80,11 @@ EXTERNAL_API_BASE_URL=https://api.example.com
 EXTERNAL_API_KEY=abc123
 AWS_ACCESS_KEY_ID=AKIA...
 AWS_SECRET_ACCESS_KEY=...
+SIGNING_KEY<<SIGNING_KEY_EOF
+-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----
+SIGNING_KEY_EOF
 ```
 
 ---

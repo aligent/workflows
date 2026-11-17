@@ -4,7 +4,7 @@
 | Name          | Required | Type    | Default            | Description                        |
 |---------------|----------|---------|--------------------|------------------------------------|
 | package-manager | ❌      | string   | yarn             | Node package manager to use       |
-| has-env-vars    | ❌      | boolean  | false            | Whether environment variables are provided via ENV_VARS secret |
+| has-env-vars    | ❌      | boolean  | false            | Deprecated and ignored; ENV_VARS is used whenever it is set |
 | is-yarn-classic   | ❌      | boolean  | false            | When `package-manager` is `yarn`, this can be used to indicate that the project uses a pre-Berry version of Yarn, which changes what flags we can pass to the command       |
 | skip-cache      | ❌      | boolean  | false            | When `package-manager` is `yarn`, this can be used to indicate that we should use the `--force` flag to tell Yarn to ignore cache and fetch dependencies from the package repository       |
 | pre-install-commands | ❌ | string | | Commands to run before dependency installation (e.g., configure registries, auth tokens) |
@@ -39,7 +39,38 @@ This allows Nx monorepos to work seamlessly without needing custom build command
 | Name          | Required | Description                        |
 |---------------|----------|-------------------------------------|
 | NPM_TOKEN     | ❌      | NPM authentication token for private registries |
-| ENV_VARS      | ❌      | Additional environment variables as key=value pairs (supports multiline values like SSH keys) |
+| ENV_VARS      | ❌      | Additional environment variables as `KEY=value` lines, with `KEY<<DELIMITER` blocks for multiline values like SSH keys (see [ENV_VARS format](#env_vars-format)) |
+
+#### **ENV_VARS format**
+
+`ENV_VARS` accepts the [`$GITHUB_ENV`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable) format, plus the legacy format described below. Set one variable per line:
+
+```
+BACKEND_URL=https://api.example.com
+NODE_ENV=test
+```
+
+For multiline values (SSH keys, certificates, JSON), use a `KEY<<DELIMITER` block. Every line up to a line containing only the delimiter is the value:
+
+```
+DEPLOY_SSH_KEY<<SSH_KEY_EOF
+-----BEGIN OPENSSH PRIVATE KEY-----
+...
+-----END OPENSSH PRIVATE KEY-----
+SSH_KEY_EOF
+```
+
+All values are masked in the logs. Windows (CRLF) line endings are accepted, but carriage returns are removed and a warning is shown; re-save the secret with LF line endings to silence it.
+
+**Legacy multiline format (deprecated):** a line that doesn't start with `KEY=` continues the previous variable's value:
+
+```
+DEPLOY_SSH_KEY=-----BEGIN OPENSSH PRIVATE KEY-----
+...
+-----END OPENSSH PRIVATE KEY-----
+```
+
+This still works, but shows a warning. It can't tell a base64 line made only of letters and digits followed by `=` padding (for example `AAAABG5vbmU=`) from a new `KEY=value`, so such a line starts a new variable and cuts the value short. Use a `KEY<<DELIMITER` block instead.
 
 #### Example Usage
 
@@ -89,7 +120,6 @@ jobs:
     uses: aligent/workflows/.github/workflows/node-pr.yml@main
     with:
       package-manager: yarn
-      has-env-vars: true
     secrets:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       ENV_VARS: |
@@ -105,7 +135,6 @@ jobs:
     uses: aligent/workflows/.github/workflows/node-pr.yml@main
     with:
       package-manager: npm
-      has-env-vars: true
       pre-install-commands: |
         mkdir -p ~/.ssh
         printenv DEPLOY_SSH_KEY > ~/.ssh/id_ed25519
@@ -113,7 +142,9 @@ jobs:
         ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
     secrets:
       ENV_VARS: |
-        DEPLOY_SSH_KEY=${{ secrets.DEPLOY_SSH_KEY }}
+        DEPLOY_SSH_KEY<<SSH_KEY_EOF
+        ${{ secrets.DEPLOY_SSH_KEY }}
+        SSH_KEY_EOF
 ```
 
 **BigCommerce Catalyst (requires code generation before checks):**
@@ -123,7 +154,6 @@ jobs:
     uses: aligent/workflows/.github/workflows/node-pr.yml@main
     with:
       package-manager: yarn
-      has-env-vars: true
       pre-test-command: generate:types
       node-options: "--max-old-space-size=4096"
       check-types-command: typecheck

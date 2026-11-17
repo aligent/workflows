@@ -103,7 +103,6 @@ jobs:
     if: inputs.skip-build == false
     runs-on: ubuntu-latest
     env:
-      HAVE_SECRETS_ENV_VARS: ${{ secrets.ENV_VARS != '' }}
       NODE_OPTIONS: ${{ inputs.node-options }}
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
@@ -143,38 +142,19 @@ jobs:
       - name: Install safe-chain
         uses: $/.github/actions/install-safe-chain
 
-      - name: Setup additional environment variables
-        if: env.HAVE_SECRETS_ENV_VARS == 'true'
-        run: |
-          # Parse and set additional environment variables securely
-          # Supports multiline values (e.g., SSH keys)
-          current_key=""
-          current_value=""
-          flush_var() {
-            if [ -n "$current_key" ]; then
-              while IFS= read -r mask_line; do
-                [ -n "$mask_line" ] && echo "::add-mask::${mask_line}"
-              done <<< "${current_value}"
-              delimiter="EOF_$(cat /proc/sys/kernel/random/uuid)"
-              echo "Setting environment variable: ${current_key}"
-              echo "${current_key}<<${delimiter}" >> $GITHUB_ENV
-              echo "${current_value}" >> $GITHUB_ENV
-              echo "${delimiter}" >> $GITHUB_ENV
-            fi
-          }
-          while IFS= read -r line || [ -n "$line" ]; do
-            if [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
-              flush_var
-              current_key="${line%%=*}"
-              current_value="${line#*=}"
-            elif [ -n "$current_key" ]; then
-              current_value="$(printf '%s\n%s' "${current_value}" "${line}")"
-            fi
-          done <<< "${SECRETS_ENV_VARS}"
-          flush_var
-        env:
+      - name: Convert ENV_VARS to GITHUB_ENV format
+        id: env-vars
+        uses: $/.github/actions/convert-legacy-env-vars
+        with:
           # zizmor: ignore[secrets-outside-env]
-          SECRETS_ENV_VARS: ${{ secrets.ENV_VARS }}
+          value: ${{ secrets.ENV_VARS }}
+          mask: true
+
+      - name: Setup additional environment variables
+        uses: $/.github/actions/export-env-vars
+        with:
+          value: ${{ steps.env-vars.outputs.value }}
+          mask: true
 
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''
@@ -235,7 +215,6 @@ jobs:
       inputs.skip-check-types == false
     runs-on: ubuntu-latest
     env:
-      HAVE_SECRETS_ENV_VARS: ${{ secrets.ENV_VARS != '' }}
       NODE_OPTIONS: ${{ inputs.node-options }}
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
@@ -275,38 +254,19 @@ jobs:
       - name: Install safe-chain
         uses: $/.github/actions/install-safe-chain
 
-      - name: Setup additional environment variables
-        if: env.HAVE_SECRETS_ENV_VARS == 'true'
-        run: |
-          # Parse and set additional environment variables securely
-          # Supports multiline values (e.g., SSH keys)
-          current_key=""
-          current_value=""
-          flush_var() {
-            if [ -n "$current_key" ]; then
-              while IFS= read -r mask_line; do
-                [ -n "$mask_line" ] && echo "::add-mask::${mask_line}"
-              done <<< "${current_value}"
-              delimiter="EOF_$(cat /proc/sys/kernel/random/uuid)"
-              echo "Setting environment variable: ${current_key}"
-              echo "${current_key}<<${delimiter}" >> $GITHUB_ENV
-              echo "${current_value}" >> $GITHUB_ENV
-              echo "${delimiter}" >> $GITHUB_ENV
-            fi
-          }
-          while IFS= read -r line || [ -n "$line" ]; do
-            if [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
-              flush_var
-              current_key="${line%%=*}"
-              current_value="${line#*=}"
-            elif [ -n "$current_key" ]; then
-              current_value="$(printf '%s\n%s' "${current_value}" "${line}")"
-            fi
-          done <<< "${SECRETS_ENV_VARS}"
-          flush_var
-        env:
+      - name: Convert ENV_VARS to GITHUB_ENV format
+        id: env-vars
+        uses: $/.github/actions/convert-legacy-env-vars
+        with:
           # zizmor: ignore[secrets-outside-env]
-          SECRETS_ENV_VARS: ${{ secrets.ENV_VARS }}
+          value: ${{ secrets.ENV_VARS }}
+          mask: true
+
+      - name: Setup additional environment variables
+        uses: $/.github/actions/export-env-vars
+        with:
+          value: ${{ steps.env-vars.outputs.value }}
+          mask: true
 
       - name: Run pre-install commands
         if: inputs.pre-install-commands != ''

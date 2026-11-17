@@ -1,0 +1,124 @@
+name: Convert legacy environment variables
+description: |
+  Converts the legacy KEY=value format, where any line that doesn't start a new KEY=
+  continues the previous value (e.g. SSH keys), to $GITHUB_ENV format for export-env-vars.
+  KEY<<DELIM blocks in the input are passed through, so anything $GITHUB_ENV accepts is
+  also accepted. With mask set to 'true', every line of the output is masked.
+  Warns if continuation lines are used.
+
+inputs:
+  value:
+    description: Newline-separated KEY=value pairs in the legacy format, or $GITHUB_ENV format
+    required: false
+    default: ''
+  mask:
+    description: "'true' to mask every line of the output, 'false' if the input contains no secrets"
+    required: true
+
+outputs:
+  value:
+    description: The input in $GITHUB_ENV format, every variable written as a KEY<<DELIM block
+    value: ${{ steps.convert.outputs.value }}
+
+runs:
+  using: composite
+  steps:
+    - name: Convert to GITHUB_ENV format
+      id: convert
+      shell: bash
+      env:
+        INPUT_VALUE: ${{ inputs.value }}
+        INPUT_MASK: ${{ inputs.mask }}
+      run: |
+        # The runner doesn't enforce required inputs, and a missing mask would otherwise
+        # mean no masking, so fail unless it is set explicitly.
+        case "$INPUT_MASK" in
+          true | false) ;;
+          *)
+            echo "::error title=convert-legacy-env-vars::The mask input must be 'true' or 'false', got '$INPUT_MASK'"
+            exit 1
+            ;;
+        esac
+
+        # Every variable is written as a KEY<<DELIM block. CRs are left in place for
+        # export-env-vars, which strips them and warns about them.
+        # awk prints its warning to stderr: only its stdout is captured, and the runner
+        # processes workflow commands on stderr as well as stdout.
+        converted=$(awk -v delim="EOF_$(cat /proc/sys/kernel/random/uuid)" '
+          # Write the current variable as a block. Trailing blank lines are dropped, as
+          # node-pr always did; blank lines inside a value are kept. The delimiter is
+          # random so no value can end the block early.
+          function flush() {
+            if (key == "") return
+            sub(/(\n[[:space:]]*)+$/, "", value)
+            print key "<<" delim
+            print value
+            print delim
+            key = ""
+            value = ""
+          }
+
+          # Inside a KEY<<DELIM block from the input: pass it through unchanged.
+          block != "" {
+            print
+            if ($0 == block) block = ""
+            next
+          }
+
+          # KEY<<DELIM header (<< before any =, the same rule as the runner):
+          # finish the current variable, then pass the block through.
+          match($0, /^[^=]*<</) && index(substr($0, 1, RLENGTH), "=") == 0 {
+            flush()
+            print
+            block = substr($0, RLENGTH + 1)
+            next
+          }
+
+          # KEY=value starts a new variable.
+          /^[A-Za-z_][A-Za-z0-9_]*=/ {
+            flush()
+            i = index($0, "=")
+            key = substr($0, 1, i - 1)
+            value = substr($0, i + 1)
+            next
+          }
+
+          # Any other line continues the current variable. A non-blank continuation line
+          # means the legacy multiline format is in use (blank lines are just trailing
+          # newlines, which are common and harmless).
+          key != "" {
+            value = value "\n" $0
+            if ($0 ~ /[^[:space:]]/) legacy = 1
+            next
+          }
+
+          # Before the first variable: pass through and let the runner validate it
+          # (blank lines are skipped, anything else is a format error).
+          { print }
+
+          END {
+            flush()
+            if (legacy) {
+              print "::warning title=convert-legacy-env-vars::Input uses continuation lines for multiline values,",
+                "a legacy format that can misread base64 lines as new variables.",
+                "Use a KEY<<DELIMITER block for multiline values instead." > "/dev/stderr"
+            }
+          }
+        ' <<< "$INPUT_VALUE")
+
+        # The converted text is passed on through `with:` (e.g. to export-env-vars), where it
+        # is shown in the log and no longer matches the original secret, so GitHub would not
+        # mask it. Mask the whole output with a single add-mask: the runner decodes %25, %0D
+        # and %0A in the value, then masks the whole value and each of its lines (ignoring
+        # empty ones). sed -z reads the whole output as one record so newlines can be escaped.
+        # Skipped if there is nothing to mask, as the runner warns about empty add-mask values.
+        if [ "$INPUT_MASK" = "true" ] && [[ "$converted" =~ [^[:space:]] ]]; then
+          echo "::add-mask::$(sed -z 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g' <<< "$converted")"
+        fi
+
+        out_delim="EOF_$(cat /proc/sys/kernel/random/uuid)"
+        {
+          echo "value<<$out_delim"
+          printf '%s\n' "$converted"
+          echo "$out_delim"
+        } >> "$GITHUB_OUTPUT"
