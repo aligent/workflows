@@ -451,6 +451,9 @@ jobs:
           DIFF_CMD: ${{ inputs.diff-command }}
           EXTRA_ARGUMENTS: ${{ steps.expand-inputs.outputs.extra-arguments }}
           STACK_NAME: ${{ inputs.stack-name || vars.STACK_NAME }}
+          # Ask CDK, Nx and other tools using chalk or picocolors not to emit colour
+          FORCE_COLOR: "0"
+          NO_COLOR: "1"
         run: |
           echo "📊 Analysing deployment changes..."
 
@@ -458,6 +461,10 @@ jobs:
             $CONTEXT_ARGS \
             $EXTRA_ARGUMENTS \
             --no-color 2>&1 || true)
+
+          # Strip any ANSI escape codes that still get through (e.g. from Nx targets that
+          # set color: true), so the diff file and PR comment are plain text.
+          diff_output=$(sed -E 's/\x1b\[[0-9;?]*[ -/]*[@-~]//g' <<< "$diff_output")
 
           # Save diff to file for analysis
           echo "$diff_output" > deployment-diff.txt
