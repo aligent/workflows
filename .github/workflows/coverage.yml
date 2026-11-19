@@ -1,0 +1,176 @@
+name: 📊 Coverage
+
+on:
+  workflow_call:
+    inputs:
+      package-manager:
+        description: "Node package manager to use (yarn or npm)"
+        default: yarn
+        type: string
+      is-yarn-classic:
+        description: "If Yarn (pre-Berry) should be used"
+        default: false
+        type: boolean
+      node-version:
+        description: "Node.js version to use when the repository has no .nvmrc file"
+        default: "24"
+        type: string
+      test-command:
+        description: "Script or Nx target that runs the tests"
+        default: test
+        type: string
+
+jobs:
+  coverage:
+    name: 📊 Coverage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Validate package manager
+        run: |
+          case "${INPUTS_PACKAGE_MANAGER}" in
+            yarn|npm) ;;
+            *)
+              echo "::error::Unsupported package-manager '${INPUTS_PACKAGE_MANAGER}'. Use 'yarn' or 'npm'."
+              exit 1
+              ;;
+          esac
+        env:
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch all commit history for Nx
+        if: hashFiles('nx.json') != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+        with:
+          # Nx requires that we have a full Git history available.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Use the consumer's .nvmrc when present, otherwise fall back to the node-version input.
+      - name: Install Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
+        with:
+          node-version: ${{ case(hashFiles('.nvmrc') != '', '', inputs.node-version) }}
+          node-version-file: ${{ case(hashFiles('.nvmrc') != '', '.nvmrc', '') }}
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        if: hashFiles('package.json') != ''
+        run: |
+          # Enable corepack if packageManager is specified in package.json
+          if jq -e '.packageManager' package.json >/dev/null 2>&1; then
+            echo "packageManager field detected in package.json, enabling corepack"
+            corepack enable
+          fi
+
+      - name: Configure Dependency Cache
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e #v6.4.0
+        with:
+          cache: ${{ inputs.package-manager }}
+          node-version: ${{ case(hashFiles('.nvmrc') != '', '', inputs.node-version) }}
+          node-version-file: ${{ case(hashFiles('.nvmrc') != '', '.nvmrc', '') }}
+
+      - name: Install safe-chain
+        uses: $/.github/actions/install-safe-chain
+
+      - name: Install dependencies
+        run: |
+          if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
+            yarn install ${FLAG_LOCK_DEPENDENCIES}
+          else
+            npm ci
+          fi
+        env:
+          FLAG_LOCK_DEPENDENCIES: ${{ case(inputs.is-yarn-classic == true, '--frozen-lockfile', '--immutable') }}
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+
+      - name: Run tests with coverage
+        id: coverage
+        run: |
+          set -o pipefail
+
+          if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
+            runner="yarn"
+          else
+            runner="npx"
+          fi
+
+          if [ -f "nx.json" ]; then
+            ${runner} nx run-many -t "${INPUTS_TEST_COMMAND}" --skip-nx-cache --outputStyle=stream -- --coverage \
+              2>&1 | tee "${RUNNER_TEMP}/coverage-output.log"
+          elif [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
+            yarn run "${INPUTS_TEST_COMMAND}" --coverage 2>&1 | tee "${RUNNER_TEMP}/coverage-output.log"
+          else
+            npm run "${INPUTS_TEST_COMMAND}" -- --coverage 2>&1 | tee "${RUNNER_TEMP}/coverage-output.log"
+          fi
+        env:
+          INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          INPUTS_TEST_COMMAND: ${{ inputs.test-command }}
+
+      # Posts (or updates in place) a single comment on the PR with the coverage tables
+      # printed by the test runner's text reporter. Runs even when tests fail so the
+      # result is still visible, and is skipped outside pull request events.
+      - name: Comment coverage on PR
+        if: >-
+          always() &&
+          github.event.pull_request.number &&
+          (steps.coverage.outcome == 'success' || steps.coverage.outcome == 'failure')
+        run: |
+          marker="<!-- coverage-report -->"
+          log_file="${RUNNER_TEMP}/coverage-output.log"
+          table_file="${RUNNER_TEMP}/coverage-table.txt"
+          body_file="${RUNNER_TEMP}/coverage-comment.md"
+          max_table_chars=60000
+
+          # Strip ANSI colour codes, then keep only coverage table rows (lines with 2+ pipes).
+          sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "$log_file" \
+            | grep -E '\|.*\|' > "$table_file" || true
+
+          if [ "${COVERAGE_OUTCOME}" = "success" ]; then
+            status="✅ Tests passed"
+          else
+            status="❌ Tests failed"
+          fi
+
+          {
+            echo "$marker"
+            echo "### 📊 Coverage Report"
+            echo
+            echo "${status} for commit ${COMMIT_SHA}."
+            echo
+            if [ -s "$table_file" ]; then
+              echo '```'
+              head -c "$max_table_chars" "$table_file"
+              echo '```'
+              if [ "$(wc -c < "$table_file")" -gt "$max_table_chars" ]; then
+                echo
+                echo "_Output truncated. See the [workflow run](${RUN_URL}) for the full report._"
+              fi
+            else
+              echo "_No coverage table found in the test output. Ensure the \`text\` coverage reporter is enabled._"
+            fi
+            echo
+            echo "[View workflow run](${RUN_URL})"
+          } > "$body_file"
+
+          comment_id="$(gh api --paginate "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | startswith(\"${marker}\")) | .id" | head -n 1)"
+
+          if [ -n "$comment_id" ]; then
+            gh api -X PATCH "repos/${REPO}/issues/comments/${comment_id}" -F body=@"$body_file"
+          else
+            gh api -X POST "repos/${REPO}/issues/${PR_NUMBER}/comments" -F body=@"$body_file"
+          fi
+        env:
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          COVERAGE_OUTCOME: ${{ steps.coverage.outcome }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
