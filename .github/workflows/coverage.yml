@@ -19,6 +19,12 @@ on:
         description: "Script or Nx target that runs the tests"
         default: test
         type: string
+      comment-id:
+        description: >-
+          Identifies this workflow's PR comment. Set a different value per call when the
+          workflow runs more than once on a PR (e.g. a matrix). Letters, digits, '.', '_' and '-' only.
+        default: default
+        type: string
 
 jobs:
   coverage:
@@ -28,7 +34,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - name: Validate package manager
+      - name: Validate inputs
         run: |
           case "${INPUTS_PACKAGE_MANAGER}" in
             yarn|npm) ;;
@@ -37,19 +43,18 @@ jobs:
               exit 1
               ;;
           esac
+          # comment-id is embedded in the comment marker and a jq filter, so restrict its characters.
+          if ! [[ "${INPUTS_COMMENT_ID}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::Invalid comment-id '${INPUTS_COMMENT_ID}'. Use letters, digits, '.', '_' and '-' only."
+            exit 1
+          fi
         env:
+          INPUTS_COMMENT_ID: ${{ inputs.comment-id }}
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
 
+      # run-many does not need Git history (only `nx affected` does), so a shallow clone is enough.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
         with:
-          persist-credentials: false
-
-      - name: Fetch all commit history for Nx
-        if: hashFiles('nx.json') != ''
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
-        with:
-          # Nx requires that we have a full Git history available.
-          fetch-depth: 0
           persist-credentials: false
 
       # Use the consumer's .nvmrc when present, otherwise fall back to the node-version input.
@@ -122,15 +127,18 @@ jobs:
           github.event.pull_request.number &&
           (steps.coverage.outcome == 'success' || steps.coverage.outcome == 'failure')
         run: |
-          marker="<!-- coverage-report -->"
+          marker="<!-- coverage-report:${INPUTS_COMMENT_ID} -->"
           log_file="${RUNNER_TEMP}/coverage-output.log"
           table_file="${RUNNER_TEMP}/coverage-table.txt"
           body_file="${RUNNER_TEMP}/coverage-comment.md"
           max_table_chars=60000
 
-          # Strip ANSI colour codes, then keep only coverage table rows (lines with 2+ pipes).
-          sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "$log_file" \
-            | grep -E '\|.*\|' > "$table_file" || true
+          # Strip ANSI escape codes (colours, cursor show/hide, etc.), then keep only istanbul
+          # text-reporter rows: the header, separators (5+ dash columns) and rows with four
+          # numeric columns. Pipes in test names, diffs or console output don't match.
+          # Nx stream output keeps its "project: " prefix on each row.
+          sed -E 's/\x1b\[[0-9;?]*[ -/]*[@-~]//g' "$log_file" \
+            | grep -E 'File +\| +% Stmts|-+(\|-+){4,}|\|( +[0-9.]+ +\|){4}' > "$table_file" || true
 
           if [ "${COVERAGE_OUTCOME}" = "success" ]; then
             status="✅ Tests passed"
@@ -138,19 +146,28 @@ jobs:
             status="❌ Tests failed"
           fi
 
+          heading="### 📊 Coverage Report"
+          if [ "${INPUTS_COMMENT_ID}" != "default" ]; then
+            heading="${heading} (${INPUTS_COMMENT_ID})"
+          fi
+
           {
             echo "$marker"
-            echo "### 📊 Coverage Report"
+            echo "$heading"
             echo
             echo "${status} for commit ${COMMIT_SHA}."
             echo
             if [ -s "$table_file" ]; then
               echo '```'
-              head -c "$max_table_chars" "$table_file"
-              echo '```'
               if [ "$(wc -c < "$table_file")" -gt "$max_table_chars" ]; then
+                # Cut on a line boundary: drop the last, partial line so the fence closes.
+                head -c "$max_table_chars" "$table_file" | sed '$d'
+                echo '```'
                 echo
                 echo "_Output truncated. See the [workflow run](${RUN_URL}) for the full report._"
+              else
+                cat "$table_file"
+                echo '```'
               fi
             else
               echo "_No coverage table found in the test output. Ensure the \`text\` coverage reporter is enabled._"
@@ -171,6 +188,7 @@ jobs:
           COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
           COVERAGE_OUTCOME: ${{ steps.coverage.outcome }}
           GH_TOKEN: ${{ github.token }}
+          INPUTS_COMMENT_ID: ${{ inputs.comment-id }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
