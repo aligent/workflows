@@ -154,11 +154,36 @@ jobs:
           VERBOSE: ${{ inputs.debug && '--verbose' || '' }}
         run: |
           set -o pipefail
+          set +e
           aio app deploy${VERBOSE:+ $VERBOSE} 2>&1 | tee "$RUNNER_TEMP/aio-deploy.log"
-          if grep -qE 'Command failed with exit code [0-9]+:' "$RUNNER_TEMP/aio-deploy.log"; then
-            echo "::error title=aio app deploy::A pre-app-build or post-app-build hook failed; see the log above."
-            exit 1
+          DEPLOY_STATUS=${PIPESTATUS[0]}
+          set -e
+          LOG="$RUNNER_TEMP/aio-deploy.log"
+
+          if [ "$DEPLOY_STATUS" -eq 0 ] && ! grep -qE 'Command failed with exit code [0-9]+:' "$LOG"; then
+            exit 0
           fi
+
+          # aio-commerce-lib-app's post-app-deploy hook calls the App Management
+          # Service with the current IMS *user* token. CI authenticates with an
+          # OAuth Server-to-Server (technical account) token, so the service answers
+          # 403 `not-owner`. The hook runs after the actions are deployed and cannot
+          # undo the deploy, so tolerate exactly that failure and nothing else.
+          FAILED_HOOKS=$(grep -cE 'Command failed with exit code [0-9]+:' "$LOG" || true)
+          NOT_OWNER=$(grep -cE 'HTTP 403, code not-owner, GET /v1/workspaces/[0-9]+/extensions' "$LOG" || true)
+          DEPLOYED=$(grep -cE 'Deployed [0-9]+ action\(s\)' "$LOG" || true)
+
+          if [ "$FAILED_HOOKS" -gt 0 ] \
+            && [ "$FAILED_HOOKS" -eq "$NOT_OWNER" ] \
+            && [ "$DEPLOYED" -gt 0 ]; then
+            echo "::warning title=aio app deploy::Actions deployed, but the aio-commerce-lib-app post-app-deploy upgrade check was skipped (403 not-owner: it needs a user token, CI uses Server-to-Server credentials). Trigger any app upgrade manually."
+            exit 0
+          fi
+
+          if grep -qE 'Command failed with exit code [0-9]+:' "$LOG"; then
+            echo "::error title=aio app deploy::A pre-app-build or post-app-deploy hook failed; see the log above."
+          fi
+          exit "${DEPLOY_STATUS:-1}"
 
       - name: Backport to staging
         if: success() && inputs.create-backport-pr
