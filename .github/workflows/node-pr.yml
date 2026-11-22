@@ -38,6 +38,16 @@ on:
         description: "Command to override the test-storybook command"
         default: test-storybook
         type: string
+      playwright-browsers:
+        description: >-
+          Browsers to install for Storybook tests, separated by spaces (e.g. "chromium firefox").
+          By default, all of Playwright's default browsers are installed
+        default: ""
+        type: string
+      playwright-only-shell:
+        description: "Install a smaller, headless-only Chromium. Needs Playwright 1.49+"
+        default: false
+        type: boolean
       check-types-command:
         description: "Command to override the check-types command"
         default: check-types
@@ -297,14 +307,19 @@ jobs:
       - name: Install Playwright
         if: inputs.skip-test-storybook == false
         run: |
-          # Ensure playwright dependencies are installed before story blok test execution begins
+          # Install the browsers the Storybook test runner needs, with their system dependencies.
+          # INPUTS_PLAYWRIGHT_BROWSERS is unquoted so a list like "chromium firefox" is split
+          # into separate arguments.
           if [ "${INPUTS_PACKAGE_MANAGER}" = "yarn" ]; then
-            yarn playwright install --with-deps
+            yarn playwright install --with-deps ${FLAG_ONLY_SHELL} ${INPUTS_PLAYWRIGHT_BROWSERS}
           else
-            ${INPUTS_PACKAGE_MANAGER} exec -- playwright install --with-deps
+            ${INPUTS_PACKAGE_MANAGER} exec -- playwright install --with-deps \
+              ${FLAG_ONLY_SHELL} ${INPUTS_PLAYWRIGHT_BROWSERS}
           fi
         env:
+          FLAG_ONLY_SHELL: ${{ case(inputs.playwright-only-shell == true, '--only-shell', '') }}
           INPUTS_PACKAGE_MANAGER: ${{ inputs.package-manager }}
+          INPUTS_PLAYWRIGHT_BROWSERS: ${{ inputs.playwright-browsers }}
 
       - name: Run pre-test command
         if: inputs.pre-test-command != ''

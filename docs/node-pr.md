@@ -13,6 +13,8 @@
 | lint-command    | ❌      | string   | lint             | Command to override the lint command |
 | format-command  | ❌      | string   | format           | Command to override the format command |
 | test-storybook-command | ❌ | string | test-storybook | Command to override the test-storybook command |
+| playwright-browsers | ❌ | string |  | Browsers to install for Storybook tests, separated by spaces (e.g. `chromium firefox`). By default, all of Playwright's default browsers are installed |
+| playwright-only-shell | ❌ | boolean | false | Install a smaller, headless-only Chromium. Needs Playwright 1.49+ |
 | check-types-command | ❌ | string | check-types | Command to override the check-types command |
 | skip-build      | ❌      | boolean  | false            | If the build step should be skipped |
 | skip-test       | ❌      | boolean  | false            | If the test step should be skipped |
