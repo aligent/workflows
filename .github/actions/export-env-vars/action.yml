@@ -2,7 +2,7 @@ name: Export environment variables
 description: |
   Appends KEY=value lines (and KEY<<DELIM multiline blocks) to $GITHUB_ENV so later
   steps in the job can use them. With mask set to 'true', every value is masked before
-  it is exported.
+  it is exported. The names of the exported variables are listed in the action log.
   
   Warning: only pass trusted input, such as repository variables and secrets. The input
   can set any environment variable for later steps, including ones that run code
@@ -45,45 +45,52 @@ runs:
             "to silence this warning."
         fi
 
-        # Mask values here, before they reach $GITHUB_ENV, so they are already masked
-        # when later steps list the environment in their log headers.
-        # The runner still does the parsing; this only works out which text is a value,
-        # using the same rule as the runner: a line is KEY<<DELIM only if << comes before any =.
-        if [ "$INPUT_MASK" = "true" ]; then
-          awk '
-            # Emit an add-mask command, skipping blank or whitespace-only values.
-            # % is escaped because the runner decodes %25, %0D and %0A in add-mask values.
-            function mask(s) {
-              if (s ~ /[^[:space:]]/) {
-                gsub(/%/, "%25", s)
-                print "::add-mask::" s
-              }
+        # List the names (not values) of the variables in a collapsible log group and, if
+        # mask is true, mask the values. Masking happens here, before the values reach
+        # $GITHUB_ENV, so they are already masked when later steps list the environment in
+        # their log headers.
+        # The runner still does the parsing; this only works out which text is a name and
+        # which is a value, using the same rule as the runner: a line is KEY<<DELIM only if
+        # << comes before any =.
+        awk -v masking="$INPUT_MASK" '
+          # Emit an add-mask command if masking is on, skipping blank or whitespace-only values.
+          # % is escaped because the runner decodes %25, %0D and %0A in add-mask values.
+          function mask(s) {
+            if (masking == "true" && s ~ /[^[:space:]]/) {
+              gsub(/%/, "%25", s)
+              print "::add-mask::" s
             }
+          }
 
-            # Remove CRs, as they are removed from what is written to $GITHUB_ENV.
-            { gsub(/\r/, "") }
+          BEGIN { print "::group::Environment variables" }
 
-            # Inside a KEY<<DELIM block: mask each line whole (even if it contains =)
-            # until the closing delimiter, which is not masked.
-            delim != "" {
-              if ($0 == delim) delim = ""
-              else mask($0)
-              next
-            }
+          # Remove CRs, as they are removed from what is written to $GITHUB_ENV.
+          { gsub(/\r/, "") }
 
-            # KEY<<DELIM header: remember the delimiter; the header itself holds no value.
-            # [^=<]* stops at the first << and fails if an = comes before it.
-            match($0, /^[^=<]*<</) {
-              delim = substr($0, RLENGTH + 1)
-              next
-            }
+          # Inside a KEY<<DELIM block: mask each line whole (even if it contains =)
+          # until the closing delimiter, which is not masked.
+          delim != "" {
+            if ($0 == delim) delim = ""
+            else mask($0)
+            next
+          }
 
-            # KEY=value: mask everything after the first =.
-            index($0, "=") {
-              mask(substr($0, index($0, "=") + 1))
-            }
-          ' <<< "$INPUT_VALUE"
-        fi
+          # KEY<<DELIM header: print the name and remember the delimiter.
+          # [^=<]* stops at the first << and fails if an = comes before it.
+          match($0, /^[^=<]*<</) {
+            print substr($0, 1, RLENGTH - 2)
+            delim = substr($0, RLENGTH + 1)
+            next
+          }
+
+          # KEY=value: print the name and mask everything after the first =.
+          index($0, "=") {
+            print substr($0, 1, index($0, "=") - 1)
+            mask(substr($0, index($0, "=") + 1))
+          }
+
+          END { print "::endgroup::" }
+        ' <<< "$INPUT_VALUE"
 
         # Writing to $GITHUB_ENV lets the input set any variable for later steps, including
         # ones that run code (BASH_ENV, LD_PRELOAD, NODE_OPTIONS), which is why zizmor flags
