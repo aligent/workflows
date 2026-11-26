@@ -76,8 +76,9 @@ runs:
           }
 
           # KEY<<DELIM header: print the name and remember the delimiter.
-          # [^=<]* stops at the first << and fails if an = comes before it.
-          match($0, /^[^=<]*<</) {
+          # Matches up to the first <<, and only if no = comes before it: each repeat takes
+          # a character other than = or <, or a single < followed by one, so it cannot pass a <<.
+          match($0, /^([^=<]|<[^=<])*<</) {
             print substr($0, 1, RLENGTH - 2)
             delim = substr($0, RLENGTH + 1)
             next
