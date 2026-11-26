@@ -72,7 +72,8 @@ runs:
             }
 
             # KEY<<DELIM header: remember the delimiter; the header itself holds no value.
-            match($0, /^[^=]*<</) && index(substr($0, 1, RLENGTH), "=") == 0 {
+            # [^=<]* stops at the first << and fails if an = comes before it.
+            match($0, /^[^=<]*<</) {
               delim = substr($0, RLENGTH + 1)
               next
             }
