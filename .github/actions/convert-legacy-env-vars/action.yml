@@ -67,7 +67,9 @@ runs:
 
           # KEY<<DELIM header (<< before any =, the same rule as the runner):
           # finish the current variable, then pass the block through.
-          match($0, /^[^=]*<</) && index(substr($0, 1, RLENGTH), "=") == 0 {
+          # Matches up to the first <<, and only if no = comes before it: each repeat takes
+          # a character other than = or <, or a single < followed by one, so it cannot pass a <<.
+          match($0, /^([^=<]|<[^=<])*<</) {
             flush()
             print
             block = substr($0, RLENGTH + 1)
